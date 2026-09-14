@@ -68,6 +68,7 @@ Mitigations, all of which matter:
 | Conflict | Ruling |
 |---|---|
 | Picker's film loses the vote | Can't happen — all nominees are theirs. They lose *which* film, never their turn. |
+| All nominees get vetoed | Picker keeps their turn and nominates again — never a vote with zero nominees. Same principle as losing a vote: the picker only ever loses *which* film. |
 | Night gets cancelled | A cancelled night does not consume a turn. Picker keeps it. |
 | Nobody confirms whether it happened | Auto-advance after 48h, but flagged **unconfirmed** in history. Never silently advance as if confirmed — history integrity is what makes the rotation trustworthy. |
 | Someone misses their turn (travel, illness) | Pushed to the front of next week, not skipped. Visible in the queue as "postponed." |
@@ -77,6 +78,11 @@ Mitigations, all of which matter:
 | Club goes dormant | After two missed nights, tone shifts from reminder to offramp: "want to pause the season?" A pause button is a retention feature; nagging is a churn feature. |
 | Member leaves the club | History preserved, their picks remain in the record. On explicit request, anonymize rather than delete — deleting rewrites everyone else's memories. |
 | Someone belongs to three clubs | Notifications de-duplicate across clubs; hard weekly cap applies per person, not per club. |
+| Who can see club history | Everyone, the same view. No admin-only history, no hidden data. |
+| Vote attribution after lock | Live counts are visible during voting. Once the night is over, only the tally survives ("won 4-1") — who voted for what is dropped. |
+| The vetoer's name, after the night is over | Named at the time so a veto reads as a boundary, not sabotage. Anonymised once it's history. |
+| Watchlist edits | Never an event. Adding or removing a film is never logged anywhere club-visible. |
+| Aggregate attendance across nights | Never stored or shown as a figure or percentage per member — it rebuilds the ranked attendance list we already ruled out, by a different route. Per-night attendance is fine. |
 
 ### 1.4 The notification budget
 
@@ -120,7 +126,7 @@ Design principles specific to this product:
 clubs            id, name, cadence, default_day, default_time, timezone,
                  mode (in_person|remote), theme, created_at
 memberships      id, club_id, user_id, display_name, joined_at,
-                 left_at, role
+                 left_at, role, postponed_at
 users            id, email, avatar, created_at
 films            id, tmdb_id, title, year, runtime, poster_path,
                  genres[], cached_at
@@ -141,7 +147,7 @@ ratings          id, night_id, membership_id, score_quality,
 seasons          id, club_id, started_at, ended_at
 ```
 
-**Rotation is computed, not stored.** `ORDER BY last_picked_at ASC NULLS FIRST` over active memberships, with postponements as an override column. Storing a pointer means every skip, join, leave, and pause becomes a migration problem; computing it means those are all just queries.
+**Rotation is computed, not stored.** Postponement lives on `memberships.postponed_at`, not as a night state — a night can be cancelled for reasons that have nothing to do with its picker, so the two are independent columns on independent rows. `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST` over active memberships. Storing a pointer means every skip, join, leave, and pause becomes a migration problem; computing it means those are all just queries.
 
 **Constraint evaluation** runs at nomination time and again at lock, against the set of yes-RSVPs. Cache the resulting eligible-genre set on the night row so the UI doesn't recompute per request.
 

@@ -124,13 +124,23 @@ Agreed across the board, with one caution: **every setting is a decision you're 
 | Nomination deadline | 1–7 days before | 3 days |
 | Lock time | 1–72h before | 24h |
 | Confirmation prompt | morning after / same night / 2 days / manual only / off | morning after |
-| Auto-advance if unconfirmed | 24h / 48h / 7 days / never | 48h |
+| Auto-advance if unconfirmed | 24h / 48h / 7 days | 48h |
 | Picking method | democratic / picker's choice / weighted picker (1.5× or 2×) / random from nominees | democratic |
 | Vote visibility | live / hidden until lock | live |
 | Nominees per turn | 1–5 | 3 |
 | Veto tokens per season | 0–5 | 2 |
 | Attendance display | off / streaks only / top attendees | off (private), streaks (public) |
 | Cadence | weekly / biweekly / monthly / ad hoc | weekly |
+
+**Vetoes**, distinct from hard limits. A hard limit excludes a film
+automatically and costs nothing; a veto is a discretionary call that removes
+one nominee from the slate and costs a token. It does not cancel the round —
+the picker is notified and may substitute another film if the nomination
+deadline hasn't passed, otherwise voting continues with what's left. If every
+nominee on a slate gets vetoed, the picker keeps their turn and nominates
+again, same as losing a vote outright: they only ever lose *which* film. No
+vetoes after lock. Vetoes are public, with the vetoer named — a visible veto
+reads as a boundary, an anonymous one reads as sabotage.
 
 **Notification channel** is a personal setting, not a club setting — it's the individual's phone. Options: push / email / both / none, with a per-club mute. Someone in three clubs must be able to go quiet in one without leaving it.
 
