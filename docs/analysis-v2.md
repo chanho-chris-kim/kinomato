@@ -128,13 +128,15 @@ Agreed across the board, with one caution: **every setting is a decision you're 
 | Picking method | democratic / picker's choice / weighted picker (1.5× or 2×) / random from nominees | democratic |
 | Vote visibility | live / hidden until lock | live |
 | Nominees per turn | 1–5 | 3 |
-| Veto tokens per season | 0–5 | 2 |
+| Veto tokens per person per season | 0–5 | 2 |
 | Attendance display | off / streaks only / top attendees | off (private), streaks (public) |
 | Cadence | weekly / biweekly / monthly / ad hoc | weekly |
 
 **Vetoes**, distinct from hard limits. A hard limit excludes a film
 automatically and costs nothing; a veto is a discretionary call that removes
-one nominee from the slate and costs a token. It does not cancel the round —
+one nominee from the slate and costs a token from that member's own pool —
+per person per season, the same shape as the two-hard-limit cap, never a
+pool shared across the club. It does not cancel the round —
 the picker is notified and may substitute another film if the nomination
 deadline hasn't passed, otherwise voting continues with what's left. If every
 nominee on a slate gets vetoed, the picker keeps their turn and nominates

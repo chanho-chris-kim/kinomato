@@ -52,13 +52,13 @@ This is the most interesting design problem in the product and also the most soc
 
 3. **Show the cost of the filter to the whole group, not to the person.** A quiet line on the nomination screen: *"Your club's limits currently exclude about 34% of films."* This makes the tradeoff legible without assigning blame. It rises when someone adds a limit, and people self-regulate.
 
-4. **Constraints scope to attendance.** Limits apply to members who RSVP'd yes. If the horror-averse member isn't coming this week, horror is eligible.
+4. **Constraints scope to attendance — asymmetrically.** A hard limit applies to everyone who has **not explicitly RSVP'd no.** No answer counts as attending — silently dropping an unanswered person's hard limit is how they end up watching the one thing they can't. A soft preference is the mirror image: it applies only to explicit yes-RSVPs, since it's advisory, not safety-critical. If the horror-averse member has explicitly said she's not coming this week, horror is eligible; if she just hasn't answered yet, it isn't.
 
-**The trap inside part 4.** This is a genuinely dangerous mechanic and needs handling with care. Scoping constraints to attendance creates two bad incentives: a group can quietly learn that "we get better options when Dana's out," and Dana can log in and see that the week she missed was the horror week. That's a friendship problem the app created.
+**The trap inside part 4.** This is a genuinely dangerous mechanic and needs handling with care. Scoping a hard limit to an explicit no creates two bad incentives: a group can quietly learn that "we get better options when Dana says she's out," and Dana can log in and see that the week she missed was the horror week. That's a friendship problem the app created.
 
 Mitigations, all of which matter:
 - **Never surface the causality.** The UI never says "horror unlocked because Dana is away." The pool just is what it is.
-- **Let members opt to have their limits always apply,** even in absentia — some people don't want the club watching things they'd have to skip, for spoiler or FOMO reasons. Default off, one toggle.
+- **Let members opt to have their limits always apply,** even after an explicit no — some people don't want the club watching things they'd have to skip, for spoiler or FOMO reasons. Default off, one toggle. This is also the only way a soft preference reaches beyond an explicit yes.
 - **Never show attendance as a leaderboard.** Attendance streaks as a private, positive stat are fine. A public ranking of who shows up least will end friendships and should not be built.
 
 **The RSVP-flip problem.** Dana RSVPs no, horror wins, then Dana can come after all. Rule: after lock, RSVP changes do not re-run the filter. Dana gets a plain message — this week is *Sorcerer*, no pressure either way — and the pick stands. Re-deciding after lock destroys the trustworthiness of the lock, which is worth more than any individual night.
@@ -79,8 +79,8 @@ Mitigations, all of which matter:
 | Member leaves the club | History preserved, their picks remain in the record. On explicit request, anonymize rather than delete — deleting rewrites everyone else's memories. |
 | Someone belongs to three clubs | Notifications de-duplicate across clubs; hard weekly cap applies per person, not per club. |
 | Who can see club history | Everyone, the same view. No admin-only history, no hidden data. |
-| Vote attribution after lock | Live counts are visible during voting. Once the night is over, only the tally survives ("won 4-1") — who voted for what is dropped. |
-| The vetoer's name, after the night is over | Named at the time so a veto reads as a boundary, not sabotage. Anonymised once it's history. |
+| Vote attribution after lock | Live counts are visible during voting, and a member can always see their own vote. Once the night is over, only the tally survives in shared history ("won 4-1") — `votes.membership_id` is retained (it's the audit trail, never deleted) but a single history-read module is the only thing permitted to read votes/vetoes, and it never joins to that column outside a member reading their own vote. |
+| The vetoer's name, after the night is over | Named at the time so a veto reads as a boundary, not sabotage. `vetoes.membership_id` is retained the same way — not deleted, just unreachable through the shared history-read module once the night closes. |
 | Watchlist edits | Never an event. Adding or removing a film is never logged anywhere club-visible. |
 | Aggregate attendance across nights | Never stored or shown as a figure or percentage per member — it rebuilds the ranked attendance list we already ruled out, by a different route. Per-night attendance is fine. |
 
@@ -124,15 +124,16 @@ Design principles specific to this product:
 
 ```
 clubs            id, name, cadence, default_day, default_time, timezone,
-                 mode (in_person|remote), theme, created_at
+                 mode (in_person|remote), theme, settings (jsonb),
+                 paused_at, created_at
 memberships      id, club_id, user_id, display_name, joined_at,
                  left_at, role, postponed_at
 users            id, email, avatar, created_at
 films            id, tmdb_id, title, year, runtime, poster_path,
-                 genres[], cached_at
+                 genres[], certification, cached_at
 watchlist_items  id, membership_id, film_id, added_at, note
 constraints      id, membership_id, kind (hard|soft), rule_type
-                 (genre|keyword|runtime|rating|language), value,
+                 (genre|keyword|runtime|language), value,
                  applies_when_absent (bool)
 nights           id, club_id, scheduled_at, host_membership_id,
                  picker_membership_id, state (draft|open|locked|
@@ -149,7 +150,13 @@ seasons          id, club_id, started_at, ended_at
 
 **Rotation is computed, not stored.** Postponement lives on `memberships.postponed_at`, not as a night state — a night can be cancelled for reasons that have nothing to do with its picker, so the two are independent columns on independent rows. `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST` over active memberships. Storing a pointer means every skip, join, leave, and pause becomes a migration problem; computing it means those are all just queries.
 
-**Constraint evaluation** runs at nomination time and again at lock, against the set of yes-RSVPs. Cache the resulting eligible-genre set on the night row so the UI doesn't recompute per request.
+**Constraint evaluation** runs at nomination time and again at lock. Hard limits evaluate against everyone who hasn't explicitly RSVP'd no (no answer counts as attending); soft preferences evaluate against explicit yes-RSVPs only. `applies_when_absent` overrides both, regardless of RSVP status. Cache the resulting eligible-genre set on the night row so the UI doesn't recompute per request.
+
+**`films.certification`** is not a member constraint — `rule_type` has no `rating` value. An age-rating ceiling (analysis-v2 §9, "PG-13 and below") is a club-level filter, enforced separately from the per-member hard/soft engine. TMDB sources certification per-country via `release_dates` and coverage is patchy — a missing value is nullable and must be treated as **unknown, never as allowed**, when the ceiling filter runs. Member-level rating preferences are an open question, not built now.
+
+**Attribution is retained, access is the control.** `votes.membership_id` and `vetoes.membership_id` are never nulled or deleted — they're the audit trail. A single history-read module is the only code path allowed to query `votes` and `vetoes`; it never selects `membership_id` except when a member is reading their own vote back. No other module queries those tables directly.
+
+**`clubs.settings`** holds the admin-flexibility table from analysis-v2 §2 (deadlines, lock time, confirmation prompt, auto-advance window, picking method, vote visibility, nominees per turn, veto tokens per person per season, attendance display, cadence) as one JSONB column, per the "not eight nullable fields" convention. **`clubs.paused_at`** is a nullable timestamp, same shape as `memberships.postponed_at` — non-null means the club (and its rotation) is paused.
 
 ### 3.3 Build phases
 

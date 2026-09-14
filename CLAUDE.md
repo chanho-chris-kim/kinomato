@@ -69,17 +69,23 @@ Do not quietly change these — they encode decisions that took a while to reach
   dead club.
 - **Constraints: hard vs soft.** Hard limits are never overridden and never voted
   on, capped at two per person. Soft preferences warn and break ties, never block.
-  Constraints scope to members who RSVP'd yes.
+  Scoping is asymmetric: a hard limit applies to everyone who has **not
+  explicitly RSVP'd no** — no answer counts as attending, because silently
+  dropping an unanswered person's hard limit is how they end up watching the
+  one thing they can't. A soft preference applies only to explicit
+  yes-RSVPs. `applies_when_absent` overrides both.
 - **Never surface constraint causality in the UI.** The eligible pool just is what
   it is. Never "horror unlocked because Dana is away."
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one
-  nominee from the slate and costs a token; it does not cancel the round. The
-  picker is notified and may substitute another film if the nomination deadline
-  hasn't passed, otherwise voting continues with what's left. If every nominee
-  is vetoed, the picker keeps their turn and nominates again — consistent with
-  "the picker never loses their turn, only which film." Vetoes are public, with
-  the vetoer named — an anonymous veto reads as sabotage, a named one reads as
-  a boundary. No vetoes after lock. A hard limit excludes automatically and
+  nominee from the slate and costs a token from that member's own pool (per
+  member per season, same shape as the two-hard-limit cap — never shared
+  club-wide). It does not cancel the round. The picker is notified and may
+  substitute another film if the nomination deadline hasn't passed, otherwise
+  voting continues with what's left. If every nominee is vetoed, the picker
+  keeps their turn and nominates again — consistent with "the picker never
+  loses their turn, only which film." Vetoes are public, with the vetoer
+  named — an anonymous veto reads as sabotage, a named one reads as a
+  boundary. No vetoes after lock. A hard limit excludes automatically and
   costs nothing; a veto is a choice and costs a token.
 - **No full attendance ranking, ever.** Top attendees or a personal streak only.
   A ranked list ending in last place is how you lose the member with a newborn.
@@ -88,15 +94,26 @@ Do not quietly change these — they encode decisions that took a while to reach
   no admin tier over data access. It contains every night (film, date, week
   number, picker, state including `cancelled` and `unconfirmed`), the final
   tally, both rating axes, hot takes, and who attended each individual night.
-  It does **not** contain, and must not be reconstructible from what's
-  stored: individual vote attribution after lock (live counts are visible
-  during voting; once the night is over, keep "won 4-1" and drop who voted
-  for what); the vetoer's name after the night ends (named live so a veto
-  reads as a boundary, anonymised once it's history); watchlist edits (adding
-  or removing a film is never a club-visible event); or any aggregate or
-  percentage attendance figure per member (per-night attendance is fine —
-  aggregating it rebuilds the ranked attendance list by another route).
-  History is a record of what the club did together, not what each member did.
+  It does **not** surface: individual vote attribution after lock (live
+  counts are visible during voting; once the night is over, keep "won 4-1"
+  and drop who voted for what); the vetoer's name after the night ends (named
+  live so a veto reads as a boundary, anonymised once it's history); watchlist
+  edits (adding or removing a film is never a club-visible event); or any
+  aggregate or percentage attendance figure per member (per-night attendance
+  is fine — aggregating it rebuilds the ranked attendance list by another
+  route). History is a record of what the club did together, not what each
+  member did.
+- **Attribution is retained, never deleted — access is the control.**
+  `votes.membership_id` and `vetoes.membership_id` persist permanently; they
+  are the audit trail and deletion would make debugging impossible. What
+  enforces the ruling above is a single history-read module that is
+  physically incapable of returning attribution — not a per-component
+  reminder to omit it. General history and the vetoer's identity after a
+  night closes go through that module and never see `membership_id`. The one
+  exception is a member reading their own vote back, which is a distinct
+  query path, not the shared history path. Every other read of votes or
+  vetoes goes through the same module — no direct queries against those
+  tables elsewhere in the codebase.
 - **Guest ratings stay club-local.** Only verified members' ratings enter public
   aggregates. This is the bot-resistance story and the data story.
 - **Two pushes per week per member, across all their clubs — not per club.**
@@ -150,17 +167,13 @@ and move on.
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through
   nomination or a vote?
+- **Member-level rating preferences.** The age-rating ceiling is a club-level
+  filter (`films.certification`). Whether an individual member can also set
+  their own rating preference, and if so whether it's hard or soft, isn't
+  ruled on.
 - **Postponement duration.** Is there a cap on how long a membership can sit
   postponed, or a separate "paused" status for a multi-month absence (parental
   leave, deployment) distinct from missing one week?
 - **Veto-exhaustion timing.** If every nominee gets vetoed close to the
   nomination deadline, does the picker get a deadline extension to
   re-nominate, or does the round proceed toward lock with nothing decided?
-- **Veto token pool scope.** The settings table's "Veto tokens per season" —
-  is that pool per member (like the two-hard-limit cap) or shared across the
-  whole club?
-- **How attribution actually gets scrubbed.** "Not reconstructible" (votes,
-  vetoer) is stronger than hiding it in the UI — `votes.membership_id` and
-  `vetoes.membership_id` are still sitting in the row otherwise. Does the
-  post-night job null the column out, or does attribution live in a separate
-  table that gets deleted/detached once the night closes?
