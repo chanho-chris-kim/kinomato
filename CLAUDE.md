@@ -87,16 +87,23 @@ Do not quietly change these — they encode decisions that took a while to reach
   never read by matching logic. "Sci-Fi" vs "Science Fiction" must never
   silently fail a hard limit — a hard limit that silently fails is the worst
   failure mode in the product. Language constraints stay on ISO 639-1 codes.
-- **Missing-data policy.** Unknown data fails **closed** where the gap could
-  cause harm, fails **open** where it's only inconvenient. Concretely: a null
-  `certification` is excluded by an age ceiling; empty/null `genre_ids`,
-  `keyword_ids`, or a null `original_language` are excluded by a matching
-  hard limit — if we can't confirm a film isn't the excluded thing, we don't
-  serve it. A null `runtime` is never excluded by a runtime limit — runtime
-  is logistics, not safety. Soft preferences never exclude on missing data,
-  or on anything else. Apply this test to the next ambiguous field instead
-  of asking for a fresh ruling: would getting it wrong hurt someone, or just
-  be mildly annoying?
+- **Missing-data policy has two axes.** Unknown data **about a film** fails
+  closed where the gap could cause harm, fails open where it's only
+  inconvenient. The test: *would getting this wrong hurt someone, or just
+  annoy them?* A null `certification` fails closed (age ceiling). Empty
+  `genre_ids`/`keyword_ids` fail closed — a body-horror limit protects
+  someone from distress, so if we can't confirm a film isn't the excluded
+  thing, we don't serve it. A null `runtime` or `original_language` fails
+  open — a subtitle limit only protects someone from mild tedium, same as
+  runtime being logistics, not safety. Soft preferences never fail closed
+  on missing data, or on anything else.
+  Unknown **system configuration** fails **loud**, never closed and never
+  silent. An unrecognized age-rating ceiling, or a film certification in a
+  rating scheme nothing maps, throws a descriptive error rather than
+  silently emptying the eligible pool — that's our bug, not a fact about
+  the film. Validate configuration values (e.g. a ceiling) at settings-write
+  time so this can't be stored in the first place; the throw is defense in
+  depth, not the primary guard.
 - **Never surface constraint causality in the UI.** The eligible pool just is what
   it is. Never "horror unlocked because Dana is away."
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one
@@ -194,6 +201,13 @@ and move on.
   filter (`films.certification`). Whether an individual member can also set
   their own rating preference, and if so whether it's hard or soft, isn't
   ruled on.
+- **Multi-country certification.** `films.certification` is one global value,
+  but TMDB certification is genuinely per-country. Deliberately deferred —
+  analysis-v2.md §9 keeps family mode out of v1 entirely, so nothing depends
+  on this yet, and the age-ceiling setting isn't exposed in any UI. When it
+  is built: a `film_certifications(film_id, country, certification)` table,
+  not a JSONB map — decided in advance so this doesn't need a fresh ruling
+  later, even though building it is still open.
 - **Postponement duration.** Is there a cap on how long a membership can sit
   postponed, or a separate "paused" status for a multi-month absence (parental
   leave, deployment) distinct from missing one week?

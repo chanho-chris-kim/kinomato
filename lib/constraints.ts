@@ -11,13 +11,16 @@
 // strings — "Sci-Fi" vs "Science Fiction" must never silently fail a hard
 // limit. Language constraints stay on ISO 639-1 codes.
 //
-// Missing-data policy (CLAUDE.md): unknown data fails closed where the
-// gap could cause harm, fails open where it's only inconvenient. Empty
-// genre_ids/keyword_ids or a null original_language are treated as a
-// match for a hard limit of that rule type — if we can't confirm a film
-// isn't the excluded thing, we don't serve it. A null runtime is never
-// treated as a match — runtime is logistics, not safety. Soft
-// preferences never fail closed on missing data, or on anything else.
+// Missing-data policy (CLAUDE.md): unknown data ABOUT A FILM fails closed
+// where the gap could cause harm, fails open where it's only inconvenient
+// — the test is "would getting this wrong hurt someone, or just annoy
+// them?" Empty genre_ids/keyword_ids are treated as a match for a
+// genre/keyword hard limit — a body-horror limit protects someone from
+// distress, so if we can't confirm a film isn't the excluded thing, we
+// don't serve it. A null runtime or original_language is never treated
+// as a match — a subtitle limit only protects someone from mild tedium,
+// same as runtime being logistics, not safety. Soft preferences never
+// fail closed on missing data, or on anything else.
 //
 // No 'rating' rule type — an age-rating ceiling is a club-level filter
 // (lib/ageCeiling.ts) on films.certification, not a member constraint.
@@ -110,12 +113,18 @@ function fieldIsUnknown(
   }
 }
 
+// Content fields fail closed on missing data for a hard limit — the harm
+// a hard limit prevents (distress, not tedium) is specific to what the
+// film contains. Runtime and language fail open: they're logistics and
+// mild inconvenience, never safety.
+const FAILS_CLOSED_RULE_TYPES: ConstraintRuleType[] = ["genre", "keyword"];
+
 // Missing-data policy: fails closed (treated as a match) for hard limits
-// on content fields, fails open for runtime (logistics, not safety) and
-// for soft preferences (never exclude on missing data, or anything else).
+// on content fields, fails open for runtime and language, and for soft
+// preferences (never exclude on missing data, or anything else).
 function unknownDataMatches(constraint: Constraint): boolean {
   if (constraint.kind === "soft") return false;
-  return constraint.ruleType !== "runtime";
+  return FAILS_CLOSED_RULE_TYPES.includes(constraint.ruleType);
 }
 
 function matchesKnownValue(

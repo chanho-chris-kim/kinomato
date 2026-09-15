@@ -3,21 +3,24 @@
 // §9, "PG-13 and below"), never a per-member constraint — there is no
 // 'rating' rule type.
 //
-// TMDB certification is per-country (release_dates returns one
-// certification per country a film released in). This module does not
-// know about country at all — the caller is responsible for resolving
-// each film's certification for the specific club's country (read from
-// clubs.settings alongside the ceiling itself) before calling this
-// function. films.certification is currently a single global column per
-// film, which cannot correctly serve clubs in different countries; that
-// gap is not solved here.
+// Multi-country certification is deliberately not solved here — see
+// CLAUDE.md's Open Questions. This module takes a plain certification
+// string per film and has no opinion on how the caller resolved it for
+// the club's country. The age-ceiling setting is not exposed in any UI
+// yet; with no ceiling configured (null), this is a no-op pass-through.
 //
-// Missing-data policy (CLAUDE.md): a null or unrecognized certification
-// fails CLOSED — if we can't confirm a film is at or under the ceiling,
-// we don't serve it. This only maps the MPAA ordering used in the US
-// (G, PG, PG-13, R, NC-17); other countries' rating systems aren't
-// mapped yet, so a non-US certification string will also fail closed
-// until they are.
+// Missing-data policy (CLAUDE.md) has two axes here:
+//   - A null certification is a FACT ABOUT THE FILM (TMDB has no data
+//     for it) — fails closed, excluded, same as any other harm-relevant
+//     unknown.
+//   - An unrecognized ceiling, or a non-null film certification in a
+//     rating scheme we haven't mapped, is SYSTEM CONFIGURATION we don't
+//     understand — our bug, not a fact about the film. That fails LOUD:
+//     it throws, rather than silently emptying the eligible pool the
+//     way an unrecognized-value-fails-closed policy would. Only the
+//     MPAA ordering (G/PG/PG-13/R/NC-17) is mapped; that's acceptable
+//     while the setting is unexposed, since an unmapped scheme is now a
+//     visible bug rather than a silent trap.
 
 export interface AgeCeilingFilm {
   id: string;
@@ -42,6 +45,13 @@ function rankOf(certification: string): number | null {
   return index === -1 ? null : index;
 }
 
+// Gate settings writes with this — reject an unsupported ceiling before
+// it's ever stored, so filterByAgeCeiling's throw below should never
+// actually fire against real club data.
+export function isValidCeiling(value: string): boolean {
+  return rankOf(value) !== null;
+}
+
 export function filterByAgeCeiling(
   input: FilterByAgeCeilingInput,
 ): FilterByAgeCeilingResult {
@@ -50,17 +60,35 @@ export function filterByAgeCeiling(
   }
 
   const ceilingRank = rankOf(input.ceiling);
+  if (ceilingRank === null) {
+    throw new Error(
+      `Unrecognized age-rating ceiling "${input.ceiling}". This is a ` +
+        "configuration bug, not a fact about any film — isValidCeiling() " +
+        "should have rejected it at settings-write time.",
+    );
+  }
+
   const eligible: AgeCeilingFilm[] = [];
   const excluded: AgeCeilingFilm[] = [];
 
   for (const film of input.films) {
-    const filmRank =
-      film.certification === null ? null : rankOf(film.certification);
-    // Unrecognized ceiling, or unknown/unrecognized film certification:
-    // fail closed.
-    const isEligible =
-      ceilingRank !== null && filmRank !== null && filmRank <= ceilingRank;
-    (isEligible ? eligible : excluded).push(film);
+    if (film.certification === null) {
+      // A fact about the film, not a system gap: fails closed.
+      excluded.push(film);
+      continue;
+    }
+    const filmRank = rankOf(film.certification);
+    if (filmRank === null) {
+      // A real, non-null certification we can't place on the MPAA
+      // ordering — an unmapped rating scheme. A gap in the system, not
+      // a fact about the film: fails loud, not closed.
+      throw new Error(
+        `Unmappable certification "${film.certification}" on film ` +
+          `${film.id}. Only the MPAA ordering (G/PG/PG-13/R/NC-17) is ` +
+          "mapped; this rating scheme isn't supported yet.",
+      );
+    }
+    (filmRank <= ceilingRank ? eligible : excluded).push(film);
   }
 
   return { eligible, excluded };

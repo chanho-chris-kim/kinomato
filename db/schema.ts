@@ -151,11 +151,10 @@ export const films = pgTable("films", {
   keywordIds: integer("keyword_ids").array().notNull().default([]),
   // Nullable and expected to be patchy (TMDB sources it per-country via
   // release_dates). A missing value means unknown, never "allowed" — the
-  // club-level age-rating ceiling filter must treat null as excluded.
-  // KNOWN GAP: this is one global value per film, but certification is
-  // genuinely per-country. Two clubs in different countries nominating
-  // the same film will get the same (possibly wrong-for-them) value.
-  // Not solved here — see the note in lib/ageCeiling.ts.
+  // club-level age-rating ceiling filter treats null as excluded.
+  // One global value per film — multi-country certification is
+  // deliberately deferred (CLAUDE.md Open Questions), not built. Nothing
+  // depends on this yet: the age-ceiling setting isn't exposed in any UI.
   certification: text("certification"),
   directors: text("directors").array().notNull().default([]),
   cast: text("cast").array().notNull().default([]), // top 5

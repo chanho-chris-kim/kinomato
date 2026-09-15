@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { filterByAgeCeiling, type AgeCeilingFilm } from "./ageCeiling";
+import {
+  filterByAgeCeiling,
+  isValidCeiling,
+  type AgeCeilingFilm,
+} from "./ageCeiling";
 
 function film(id: string, certification: string | null): AgeCeilingFilm {
   return { id, certification };
@@ -40,22 +44,13 @@ describe("filterByAgeCeiling", () => {
     expect(result.excluded.map((f) => f.id)).toEqual(["r"]);
   });
 
-  it("excludes a film with a null certification — missing data fails closed", () => {
+  it("excludes a film with a null certification — a fact about the film fails closed", () => {
     const result = filterByAgeCeiling({
       films: [film("unknown", null)],
       ceiling: "PG-13",
     });
     expect(result.eligible).toEqual([]);
     expect(result.excluded.map((f) => f.id)).toEqual(["unknown"]);
-  });
-
-  it("excludes a film with an unrecognized certification string — fails closed, same as unknown", () => {
-    const result = filterByAgeCeiling({
-      films: [film("unrated", "Not Rated")],
-      ceiling: "PG-13",
-    });
-    expect(result.eligible).toEqual([]);
-    expect(result.excluded.map((f) => f.id)).toEqual(["unrated"]);
   });
 
   it("filters correctly at the strictest ceiling", () => {
@@ -74,12 +69,38 @@ describe("filterByAgeCeiling", () => {
     expect(result.eligible.map((f) => f.id)).toEqual(["lowercase"]);
   });
 
-  it("excludes everything when the ceiling itself is unrecognized — fails closed defensively", () => {
-    const result = filterByAgeCeiling({
-      films: [film("g", "G")],
-      ceiling: "some-unmapped-country-rating",
-    });
-    expect(result.eligible).toEqual([]);
-    expect(result.excluded.map((f) => f.id)).toEqual(["g"]);
+  it("throws on an unrecognized ceiling — a configuration bug fails loud, not closed", () => {
+    expect(() =>
+      filterByAgeCeiling({
+        films: [film("g", "G")],
+        ceiling: "some-unmapped-country-rating",
+      }),
+    ).toThrow(/unrecognized age-rating ceiling/i);
+  });
+
+  it("throws on a film with a non-null certification in an unmapped scheme", () => {
+    expect(() =>
+      filterByAgeCeiling({
+        films: [film("uk-film", "15")], // BBFC, not MPAA
+        ceiling: "PG-13",
+      }),
+    ).toThrow(/unmappable certification/i);
+  });
+});
+
+describe("isValidCeiling", () => {
+  it("accepts every MPAA rating", () => {
+    for (const rating of ["G", "PG", "PG-13", "R", "NC-17"]) {
+      expect(isValidCeiling(rating)).toBe(true);
+    }
+  });
+
+  it("accepts case-insensitively, matching filterByAgeCeiling's own matching", () => {
+    expect(isValidCeiling("pg-13")).toBe(true);
+  });
+
+  it("rejects an unrecognized value", () => {
+    expect(isValidCeiling("15")).toBe(false);
+    expect(isValidCeiling("Not Rated")).toBe(false);
   });
 });

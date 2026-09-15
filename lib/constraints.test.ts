@@ -210,14 +210,16 @@ describe("filterEligibleFilms — hard limits", () => {
       expect(result.eligible).toEqual([]);
     });
 
-    it("excludes a film with null originalLanguage when a language hard limit is active", () => {
+    it("does NOT exclude a film with null originalLanguage when a language hard limit is active", () => {
       const unknownLanguage = film("unknown-language", { originalLanguage: null });
       const result = filterEligibleFilms({
         films: [unknownLanguage],
         constraints: [constraint("dana", { ruleType: "language", value: "fr" })],
         rsvps: [YES("dana")],
       });
-      expect(result.eligible).toEqual([]);
+      // A subtitle limit protects someone from mild tedium, not distress
+      // — missing data fails open, same as runtime.
+      expect(result.eligible.map((f) => f.id)).toEqual(["unknown-language"]);
     });
 
     it("does NOT exclude a film with null runtime when a runtime hard limit is active", () => {
