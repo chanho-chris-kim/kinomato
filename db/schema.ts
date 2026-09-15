@@ -12,6 +12,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -292,7 +293,19 @@ export const votes = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("votes_nomination_id_idx").on(table.nominationId)],
+  (table) => [
+    index("votes_nomination_id_idx").on(table.nominationId),
+    // A member can only vote once for a given nominee. "One vote per
+    // night, movable" is enforced in the vote server action (delete any
+    // existing vote for this membership across the night's other
+    // nominations, then insert), not by a constraint here — a night has
+    // several nominations, so that rule can't be a single-table unique
+    // index.
+    unique("votes_nomination_id_membership_id_unique").on(
+      table.nominationId,
+      table.membershipId,
+    ),
+  ],
 );
 
 export const rsvps = pgTable(
@@ -310,7 +323,15 @@ export const rsvps = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("rsvps_night_id_idx").on(table.nightId)],
+  (table) => [
+    index("rsvps_night_id_idx").on(table.nightId),
+    // One RSVP row per member per night — the RSVP action upserts on
+    // this.
+    unique("rsvps_night_id_membership_id_unique").on(
+      table.nightId,
+      table.membershipId,
+    ),
+  ],
 );
 
 // Same retention rule as votes: membershipId (the vetoer) is never

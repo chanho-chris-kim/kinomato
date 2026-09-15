@@ -1,0 +1,2 @@
+ALTER TABLE "rsvps" ADD CONSTRAINT "rsvps_night_id_membership_id_unique" UNIQUE("night_id","membership_id");--> statement-breakpoint
+ALTER TABLE "votes" ADD CONSTRAINT "votes_nomination_id_membership_id_unique" UNIQUE("nomination_id","membership_id");
