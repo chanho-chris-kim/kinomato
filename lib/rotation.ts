@@ -15,10 +15,13 @@ export type NightState =
 
 export interface RotationMembership {
   id: string;
-  // Null for guests (v0 has no auth). Guests get no rejoin carry-forward,
-  // since there's no stable identity to link an old membership to a new
-  // one.
-  userId: string | null;
+  // Stable per-club identity, always present: the user's id where there
+  // is one, otherwise a per-club token minted on first join and stored
+  // in the guest's invite cookie. This is what carry-forward keys on —
+  // not user_id — so a guest who rejoins with the same cookie can't jump
+  // the queue either. A guest who clears cookies gets a new identityKey
+  // and genuinely can't be matched; that's accepted, not handled.
+  identityKey: string;
   clubId: string;
   joinedAt: Date;
   leftAt: Date | null;
@@ -59,21 +62,20 @@ function rawLastPickedAt(
 
 // Leaving and rejoining isn't a way to jump the queue: a membership's
 // effective last_picked_at is the most recent pick across every prior
-// membership the same user held in this club, not just this row.
+// membership with the same identityKey in this club, not just this row.
+// This covers guests too, as long as their identityKey (cookie-backed)
+// survives the rejoin.
 function effectiveLastPickedAt(
   membership: RotationMembership,
   allMemberships: RotationMembership[],
   nights: RotationNight[],
 ): Date | null {
-  const candidates =
-    membership.userId === null
-      ? [membership]
-      : allMemberships.filter(
-          (m) =>
-            m.userId === membership.userId &&
-            m.clubId === membership.clubId &&
-            m.joinedAt.getTime() <= membership.joinedAt.getTime(),
-        );
+  const candidates = allMemberships.filter(
+    (m) =>
+      m.identityKey === membership.identityKey &&
+      m.clubId === membership.clubId &&
+      m.joinedAt.getTime() <= membership.joinedAt.getTime(),
+  );
 
   let max: Date | null = null;
   for (const candidate of candidates) {

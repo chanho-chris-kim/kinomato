@@ -109,6 +109,14 @@ export const memberships = pgTable(
       .references(() => clubs.id),
     // Nullable: v0 has no auth, guests have no users row.
     userId: uuid("user_id").references(() => users.id),
+    // Stable per-club identity for rotation carry-forward: the user's id
+    // where there is one, otherwise a per-club token minted on first join
+    // and stored in the guest's invite cookie. Always present, unlike
+    // userId — this is what closes the "leave and rejoin as a fresh
+    // guest to skip the queue" hole. A guest who clears cookies gets a
+    // new identityKey and genuinely can't be matched; accepted, not
+    // handled.
+    identityKey: text("identity_key").notNull(),
     displayName: text("display_name").notNull(),
     role: membershipRoleEnum("role").notNull().default("member"),
     joinedAt: timestamp("joined_at", { withTimezone: true })
@@ -119,7 +127,13 @@ export const memberships = pgTable(
     // means this member is at the front of the queue, waiting to pick.
     postponedAt: timestamp("postponed_at", { withTimezone: true }),
   },
-  (table) => [index("memberships_club_id_idx").on(table.clubId)],
+  (table) => [
+    index("memberships_club_id_idx").on(table.clubId),
+    index("memberships_club_id_identity_key_idx").on(
+      table.clubId,
+      table.identityKey,
+    ),
+  ],
 );
 
 export const films = pgTable("films", {

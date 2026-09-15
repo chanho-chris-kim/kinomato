@@ -14,7 +14,7 @@ function membership(
 ): RotationMembership {
   return {
     id,
-    userId: id,
+    identityKey: id,
     clubId: CLUB,
     joinedAt: new Date("2026-01-01T00:00:00Z"),
     leftAt: null,
@@ -126,16 +126,16 @@ describe("getRotationOrder", () => {
     expect(order).toEqual([]);
   });
 
-  it("carries last_picked_at forward to a rejoined membership, same user", () => {
-    // user "x" picked recently under their old (left) membership, then left
+  it("carries last_picked_at forward to a rejoined membership, same identity", () => {
+    // "x" picked recently under their old (left) membership, then left
     // and rejoined. The new membership must not jump the queue.
     const oldMembership = membership("old", {
-      userId: "x",
+      identityKey: "x",
       joinedAt: new Date("2026-01-01"),
       leftAt: new Date("2026-02-01"),
     });
     const rejoined = membership("new", {
-      userId: "x",
+      identityKey: "x",
       joinedAt: new Date("2026-03-01"),
       leftAt: null,
     });
@@ -155,13 +155,37 @@ describe("getRotationOrder", () => {
     expect(order.map((m) => m.id)).toEqual(["c", "b", "new"]);
   });
 
-  it("does not carry last_picked_at forward for guests (no userId to link)", () => {
+  it("carries last_picked_at forward for a rejoining guest with the same cookie-backed identityKey", () => {
     const oldGuest = membership("old-guest", {
-      userId: null,
+      identityKey: "guest-cookie-abc",
+      joinedAt: new Date("2026-01-01"),
+      leftAt: new Date("2026-02-01"),
+    });
+    const rejoinedGuest = membership("new-guest", {
+      identityKey: "guest-cookie-abc", // same cookie survives the rejoin
+      joinedAt: new Date("2026-03-01"),
+      leftAt: null,
+    });
+    const neverPicked = membership("c", { joinedAt: new Date("2026-01-01") });
+
+    const order = getRotationOrder({
+      memberships: [oldGuest, rejoinedGuest, neverPicked],
+      nights: [night("old-guest", "2026-01-20")],
+    });
+
+    // neverPicked goes first; the rejoined guest still carries their old
+    // pick forward instead of jumping the queue as a "new" member.
+    expect(order.map((m) => m.id)).toEqual(["c", "new-guest"]);
+  });
+
+  it("does not carry last_picked_at forward when a guest's identityKey changes (e.g. cleared cookies)", () => {
+    const oldGuest = membership("old-guest", {
+      identityKey: "guest-cookie-abc",
+      joinedAt: new Date("2026-01-01"),
       leftAt: new Date("2026-02-01"),
     });
     const newGuest = membership("new-guest", {
-      userId: null,
+      identityKey: "guest-cookie-xyz", // different token — can't be matched
       joinedAt: new Date("2026-03-01"),
       leftAt: null,
     });
@@ -169,8 +193,8 @@ describe("getRotationOrder", () => {
       memberships: [oldGuest, newGuest],
       nights: [night("old-guest", "2026-01-20")],
     });
-    // newGuest has no pick history of its own and no userId to carry
-    // forward from, so it's a normal never-picked candidate.
+    // No link between the identities, so this is a normal never-picked
+    // candidate — genuinely indistinguishable from a brand-new member.
     expect(order.map((m) => m.id)).toEqual(["new-guest"]);
   });
 

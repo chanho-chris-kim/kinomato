@@ -53,11 +53,19 @@ Do not quietly change these — they encode decisions that took a while to reach
 
 - **Rotation is computed, never stored.** Postponement is a membership
   property, not a night state — `postponed_at` on `memberships`. Order:
-  `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST`
-  over active memberships. A cancelled night is independent of this — a
-  night can be cancelled for reasons that have nothing to do with the picker.
-  Storing a pointer turns every skip, join, leave and pause into a
-  migration problem.
+  `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST, joined_at ASC, id ASC`
+  over active memberships. The trailing `id ASC` isn't decoration — without
+  it, a tie is nondeterministic. A cancelled night is independent of this —
+  a night can be cancelled for reasons that have nothing to do with the
+  picker. Leaving and rejoining doesn't reset `last_picked_at` or let
+  anyone jump the queue: every membership carries a stable `identity_key`
+  (the user's id where there is one, otherwise a per-club token minted on
+  first join and stored in a guest's invite cookie), and a rejoined
+  membership inherits the most recent pick from any prior membership with
+  the same `identity_key` in that club. A guest who clears cookies gets a
+  new `identity_key` and can't be matched — accepted, not solved. Storing
+  a pointer turns every skip, join, leave and pause into a migration
+  problem.
 - **Lock is immovable.** After lock, RSVP changes do not re-run the constraint
   filter and the pick does not change. A lock people can't trust is worthless.
 - **A cancelled night does not consume a turn.** A lost vote does — but all

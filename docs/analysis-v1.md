@@ -126,8 +126,8 @@ Design principles specific to this product:
 clubs            id, name, cadence, default_day, default_time, timezone,
                  mode (in_person|remote), theme, settings (jsonb),
                  paused_at, created_at
-memberships      id, club_id, user_id, display_name, joined_at,
-                 left_at, role, postponed_at
+memberships      id, club_id, user_id, identity_key, display_name,
+                 joined_at, left_at, role, postponed_at
 users            id, email, avatar, created_at
 films            id, tmdb_id, title, year, runtime, poster_path,
                  genres[], certification, cached_at
@@ -148,7 +148,9 @@ ratings          id, night_id, membership_id, score_quality,
 seasons          id, club_id, started_at, ended_at
 ```
 
-**Rotation is computed, not stored.** Postponement lives on `memberships.postponed_at`, not as a night state — a night can be cancelled for reasons that have nothing to do with its picker, so the two are independent columns on independent rows. `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST` over active memberships. Storing a pointer means every skip, join, leave, and pause becomes a migration problem; computing it means those are all just queries.
+**Rotation is computed, not stored.** Postponement lives on `memberships.postponed_at`, not as a night state — a night can be cancelled for reasons that have nothing to do with its picker, so the two are independent columns on independent rows. `ORDER BY postponed_at IS NULL, postponed_at ASC, last_picked_at ASC NULLS FIRST, joined_at ASC, id ASC` over active memberships — the trailing `id ASC` exists so a tie is never nondeterministic. Storing a pointer means every skip, join, leave, and pause becomes a migration problem; computing it means those are all just queries.
+
+**`memberships.identity_key`** is a stable per-club identity, always present: the user's id where there is one, otherwise a per-club token minted on first join and stored in the guest's invite cookie. Rejoining creates a new membership row (no un-leave operation), but its effective `last_picked_at` carries forward from the most recent prior membership with the same `identity_key` in the same club — otherwise leaving and rejoining would be a way to jump the queue, and for a guest with no `user_id` it would do so silently. A guest who clears cookies gets a new `identity_key` and can't be matched back; that's accepted as rare, not solved with more machinery.
 
 **Constraint evaluation** runs at nomination time and again at lock. Hard limits evaluate against everyone who hasn't explicitly RSVP'd no (no answer counts as attending); soft preferences evaluate against explicit yes-RSVPs only. `applies_when_absent` overrides both, regardless of RSVP status. Cache the resulting eligible-genre set on the night row so the UI doesn't recompute per request.
 
