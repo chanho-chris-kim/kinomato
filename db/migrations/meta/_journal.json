@@ -15,6 +15,13 @@
       "when": 1789430902814,
       "tag": "0001_lean_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789436489976,
+      "tag": "0002_mighty_la_nuit",
+      "breakpoints": true
     }
   ]
 }

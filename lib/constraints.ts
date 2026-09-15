@@ -7,8 +7,20 @@
 // explicit yes-RSVPs, since it's advisory rather than safety-critical.
 // applies_when_absent overrides both, regardless of RSVP status.
 //
-// No 'rating' rule type — an age-rating ceiling is a club-level filter on
-// films.certification, not a member constraint.
+// Genre and keyword constraints match on TMDB ids, never on display
+// strings — "Sci-Fi" vs "Science Fiction" must never silently fail a hard
+// limit. Language constraints stay on ISO 639-1 codes.
+//
+// Missing-data policy (CLAUDE.md): unknown data fails closed where the
+// gap could cause harm, fails open where it's only inconvenient. Empty
+// genre_ids/keyword_ids or a null original_language are treated as a
+// match for a hard limit of that rule type — if we can't confirm a film
+// isn't the excluded thing, we don't serve it. A null runtime is never
+// treated as a match — runtime is logistics, not safety. Soft
+// preferences never fail closed on missing data, or on anything else.
+//
+// No 'rating' rule type — an age-rating ceiling is a club-level filter
+// (lib/ageCeiling.ts) on films.certification, not a member constraint.
 
 export type ConstraintKind = "hard" | "soft";
 export type ConstraintRuleType = "genre" | "keyword" | "runtime" | "language";
@@ -16,18 +28,26 @@ export type RsvpStatus = "yes" | "no";
 
 export interface ConstraintFilm {
   id: string;
-  genres: string[];
-  keywords: string[];
+  // Matching fields — TMDB ids, not the display strings below.
+  genreIds: number[];
+  keywordIds: number[];
   runtime: number | null; // minutes
-  originalLanguage: string | null;
+  originalLanguage: string | null; // ISO 639-1
+  // Display-only. Never read by matching logic.
+  genres?: string[];
+  keywords?: string[];
 }
 
 export interface Constraint {
   id: string;
   membershipId: string;
   kind: ConstraintKind;
-  ruleType: ConstraintRuleType;
+  // For genre/keyword: the TMDB id, as a string. For language: an ISO
+  // 639-1 code. For runtime: whole minutes, upper bound.
   value: string;
+  ruleType: ConstraintRuleType;
+  // UI-only. Never read by matching logic.
+  label?: string | null;
   appliesWhenAbsent: boolean;
 }
 
@@ -73,21 +93,56 @@ function constraintApplies(
   return rsvpStatus === "yes";
 }
 
-function matchesFilm(constraint: Constraint, film: ConstraintFilm): boolean {
-  const value = constraint.value.toLowerCase();
+// Whether the film's data for this rule type is missing/unknown.
+function fieldIsUnknown(
+  ruleType: ConstraintRuleType,
+  film: ConstraintFilm,
+): boolean {
+  switch (ruleType) {
+    case "genre":
+      return film.genreIds.length === 0;
+    case "keyword":
+      return film.keywordIds.length === 0;
+    case "language":
+      return film.originalLanguage === null;
+    case "runtime":
+      return film.runtime === null;
+  }
+}
+
+// Missing-data policy: fails closed (treated as a match) for hard limits
+// on content fields, fails open for runtime (logistics, not safety) and
+// for soft preferences (never exclude on missing data, or anything else).
+function unknownDataMatches(constraint: Constraint): boolean {
+  if (constraint.kind === "soft") return false;
+  return constraint.ruleType !== "runtime";
+}
+
+function matchesKnownValue(
+  constraint: Constraint,
+  film: ConstraintFilm,
+): boolean {
   switch (constraint.ruleType) {
     case "genre":
-      return film.genres.some((g) => g.toLowerCase() === value);
+      return film.genreIds.includes(Number(constraint.value));
     case "keyword":
-      return film.keywords.some((k) => k.toLowerCase() === value);
+      return film.keywordIds.includes(Number(constraint.value));
     case "language":
-      return film.originalLanguage?.toLowerCase() === value;
+      return (
+        film.originalLanguage?.toLowerCase() ===
+        constraint.value.toLowerCase()
+      );
     case "runtime":
       // Upper bound in whole minutes, e.g. "nothing over 150 minutes".
-      // An unknown runtime never triggers the limit — we can't exclude
-      // what we don't know violates it.
       return film.runtime !== null && film.runtime > Number(constraint.value);
   }
+}
+
+function matchesFilm(constraint: Constraint, film: ConstraintFilm): boolean {
+  if (fieldIsUnknown(constraint.ruleType, film)) {
+    return unknownDataMatches(constraint);
+  }
+  return matchesKnownValue(constraint, film);
 }
 
 export function filterEligibleFilms(

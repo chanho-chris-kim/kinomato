@@ -82,6 +82,21 @@ Do not quietly change these — they encode decisions that took a while to reach
   dropping an unanswered person's hard limit is how they end up watching the
   one thing they can't. A soft preference applies only to explicit
   yes-RSVPs. `applies_when_absent` overrides both.
+- **Genre and keyword constraints match on TMDB ids, never display strings.**
+  `constraints.value` holds the id; `constraints.label` is a UI-only copy,
+  never read by matching logic. "Sci-Fi" vs "Science Fiction" must never
+  silently fail a hard limit — a hard limit that silently fails is the worst
+  failure mode in the product. Language constraints stay on ISO 639-1 codes.
+- **Missing-data policy.** Unknown data fails **closed** where the gap could
+  cause harm, fails **open** where it's only inconvenient. Concretely: a null
+  `certification` is excluded by an age ceiling; empty/null `genre_ids`,
+  `keyword_ids`, or a null `original_language` are excluded by a matching
+  hard limit — if we can't confirm a film isn't the excluded thing, we don't
+  serve it. A null `runtime` is never excluded by a runtime limit — runtime
+  is logistics, not safety. Soft preferences never exclude on missing data,
+  or on anything else. Apply this test to the next ambiguous field instead
+  of asking for a fresh ruling: would getting it wrong hurt someone, or just
+  be mildly annoying?
 - **Never surface constraint causality in the UI.** The eligible pool just is what
   it is. Never "horror unlocked because Dana is away."
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one

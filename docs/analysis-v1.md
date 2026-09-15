@@ -130,10 +130,10 @@ memberships      id, club_id, user_id, identity_key, display_name,
                  joined_at, left_at, role, postponed_at
 users            id, email, avatar, created_at
 films            id, tmdb_id, title, year, runtime, poster_path,
-                 genres[], certification, cached_at
+                 genres[], genre_ids[], certification, cached_at
 watchlist_items  id, membership_id, film_id, added_at, note
 constraints      id, membership_id, kind (hard|soft), rule_type
-                 (genre|keyword|runtime|language), value,
+                 (genre|keyword|runtime|language), value, label,
                  applies_when_absent (bool)
 nights           id, club_id, scheduled_at, host_membership_id,
                  picker_membership_id, state (draft|open|locked|
@@ -153,6 +153,8 @@ seasons          id, club_id, started_at, ended_at
 **`memberships.identity_key`** is a stable per-club identity, always present: the user's id where there is one, otherwise a per-club token minted on first join and stored in the guest's invite cookie. Rejoining creates a new membership row (no un-leave operation), but its effective `last_picked_at` carries forward from the most recent prior membership with the same `identity_key` in the same club — otherwise leaving and rejoining would be a way to jump the queue, and for a guest with no `user_id` it would do so silently. A guest who clears cookies gets a new `identity_key` and can't be matched back; that's accepted as rare, not solved with more machinery.
 
 **Constraint evaluation** runs at nomination time and again at lock. Hard limits evaluate against everyone who hasn't explicitly RSVP'd no (no answer counts as attending); soft preferences evaluate against explicit yes-RSVPs only. `applies_when_absent` overrides both, regardless of RSVP status. Cache the resulting eligible-genre set on the night row so the UI doesn't recompute per request.
+
+**Genre and keyword constraints match on TMDB ids, never on display strings.** `constraints.value` holds the id (as text); `constraints.label` is a UI-only copy for rendering and is never read by matching logic. "Sci-Fi" vs "Science Fiction" must never silently fail a hard limit — a hard limit that silently fails is the worst failure mode in the product. Language constraints stay on ISO 639-1 codes, not ids.
 
 **`films.certification`** is not a member constraint — `rule_type` has no `rating` value. An age-rating ceiling (analysis-v2 §9, "PG-13 and below") is a club-level filter, enforced separately from the per-member hard/soft engine. TMDB sources certification per-country via `release_dates` and coverage is patchy — a missing value is nullable and must be treated as **unknown, never as allowed**, when the ceiling filter runs. Member-level rating preferences are an open question, not built now.
 

@@ -143,14 +143,23 @@ export const films = pgTable("films", {
   year: integer("year").notNull(),
   runtime: integer("runtime"), // minutes
   posterPath: text("poster_path"),
-  genres: text("genres").array().notNull().default([]),
+  genres: text("genres").array().notNull().default([]), // display strings
+  // TMDB genre/keyword ids, for matching. Constraint values match on
+  // these, never on the display strings above — "Sci-Fi" vs "Science
+  // Fiction" must never silently fail a hard limit.
+  genreIds: integer("genre_ids").array().notNull().default([]),
+  keywordIds: integer("keyword_ids").array().notNull().default([]),
   // Nullable and expected to be patchy (TMDB sources it per-country via
   // release_dates). A missing value means unknown, never "allowed" — the
   // club-level age-rating ceiling filter must treat null as excluded.
+  // KNOWN GAP: this is one global value per film, but certification is
+  // genuinely per-country. Two clubs in different countries nominating
+  // the same film will get the same (possibly wrong-for-them) value.
+  // Not solved here — see the note in lib/ageCeiling.ts.
   certification: text("certification"),
   directors: text("directors").array().notNull().default([]),
   cast: text("cast").array().notNull().default([]), // top 5
-  keywords: text("keywords").array().notNull().default([]),
+  keywords: text("keywords").array().notNull().default([]), // display strings
   primaryGenre: text("primary_genre"),
   country: text("country"),
   originalLanguage: text("original_language"),
@@ -193,9 +202,16 @@ export const constraints = pgTable(
       .references(() => memberships.id),
     kind: constraintKindEnum("kind").notNull(),
     ruleType: constraintRuleTypeEnum("rule_type").notNull(),
+    // For genre/keyword: the TMDB id, as text (matching is on ids only,
+    // never display strings). For language: an ISO 639-1 code. For
+    // runtime: whole minutes, upper bound.
     value: text("value").notNull(),
-    // Default false: constraints scope to yes-RSVPs. True opts a member's
-    // limits into applying even when they're not coming.
+    // UI-only. Genre/keyword matching never reads this — it exists so
+    // the UI doesn't have to look the id back up to render a label.
+    label: text("label"),
+    // Default false. Hard limits apply unless the member explicitly
+    // RSVP'd no; soft preferences apply only to an explicit yes. This
+    // overrides both regardless of RSVP status.
     appliesWhenAbsent: boolean("applies_when_absent").notNull().default(false),
   },
   (table) => [index("constraints_membership_id_idx").on(table.membershipId)],

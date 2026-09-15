@@ -152,7 +152,7 @@ Practical approach: derive what you can, pull the rest from Wikidata, and **fall
 Additions to the v2 schema:
 
 ```
-films            + directors[], cast[] (top 5), keywords[],
+films            + directors[], cast[] (top 5), keywords[], keyword_ids[],
                    primary_genre, country, original_language,
                    release_date, budget, revenue
 watchlist_items  + note, tags[]
