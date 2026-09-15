@@ -208,9 +208,28 @@ and move on.
   is built: a `film_certifications(film_id, country, certification)` table,
   not a JSONB map — decided in advance so this doesn't need a fresh ruling
   later, even though building it is still open.
+- **Certification strings, CA and US.** The MPAA mapping in
+  `lib/ageCeiling.ts` only covers G/PG/PG-13/R/NC-17. Canada has no
+  national rating system — ratings are provincial, and BC, Ontario,
+  Quebec, and the Maritimes all differ — while TMDB returns the country
+  code "CA" without saying which board issued the rating. Establish what
+  TMDB actually returns for CA before building the mapping; note that
+  Quebec's system differs from BC's, so "CA" alone may not be enough to
+  resolve a single scheme.
 - **Postponement duration.** Is there a cap on how long a membership can sit
   postponed, or a separate "paused" status for a multi-month absence (parental
   leave, deployment) distinct from missing one week?
 - **Veto-exhaustion timing.** If every nominee gets vetoed close to the
   nomination deadline, does the picker get a deadline extension to
   re-nominate, or does the round proceed toward lock with nothing decided?
+- **Legal review before any public launch.** Three distinct areas, none of
+  which block v0 with six friends — all of which block a public launch:
+  (1) TMDB terms — attribution wording, the commercial-use threshold, and
+  their prohibition on use in AI/ML training; (2) privacy — PIPEDA and BC
+  PIPA federally/provincially, plus VPPA exposure in the US for anything
+  touching viewing data. Already partly designed for (aggregate-only,
+  opt-in, no third-party pixels — analysis-v2.md §1.5) but never reviewed;
+  (3) a data-usage policy and terms of service that actually match the
+  consent architecture built, not boilerplate. The privacy architecture
+  has to be right before there's data to migrate — this can't be
+  retrofitted later the way some other things can.
