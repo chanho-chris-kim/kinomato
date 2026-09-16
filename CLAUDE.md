@@ -178,6 +178,13 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Pure logic in `lib/`, tested in isolation. UI components stay dumb.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
+- CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every
+  push and on PRs to `main` — no database needed, `lib/` tests are pure.
+  `npm run check` runs the same three locally; the pre-push hook runs it
+  too, so a failure is caught before it reaches CI, not after.
+- No E2E yet, on purpose — the UI is still changing shape and rewriting
+  Playwright tests every session isn't worth it. Add it once the voting
+  flow stabilises, using a dedicated Neon branch seeded per run.
 
 ## How I'd like you to work
 
