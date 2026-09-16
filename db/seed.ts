@@ -5,7 +5,7 @@
 // local/dev database.
 //
 // Run with: npm run db:seed
-
+import "dotenv/config";
 import { db } from "./index";
 import {
   clubs,
