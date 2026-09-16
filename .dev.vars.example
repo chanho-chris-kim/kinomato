@@ -1,0 +1,2 @@
+NEXTJS_ENV=development
+DATABASE_URL=postgres://user:password@localhost:5432/kinomato

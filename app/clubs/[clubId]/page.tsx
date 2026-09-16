@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { clubs, films, memberships, nights, nominations, rsvps, votes } from "@/db/schema";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
 import { castVote, clearIdentity, pickIdentity, setRsvp } from "./actions";
@@ -15,6 +15,7 @@ export default async function ClubPage({
   params: Promise<{ clubId: string }>;
 }) {
   const { clubId } = await params;
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
   if (!club) {

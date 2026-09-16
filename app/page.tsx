@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { clubs } from "@/db/schema";
 
 // Live club list — never statically prerendered.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const allClubs = await db.select().from(clubs);
+  const allClubs = await getDb().select().from(clubs);
 
   return (
     <main className="p-4">

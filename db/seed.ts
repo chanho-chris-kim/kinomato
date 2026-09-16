@@ -4,9 +4,18 @@
 // through the first screen. Not meant to run against anything but a
 // local/dev database.
 //
+// Deliberately not importing db/index.ts's getDb() — that's the
+// neon-http driver built for the Worker runtime, request-scoped via
+// React's cache(), which doesn't apply here (this is a one-shot Node
+// script, not a request handler). A plain node-postgres client is what
+// drizzle-kit and this script both use, kept separate from the app's
+// runtime driver on purpose — see CLAUDE.md's Stack section.
+//
 // Run with: npm run db:seed
 import "dotenv/config";
-import { db } from "./index";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
 import {
   clubs,
   films,
@@ -21,6 +30,9 @@ import {
   votes,
   watchlistItems,
 } from "./schema";
+
+const client = postgres(process.env.DATABASE_URL!);
+const db = drizzle(client, { schema });
 
 const CLUB_ID = "11111111-1111-1111-1111-111111111111";
 

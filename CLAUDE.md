@@ -30,8 +30,31 @@ another month over the thing that picks a film faster.
 ## Stack
 
 - Next.js (App Router), TypeScript, Tailwind
-- Postgres via Neon or Supabase, Drizzle for schema and migrations
-- Deployed on Vercel; Vercel Cron drives the scheduled jobs
+- Postgres via **Neon**, specifically. The deployed app's driver
+  (`@neondatabase/serverless` + `drizzle-orm/neon-http`) speaks Neon's HTTP
+  protocol, not the generic Postgres wire protocol — Supabase is no longer
+  a drop-in swap for the deployed app the way "Neon or Supabase" used to
+  imply. Local dev (`drizzle-kit`, `db/seed.ts`) still uses the plain node
+  `postgres` driver and can point at any Postgres, Neon or otherwise.
+- **Two DB drivers, deliberately — not a bug to unify later:**
+  - `db/index.ts` (`getDb()`) — `drizzle-orm/neon-http`, runs inside the
+    Cloudflare Worker. Request-scoped via React's `cache()`, never a
+    module-scope singleton: Workers doesn't allow reusing a connection
+    across requests, and a top-level client would work in local testing
+    and fail under real concurrent traffic. No `db.transaction()` —
+    neon-http throws "No transactions support" at runtime — use
+    `db.batch([...])` instead, which is atomic over one HTTP call, for
+    statements that don't need to read each other's results.
+  - `db/seed.ts` and `drizzle.config.ts` — plain `postgres` (node driver).
+    They run locally in Node, never in the Worker, and have no reason to
+    pay the HTTP-driver's restrictions.
+- Deployed on **Cloudflare Workers** via `@opennextjs/cloudflare`, not
+  Vercel — a deliberate choice: cost at scale, and the domain is already
+  on Cloudflare. The cost is adapter-layer risk on every Next.js release,
+  since OpenNext has to catch up to each one. `next.config.ts` runs
+  `initOpenNextCloudflareForDev()` so local dev behaves like the Worker.
+  Cloudflare Cron Triggers (`wrangler.jsonc`) replace Vercel Cron for
+  scheduled jobs, once there are any.
 - Auth: v0 has none — invite token in a cookie plus name selection.
   Magic links via Resend come in v1. Do not add auth infrastructure early.
 - Web Push (VAPID) with email fallback. No native app.
@@ -240,3 +263,13 @@ and move on.
   consent architecture built, not boilerplate. The privacy architecture
   has to be right before there's data to migrate — this can't be
   retrofitted later the way some other things can.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
