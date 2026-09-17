@@ -132,7 +132,7 @@ export default async function ClubPage({
   return (
     <main className="p-4">
       <h1 className="text-xl font-bold">{club.name}</h1>
-      <p className="mt-1">
+      <div className="mt-1">
         You are: {currentMembership.displayName}{" "}
         <form
           action={clearIdentity.bind(null, clubId)}
@@ -142,7 +142,7 @@ export default async function ClubPage({
             (switch)
           </button>
         </form>
-      </p>
+      </div>
 
       <h2 className="mt-4 font-semibold">Whose turn</h2>
       <p>{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>

@@ -1,9 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
 import { CLUB_ID, DISPLAY_NAME, FILM_TITLE } from "../db/seed-fixtures";
+import { collectConsoleErrors } from "./console-errors";
+import { expect, test } from "./fixtures";
 import {
   getNextPicker,
   type RotationMembership,
@@ -94,6 +96,10 @@ test.describe("voting flow", () => {
     try {
       const chrisPage = await chrisContext.newPage();
       const joPage = await joContext.newPage();
+      // The fixtures.ts auto-fixture only sees the default `page` — these
+      // are manually created, so they need their own collectors.
+      const chrisErrors = collectConsoleErrors(chrisPage);
+      const joErrors = collectConsoleErrors(joPage);
 
       await pickIdentity(chrisPage, DISPLAY_NAME.chris);
       await pickIdentity(joPage, DISPLAY_NAME.jo);
@@ -115,6 +121,9 @@ test.describe("voting flow", () => {
         chungkingBefore + 1,
       );
       expect(await voteCount(joPage, FILM_TITLE.theThing)).toBe(theThingBefore + 1);
+
+      expect(chrisErrors, `Chris's console:\n\n${chrisErrors.join("\n\n")}`).toEqual([]);
+      expect(joErrors, `Jo's console:\n\n${joErrors.join("\n\n")}`).toEqual([]);
     } finally {
       await chrisContext.close();
       await joContext.close();
