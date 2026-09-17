@@ -43,6 +43,10 @@ yarn-error.log*
 .open-next/
 .wrangler/
 
+# the kinomato.com holding page — a separate, hand-uploaded Cloudflare
+# project, not part of this app. See CLAUDE.md's Stack section.
+/kinomato-landing/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

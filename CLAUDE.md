@@ -55,6 +55,17 @@ another month over the thing that picks a film faster.
   `initOpenNextCloudflareForDev()` so local dev behaves like the Worker.
   Cloudflare Cron Triggers (`wrangler.jsonc`) replace Vercel Cron for
   scheduled jobs, once there are any.
+- **Two deployments, on purpose, until launch:**
+  - `kinomato.com` + `www` — a static holding page (Cloudflare project
+    `kinomato-landing`, hand-uploaded, not in this repo). Deliberately
+    decoupled so an app build can never take down the public domain.
+  - `dev.kinomato.com` — this app's Worker. Branch previews stay on
+    `*-kinomato.chris92529.workers.dev`.
+  At launch this collapses to one: build the real marketing page as the
+  app's root route, move the current dev club list to `/clubs`, then move
+  the `kinomato.com` custom domain from the landing project to the Worker
+  and delete the landing project. The holding page is scaffolding — it
+  does not get promoted.
 - Auth: v0 has none — invite token in a cookie plus name selection.
   Magic links via Resend come in v1. Do not add auth infrastructure early.
 - Web Push (VAPID) with email fallback. No native app.
