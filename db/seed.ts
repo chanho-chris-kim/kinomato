@@ -1,8 +1,9 @@
 // Dev-only. Wipes every row in dependency order, then inserts one club,
 // six members (five accounts + one guest), a handful of films, one open
 // night with nominations, a few votes, and a few RSVPs — enough to click
-// through the first screen. Not meant to run against anything but a
-// local/dev database.
+// through the first screen, and the fixture the E2E suite runs against
+// (see db/seed-fixtures.ts, e2e/global-setup.ts). Not meant to run
+// against anything but a local/dev or dedicated E2E database.
 //
 // Deliberately not importing db/index.ts's getDb() — that's the
 // neon-http driver built for the Worker runtime, request-scoped via
@@ -30,45 +31,19 @@ import {
   votes,
   watchlistItems,
 } from "./schema";
+import { CLUB_ID, FILM, MEMBERSHIP, NIGHT_ID, NOMINATION, USER } from "./seed-fixtures";
 
-const client = postgres(process.env.DATABASE_URL!);
+const databaseUrl = process.env.DATABASE_URL!;
+const client = postgres(databaseUrl);
 const db = drizzle(client, { schema });
 
-const CLUB_ID = "11111111-1111-1111-1111-111111111111";
-
-const USER = {
-  chris: "22222222-2222-2222-2222-222222222221",
-  priya: "22222222-2222-2222-2222-222222222222",
-  marco: "22222222-2222-2222-2222-222222222223",
-  dana: "22222222-2222-2222-2222-222222222224",
-  sam: "22222222-2222-2222-2222-222222222225",
-};
-
-const MEMBERSHIP = {
-  chris: "33333333-3333-3333-3333-333333333331",
-  priya: "33333333-3333-3333-3333-333333333332",
-  marco: "33333333-3333-3333-3333-333333333333",
-  dana: "33333333-3333-3333-3333-333333333334",
-  sam: "33333333-3333-3333-3333-333333333335",
-  jo: "33333333-3333-3333-3333-333333333336", // guest, no users row
-};
-
-const FILM = {
-  theThing: "44444444-4444-4444-4444-444444444441",
-  thief: "44444444-4444-4444-4444-444444444442",
-  chungkingExpress: "44444444-4444-4444-4444-444444444443",
-  paddington2: "44444444-4444-4444-4444-444444444444",
-};
-
-const NIGHT_ID = "55555555-5555-5555-5555-555555555551";
-
-const NOMINATION = {
-  theThing: "66666666-6666-6666-6666-666666666661",
-  chungkingExpress: "66666666-6666-6666-6666-666666666662",
-  paddington2: "66666666-6666-6666-6666-666666666663",
-};
-
 async function main() {
+  // Cheap last line of defense: this wipes every row in the target
+  // database. Printing the host makes it obvious, before anything is
+  // destroyed, if DATABASE_URL is pointed somewhere it shouldn't be —
+  // this must never be a production database.
+  const host = new URL(databaseUrl).host;
+  console.log(`Seeding into: ${host}`);
   console.log("Wiping existing data...");
   await db.delete(votes);
   await db.delete(vetoes);

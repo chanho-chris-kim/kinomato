@@ -216,9 +216,32 @@ Kinoma (former Marvell division) are the nearest existing marks.
   push and on PRs to `main` — no database needed, `lib/` tests are pure.
   `npm run check` runs the same three locally; the pre-push hook runs it
   too, so a failure is caught before it reaches CI, not after.
-- No E2E yet, on purpose — the UI is still changing shape and rewriting
-  Playwright tests every session isn't worth it. Add it once the voting
-  flow stabilises, using a dedicated Neon branch seeded per run.
+- **E2E: Playwright, not Cypress** — multiple simultaneous members in one
+  test needs separate browser contexts, which Playwright handles cleanly.
+  (Superseded ruling: this file used to say no E2E until the voting flow
+  stabilised. Overridden — the QA net starts now, while there's only one
+  flow to cover, not after there are five.)
+  - `e2e/` — one spec file, six scenarios matching a manual click-through:
+    identity persists across reload, a vote increments its nominee's
+    count, changing a vote moves it rather than duplicating (the
+    `db.batch()` path — this is the one most worth having a test for,
+    since neon-http silently having no `db.transaction()` is exactly the
+    kind of thing that fails quietly), two members in separate browser
+    contexts both voting correctly, RSVP persists across reload, and the
+    displayed picker is checked against `lib/rotation.ts`'s own
+    `getNextPicker()` output for the same seeded data — not a hardcoded
+    expectation, so it can't drift out of sync with the rotation logic.
+  - Runs against a **local** `next dev`, never `dev.kinomato.com` — a
+    dedicated `E2E_DATABASE_URL` Neon branch, wiped and reseeded fresh
+    (`e2e/global-setup.ts`, reusing `db/seed.ts`) at the start of every
+    run. Tests run serially (`workers: 1`) on purpose — they share and
+    build on that one branch's mutable state within a run, so parallel
+    execution would race.
+  - CI runs E2E as its own job (`e2e`, in `ci.yml`), separate from
+    `check`, specifically so a flaky or slow E2E run never blocks a pure
+    logic fix. Don't add `E2E` to `main`'s required status checks in
+    GitHub branch protection — only `Check`. Trace-on-failure
+    (`retain-on-failure`) uploads as a build artifact when a run fails.
 
 ## How I'd like you to work
 
