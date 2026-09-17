@@ -13,5 +13,21 @@
       "binding": "WORKER_SELF_REFERENCE",
       "service": "kinomato"
     }
-  ]
+  ],
+  // Enabled deliberately: this is how production gets debugged. Prefer
+  // not to authenticate wrangler locally, so `wrangler tail` isn't the
+  // plan — dashboard log visibility is.
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  }
 }
