@@ -1,13 +1,10 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { cookies } from "next/headers";
+import Link from "next/link";
 import { getDb } from "@/db";
 import { clubs, films, memberships, nights, nominations, rsvps, votes } from "@/db/schema";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
 import { castVote, clearIdentity, pickIdentity, setRsvp } from "./actions";
-
-function identityCookieName(clubId: string) {
-  return `kinomato_identity_${clubId}`;
-}
+import { getIdentityMembershipId } from "./identity";
 
 export default async function ClubPage({
   params,
@@ -28,8 +25,7 @@ export default async function ClubPage({
     .where(eq(memberships.clubId, clubId));
   const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
 
-  const cookieStore = await cookies();
-  const identityMembershipId = cookieStore.get(identityCookieName(clubId))?.value ?? null;
+  const identityMembershipId = await getIdentityMembershipId(clubId);
   const currentMembership =
     activeMemberships.find((m) => m.id === identityMembershipId) ?? null;
 
@@ -143,6 +139,12 @@ export default async function ClubPage({
           </button>
         </form>
       </div>
+
+      <p className="mt-1">
+        <Link href={`/clubs/${clubId}/list`} className="underline">
+          My watchlist
+        </Link>
+      </p>
 
       <h2 className="mt-4 font-semibold">Whose turn</h2>
       <p>{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>

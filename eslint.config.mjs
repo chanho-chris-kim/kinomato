@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     // generated, neither meant to be linted or committed.
     ".open-next/**",
     ".wrangler/**",
+    // Playwright's own generated output (HTML report, traces, test
+    // artifacts) — same story, generated and gitignored, not source.
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

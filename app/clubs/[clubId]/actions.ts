@@ -5,24 +5,16 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getDb } from "@/db";
 import { nominations, rsvps, votes } from "@/db/schema";
+import { identityCookieName, requireCurrentMembershipId } from "./identity";
 
 // No auth in v0: identity is a membership id in a per-club cookie, set by
 // picking a name from the club's member list. Nothing here trusts a
 // client-supplied membership id — every action reads it back off the
-// cookie itself.
-function identityCookieName(clubId: string) {
-  return `kinomato_identity_${clubId}`;
-}
+// cookie itself (requireCurrentMembershipId, shared with the watchlist
+// page's actions in ./list/actions.ts).
 
-async function requireCurrentMembershipId(clubId: string): Promise<string> {
-  const cookieStore = await cookies();
-  const membershipId = cookieStore.get(identityCookieName(clubId))?.value;
-  if (!membershipId) {
-    throw new Error("No identity set for this club — pick a name first.");
-  }
-  return membershipId;
-}
-
+// Shared by the club home page and the watchlist page's own identity
+// gate — one cookie, one picker, revalidate every route that reads it.
 export async function pickIdentity(clubId: string, membershipId: string) {
   const cookieStore = await cookies();
   cookieStore.set(identityCookieName(clubId), membershipId, {
@@ -31,12 +23,14 @@ export async function pickIdentity(clubId: string, membershipId: string) {
     path: `/clubs/${clubId}`,
   });
   revalidatePath(`/clubs/${clubId}`);
+  revalidatePath(`/clubs/${clubId}/list`);
 }
 
 export async function clearIdentity(clubId: string) {
   const cookieStore = await cookies();
   cookieStore.delete({ name: identityCookieName(clubId), path: `/clubs/${clubId}` });
   revalidatePath(`/clubs/${clubId}`);
+  revalidatePath(`/clubs/${clubId}/list`);
 }
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has

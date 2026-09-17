@@ -190,6 +190,13 @@ export const watchlistItems = pgTable(
   (table) => [
     index("watchlist_items_membership_id_idx").on(table.membershipId),
     index("watchlist_items_film_id_idx").on(table.filmId),
+    // Adding the same film twice is a no-op (onConflictDoNothing at the
+    // insert site), not a duplicate row — a duplicate would double-count
+    // this person in every overlap/smart-shelf calculation.
+    unique("watchlist_items_membership_id_film_id_unique").on(
+      table.membershipId,
+      table.filmId,
+    ),
   ],
 );
 

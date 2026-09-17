@@ -32,6 +32,13 @@ import {
   watchlistItems,
 } from "./schema";
 import { CLUB_ID, FILM, MEMBERSHIP, NIGHT_ID, NOMINATION, USER } from "./seed-fixtures";
+import { getMovieById, tmdbMovieToFilmRow } from "../lib/tmdb";
+
+// tmdbIds from lib/tmdb.ts's fixture, for the watchlist screen: Hereditary,
+// The Babadook, Get Out, Arrival. Inserted via the same TMDB-row mapper the
+// app itself uses when a member adds a film, so seed data and a real "Add"
+// click produce identically-shaped films rows.
+const WATCHLIST_DEMO_TMDB_IDS = [400001, 400002, 400003, 400013] as const;
 
 const databaseUrl = process.env.DATABASE_URL!;
 const client = postgres(databaseUrl);
@@ -187,6 +194,22 @@ async function main() {
     },
   ]);
 
+  console.log("Seeding watchlist-demo films from the TMDB fixture...");
+  const demoFilmIdByTmdbId = new Map<number, string>();
+  for (const tmdbId of WATCHLIST_DEMO_TMDB_IDS) {
+    const movie = await getMovieById(tmdbId);
+    if (!movie) throw new Error(`lib/tmdb.ts fixture is missing tmdbId ${tmdbId}`);
+    const [row] = await db
+      .insert(films)
+      .values(tmdbMovieToFilmRow(movie))
+      .returning({ id: films.id });
+    demoFilmIdByTmdbId.set(tmdbId, row.id);
+  }
+  const babadookId = demoFilmIdByTmdbId.get(400002)!;
+  const getOutId = demoFilmIdByTmdbId.get(400003)!;
+  const arrivalId = demoFilmIdByTmdbId.get(400013)!;
+  const hereditaryId = demoFilmIdByTmdbId.get(400001)!;
+
   console.log("Seeding one open night, nominated by Chris...");
   const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   await db.insert(nights).values({
@@ -231,6 +254,36 @@ async function main() {
     { nightId: NIGHT_ID, membershipId: MEMBERSHIP.priya, status: "yes" },
     { nightId: NIGHT_ID, membershipId: MEMBERSHIP.marco, status: "no" },
     { nightId: NIGHT_ID, membershipId: MEMBERSHIP.dana, status: "yes" },
+  ]);
+
+  console.log("Seeding a watched night (Thief) for the already-watched badge...");
+  const watchedAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await db.insert(nights).values({
+    clubId: CLUB_ID,
+    scheduledAt: watchedAt,
+    // Marco, not Chris — doesn't disturb the open night's picker, and
+    // Priya/Dana/Sam/Jo staying at last_picked_at = null (never picked)
+    // means the rotation's "next picker" is unaffected either way.
+    pickerMembershipId: MEMBERSHIP.marco,
+    state: "watched",
+    winningFilmId: FILM.thief,
+    lockedAt: watchedAt,
+    confirmedAt: watchedAt,
+    confirmedBy: MEMBERSHIP.marco,
+  });
+
+  console.log("Seeding watchlist items (Dana's list, plus overlap on Hereditary)...");
+  await db.insert(watchlistItems).values([
+    // Dana: The Babadook + Get Out (a real 2-film Horror shelf) + Arrival
+    // (a singleton, collapses into Everything else) — 94 + 104 + 116 = 314
+    // minutes to start.
+    { membershipId: MEMBERSHIP.dana, filmId: babadookId },
+    { membershipId: MEMBERSHIP.dana, filmId: getOutId },
+    { membershipId: MEMBERSHIP.dana, filmId: arrivalId },
+    // Hereditary is on two OTHER members' lists, not Dana's — searching
+    // it as Dana should show "2 others in your club want this".
+    { membershipId: MEMBERSHIP.priya, filmId: hereditaryId },
+    { membershipId: MEMBERSHIP.marco, filmId: hereditaryId },
   ]);
 
   console.log(`Done. Club id: ${CLUB_ID}`);
