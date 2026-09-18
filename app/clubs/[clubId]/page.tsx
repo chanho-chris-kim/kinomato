@@ -7,15 +7,26 @@ import {
   memberships,
   nights,
   nominations,
+  ratings,
   rsvps,
   votes,
   watchlistItems,
 } from "@/db/schema";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
+import { areTakesRevealed } from "@/lib/ratingReveal";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
-import { castVote, clearIdentity, openVoting, pickIdentity, setRsvp } from "./actions";
+import {
+  castVote,
+  clearIdentity,
+  confirmNight,
+  openVoting,
+  pickIdentity,
+  setRsvp,
+  submitRating,
+} from "./actions";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
+import { NON_TERMINAL_STATES } from "./nightState";
 
 export default async function ClubPage({
   params,
@@ -24,6 +35,13 @@ export default async function ClubPage({
 }) {
   const { clubId } = await params;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  // react-hooks/purity is a React Compiler rule aimed at client
+  // components it might memoize; this is a Server Component that reads
+  // the database (already impure) once per request and is never
+  // recompiled client-side, so "current time" here is no different in
+  // kind from any other request-time read above.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
 
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
   if (!club) {
@@ -163,6 +181,99 @@ export default async function ClubPage({
     }
   }
 
+  // "Did you watch X?" (analysis-v1.md §1.1 stage 10) — a non-terminal
+  // night past its scheduled time, with a winner already set. Gated on
+  // winningFilmId because nothing locks a night yet (see nightState.ts);
+  // in practice this only ever matches a "locked" night.
+  const confirmableNight =
+    clubNights.find(
+      (n) =>
+        NON_TERMINAL_STATES.includes(n.state as (typeof NON_TERMINAL_STATES)[number]) &&
+        n.winningFilmId !== null &&
+        n.scheduledAt.getTime() < now,
+    ) ?? null;
+
+  let confirmableFilmTitle: string | null = null;
+  if (confirmableNight?.winningFilmId) {
+    const [film] = await db
+      .select({ title: films.title })
+      .from(films)
+      .where(eq(films.id, confirmableNight.winningFilmId));
+    confirmableFilmTitle = film?.title ?? null;
+  }
+
+  // Rating (analysis-v1.md §1.1 stage 10, "then ratings and one-line
+  // takes") — the club's most recently watched night, so this only ever
+  // surfaces the one confirmation just produced, not a backlog of every
+  // watched night in the club's history. "Attending" (both for who gets
+  // the form and for the blind-reveal denominator) means an explicit
+  // yes-RSVP, matching the constraint scoping asymmetry elsewhere.
+  const mostRecentWatchedNight =
+    clubNights
+      .filter((n) => n.state === "watched")
+      .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0] ?? null;
+
+  let ratingSection: {
+    nightId: string;
+    filmTitle: string;
+    myRsvpYes: boolean;
+    myRating: { scoreQuality: string; scoreFun: string } | null;
+    attendingCount: number;
+    ratedAttendingCount: number;
+    revealed: boolean;
+    revealedRatings: {
+      displayName: string;
+      scoreQuality: string;
+      scoreFun: string;
+      hotTake: string | null;
+    }[];
+  } | null = null;
+
+  if (mostRecentWatchedNight?.winningFilmId) {
+    const [film] = await db
+      .select({ title: films.title })
+      .from(films)
+      .where(eq(films.id, mostRecentWatchedNight.winningFilmId));
+
+    const nightRsvps = await db
+      .select()
+      .from(rsvps)
+      .where(eq(rsvps.nightId, mostRecentWatchedNight.id));
+    const attendingMembershipIds = nightRsvps
+      .filter((r) => r.status === "yes")
+      .map((r) => r.membershipId);
+
+    const nightRatings = await db
+      .select()
+      .from(ratings)
+      .where(eq(ratings.nightId, mostRecentWatchedNight.id));
+    const ratedMembershipIds = nightRatings.map((r) => r.membershipId);
+    const revealed = areTakesRevealed(attendingMembershipIds, ratedMembershipIds);
+
+    ratingSection = {
+      nightId: mostRecentWatchedNight.id,
+      filmTitle: film?.title ?? "this film",
+      myRsvpYes: attendingMembershipIds.includes(currentMembership.id),
+      myRating:
+        nightRatings.find((r) => r.membershipId === currentMembership.id) ?? null,
+      attendingCount: attendingMembershipIds.length,
+      ratedAttendingCount: attendingMembershipIds.filter((id) =>
+        ratedMembershipIds.includes(id),
+      ).length,
+      revealed,
+      revealedRatings: revealed
+        ? nightRatings.map((r) => ({
+            displayName:
+              clubMemberships.find((m) => m.id === r.membershipId)?.displayName ??
+              "someone who's left",
+            scoreQuality: r.scoreQuality,
+            scoreFun: r.scoreFun,
+            hotTake: r.hotTake,
+          }))
+        : [],
+    };
+  }
+
   return (
     <main className="p-4">
       <h1 className="text-xl font-bold">{club.name}</h1>
@@ -209,7 +320,9 @@ export default async function ClubPage({
           <p className="mt-4">Waiting on {draftPickerName} to nominate.</p>
         ))}
 
-      {!openNight && !draftNight && <p className="mt-4">No open vote right now.</p>}
+      {!openNight && !draftNight && !confirmableNight && !ratingSection && (
+        <p className="mt-4">No open vote right now.</p>
+      )}
 
       {openNight && (
         <>
@@ -257,6 +370,97 @@ export default async function ClubPage({
               </li>
             ))}
           </ul>
+        </>
+      )}
+
+      {confirmableNight && (
+        <>
+          <h2 className="mt-4 font-semibold">
+            Did you watch {confirmableFilmTitle ?? "it"}?
+          </h2>
+          <div className="mt-1 flex gap-2">
+            <form action={confirmNight.bind(null, clubId, confirmableNight.id, "watched")}>
+              <button type="submit" className="border px-3 py-1">
+                Yes
+              </button>
+            </form>
+            <form
+              action={confirmNight.bind(null, clubId, confirmableNight.id, "cancelled")}
+            >
+              <button type="submit" className="border px-3 py-1">
+                We didn&apos;t meet
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {ratingSection && (
+        <>
+          <h2 className="mt-4 font-semibold">Rate {ratingSection.filmTitle}</h2>
+
+          {ratingSection.myRsvpYes && !ratingSection.myRating && (
+            <form
+              action={submitRating.bind(null, clubId, ratingSection.nightId)}
+              className="mt-1 space-y-2"
+            >
+              <div>
+                <label>
+                  Quality{" "}
+                  <input
+                    type="range"
+                    name="scoreQuality"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    defaultValue="5"
+                  />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Fun{" "}
+                  <input
+                    type="range"
+                    name="scoreFun"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    defaultValue="5"
+                  />
+                </label>
+              </div>
+              <div>
+                <label>
+                  One-line take (optional){" "}
+                  <input type="text" name="hotTake" maxLength={140} className="border" />
+                </label>
+              </div>
+              <button type="submit" className="border px-3 py-1">
+                Submit rating
+              </button>
+            </form>
+          )}
+
+          {!ratingSection.revealed && ratingSection.attendingCount > 0 && (
+            <p className="mt-1">
+              {ratingSection.ratedAttendingCount}/{ratingSection.attendingCount} ratings
+              in — hidden until everyone who&apos;s coming has rated.
+            </p>
+          )}
+
+          {ratingSection.revealed && (
+            <ul className="mt-1 space-y-2">
+              {ratingSection.revealedRatings.map((r, i) => (
+                <li key={i} className="border p-2">
+                  <div>
+                    {r.displayName} — quality {r.scoreQuality}, fun {r.scoreFun}
+                  </div>
+                  {r.hotTake && <div>&quot;{r.hotTake}&quot;</div>}
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </main>

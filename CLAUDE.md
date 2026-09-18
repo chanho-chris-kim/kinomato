@@ -102,6 +102,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   problem.
 - **Lock is immovable.** After lock, RSVP changes do not re-run the constraint
   filter and the pick does not change. A lock people can't trust is worthless.
+- **A club has at most one night in flight.** `draft`, `open`, and `locked`
+  are non-terminal; `watched`, `cancelled`, and `unconfirmed` are terminal.
+  Enforced by a partial unique index — `nights_one_in_flight_per_club` on
+  `nights(club_id) WHERE state IN ('draft', 'open', 'locked')` — so a second
+  in-flight night is a rejected insert, not a UI ambiguity. A page that needs
+  "the" open or draft night for a club can look it up with a plain `find`
+  and never has to decide between two candidates, because the database
+  guarantees there's only ever one.
 - **A cancelled night does not consume a turn.** A lost vote does — but all
   nominees belong to the picker, so they can only lose *which* of their films.
 - **Never auto-advance as if confirmed.** No answer within the window logs the
@@ -180,6 +188,17 @@ Do not quietly change these — they encode decisions that took a while to reach
   tables elsewhere in the codebase.
 - **Guest ratings stay club-local.** Only verified members' ratings enter public
   aggregates. This is the bot-resistance story and the data story.
+- **Blind reveal: a member's whole rating — both scores and any hot take —
+  stays hidden from everyone else until every attending member has rated.**
+  Hiding only the text and not the quality/fun scores wouldn't stop
+  anchoring, since a visible 9/10 biases the next rater as much as a
+  written take does. "Attending" means an explicit yes-RSVP, matching the
+  constraint scoping asymmetry — someone who never answered didn't
+  necessarily watch. This is a different mechanic from analysis-v1.md's
+  "spoilers for absent members" (blurred until *you* mark yourself as
+  having watched it) — that one protects someone who missed the night,
+  this one protects the group's honesty while everyone's still rating.
+  Both can be true at once; only this one is built in v0.
 - **Two pushes per week per member, across all their clubs — not per club.**
   Plus one extra on their picking week. Notifications dedup across clubs someone
   belongs to. Everything else is in-app. This is a product constraint, not a
@@ -303,13 +322,9 @@ and move on.
   `scheduledAt` from a club's `cadence`/`default_day`/`default_time` and
   deciding what triggers creation (a cron job per cadence? the picker
   arriving on the page for the first time that cycle?) is real,
-  un-designed logic. Related: the current club page only handles one
-  night in `open` state at a time (`clubNights.find(n => n.state ===
-  "open")`) — if a club ever legitimately has two nights in flight, that
-  lookup has no defined way to choose between them. Not hit in practice
-  yet because nothing creates a second night without this being solved
-  first, but worth deciding before it's a real bug instead of a
-  hypothetical one.
+  un-designed logic. (The multi-open-night lookup ambiguity that used to
+  be noted here is resolved — see the "at most one night in flight"
+  ruling above.)
 
 <!-- BEGIN:nextjs-agent-rules -->
 

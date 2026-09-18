@@ -71,3 +71,45 @@ export const DISPLAY_NAME_2: Record<keyof typeof MEMBERSHIP_2, string> = {
   nadia: "Nadia",
   omar: "Omar",
 };
+
+// A third, separate club — for the confirmation/rating flow. Needs a
+// night that's past its scheduledAt and still non-terminal, which the
+// "one night in flight per club" partial unique index means can't be
+// bolted onto "Movie Night Crew" (already has Chris's open night) or
+// "Second Club" (nomination.spec.ts drives its draft night to open).
+// Leo RSVPs no so he's excluded from "attending" — Mika and Theo are the
+// two attendees the blind-reveal test needs (hidden until the *second*
+// of two ratings lands is a meaningfully different check than "hidden
+// until the only rating lands").
+export const CLUB_3_ID = "99999999-9999-9999-9999-999999999991";
+
+export const MEMBERSHIP_3 = {
+  leo: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1", // picker, confirms the night
+  mika: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2", // attending, rates
+  theo: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3", // attending, rates
+};
+
+export const DISPLAY_NAME_3: Record<keyof typeof MEMBERSHIP_3, string> = {
+  leo: "Leo",
+  mika: "Mika",
+  theo: "Theo",
+};
+
+export const NIGHT_3_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1";
+
+// A fourth, separate club — for the "we didn't meet" (cancellation)
+// path, which is a one-way transition and so needs its own night rather
+// than reusing club 3's (already confirmed watched by those tests).
+export const CLUB_4_ID = "99999999-9999-9999-9999-999999999992";
+
+export const MEMBERSHIP_4 = {
+  vik: "cccccccc-cccc-cccc-cccc-ccccccccccc1", // picker
+  ana: "cccccccc-cccc-cccc-cccc-ccccccccccc2",
+};
+
+export const DISPLAY_NAME_4: Record<keyof typeof MEMBERSHIP_4, string> = {
+  vik: "Vik",
+  ana: "Ana",
+};
+
+export const NIGHT_4_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2";

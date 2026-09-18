@@ -33,10 +33,16 @@ import {
 } from "./schema";
 import {
   CLUB_2_ID,
+  CLUB_3_ID,
+  CLUB_4_ID,
   CLUB_ID,
   FILM,
   MEMBERSHIP,
   MEMBERSHIP_2,
+  MEMBERSHIP_3,
+  MEMBERSHIP_4,
+  NIGHT_3_ID,
+  NIGHT_4_ID,
   NIGHT_ID,
   NOMINATION,
   USER,
@@ -362,6 +368,119 @@ async function main() {
     scheduledAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
     pickerMembershipId: MEMBERSHIP_2.nadia,
     state: "draft",
+  });
+
+  // A third, separate club for the confirmation/rating flow — see
+  // seed-fixtures.ts's comment on CLUB_3_ID. Needs a night that's past
+  // its scheduledAt and still non-terminal (locked, as if voting already
+  // closed — there's no lock UI yet, so this is seeded directly, same as
+  // the watched Thief night above), which the new "one night in flight
+  // per club" index means can't share a club with an existing open/draft
+  // night.
+  console.log("Seeding a third club for the confirmation/rating flow...");
+  await db.insert(clubs).values({
+    id: CLUB_3_ID,
+    name: "Third Club",
+    cadence: "weekly",
+    defaultDay: 5,
+    defaultTime: "20:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_3.leo,
+      clubId: CLUB_3_ID,
+      userId: null,
+      identityKey: "guest-cookie-leo-example",
+      displayName: "Leo",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_3.mika,
+      clubId: CLUB_3_ID,
+      userId: null,
+      identityKey: "guest-cookie-mika-example",
+      displayName: "Mika",
+      role: "member",
+      joinedAt: day(2),
+    },
+    {
+      id: MEMBERSHIP_3.theo,
+      clubId: CLUB_3_ID,
+      userId: null,
+      identityKey: "guest-cookie-theo-example",
+      displayName: "Theo",
+      role: "member",
+      joinedAt: day(3),
+    },
+  ]);
+
+  const club3ScheduledAt = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  await db.insert(nights).values({
+    id: NIGHT_3_ID,
+    clubId: CLUB_3_ID,
+    scheduledAt: club3ScheduledAt,
+    pickerMembershipId: MEMBERSHIP_3.leo,
+    state: "locked",
+    winningFilmId: getOutId,
+    lockedAt: club3ScheduledAt,
+  });
+
+  // Leo RSVPs no, so he's not "attending" and isn't required to rate for
+  // the blind reveal — Mika and Theo are the two attendees.
+  await db.insert(rsvps).values([
+    { nightId: NIGHT_3_ID, membershipId: MEMBERSHIP_3.leo, status: "no" },
+    { nightId: NIGHT_3_ID, membershipId: MEMBERSHIP_3.mika, status: "yes" },
+    { nightId: NIGHT_3_ID, membershipId: MEMBERSHIP_3.theo, status: "yes" },
+  ]);
+
+  // A fourth, separate club for the "we didn't meet" (cancellation) path
+  // — a one-way transition, so it needs its own night rather than
+  // reusing club 3's once those tests confirm it watched.
+  console.log("Seeding a fourth club for the cancellation flow...");
+  await db.insert(clubs).values({
+    id: CLUB_4_ID,
+    name: "Fourth Club",
+    cadence: "weekly",
+    defaultDay: 0,
+    defaultTime: "19:00",
+    timezone: "America/New_York",
+    mode: "remote",
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_4.vik,
+      clubId: CLUB_4_ID,
+      userId: null,
+      identityKey: "guest-cookie-vik-example",
+      displayName: "Vik",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_4.ana,
+      clubId: CLUB_4_ID,
+      userId: null,
+      identityKey: "guest-cookie-ana-example",
+      displayName: "Ana",
+      role: "member",
+      joinedAt: day(2),
+    },
+  ]);
+
+  const club4ScheduledAt = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  await db.insert(nights).values({
+    id: NIGHT_4_ID,
+    clubId: CLUB_4_ID,
+    scheduledAt: club4ScheduledAt,
+    pickerMembershipId: MEMBERSHIP_4.vik,
+    state: "locked",
+    winningFilmId: arrivalId,
+    lockedAt: club4ScheduledAt,
   });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);

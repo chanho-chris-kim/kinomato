@@ -245,4 +245,55 @@ describe("getNextPicker", () => {
     });
     expect(result).toBeNull();
   });
+
+  // Confirmation (CLAUDE.md's "did you watch X" flow) transitions a night
+  // from open/locked to watched or cancelled. These prove turn advance is
+  // a side effect of that transition, not something confirmation code has
+  // to compute itself — getNextPicker already treats any non-cancelled
+  // state as "picked," so the picker is already not-next the moment the
+  // night opens, not only once it's confirmed watched.
+  it("already treats an in-progress (open) night as picked, before any confirmation happens", () => {
+    const a = membership("a");
+    const b = membership("b");
+    const result = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-01-10", "open")],
+      clubPausedAt: null,
+    });
+    expect(result?.id).toBe("b");
+  });
+
+  it("confirming a night as watched doesn't change who's next — the open state already counted", () => {
+    const a = membership("a");
+    const b = membership("b");
+    const beforeConfirm = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-01-10", "locked")],
+      clubPausedAt: null,
+    });
+    const afterConfirm = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-01-10", "watched")],
+      clubPausedAt: null,
+    });
+    expect(afterConfirm?.id).toBe(beforeConfirm?.id);
+    expect(afterConfirm?.id).toBe("b");
+  });
+
+  it("confirming a night as cancelled frees the picker to be next again", () => {
+    const a = membership("a");
+    const b = membership("b");
+    const beforeConfirm = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-01-10", "locked")],
+      clubPausedAt: null,
+    });
+    const afterConfirm = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-01-10", "cancelled")],
+      clubPausedAt: null,
+    });
+    expect(beforeConfirm?.id).toBe("b");
+    expect(afterConfirm?.id).toBe("a");
+  });
 });

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "nights_one_in_flight_per_club" ON "nights" USING btree ("club_id") WHERE "nights"."state" IN ('draft', 'open', 'locked');--> statement-breakpoint
+ALTER TABLE "ratings" ADD CONSTRAINT "ratings_night_id_membership_id_unique" UNIQUE("night_id","membership_id");

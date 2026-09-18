@@ -4,9 +4,18 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getDb } from "@/db";
-import { clubs, nights, nominations, rsvps, votes, watchlistItems } from "@/db/schema";
+import {
+  clubs,
+  nights,
+  nominations,
+  ratings,
+  rsvps,
+  votes,
+  watchlistItems,
+} from "@/db/schema";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
+import { NON_TERMINAL_STATES } from "./nightState";
 
 // No auth in v0: identity is a membership id in a per-club cookie, set by
 // picking a name from the club's member list. Nothing here trusts a
@@ -150,6 +159,83 @@ export async function openVoting(clubId: string, nightId: string, formData: Form
     db.update(nights).set({ state: "open" }).where(eq(nights.id, nightId)),
     ...filmIds.map((filmId) => db.insert(nominations).values({ nightId, filmId, membershipId })),
   ]);
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// "Did you watch X?" (analysis-v1.md §1.1 stage 10). Anyone in the club
+// can answer; first answer settles it. The conditional UPDATE below is
+// the whole mechanism for that: it only touches a row still in a
+// non-terminal state, so if two members submit at nearly the same
+// moment, whichever write lands second matches zero rows and is
+// silently a no-op — not an error, since losing that race is the
+// expected shape of "first answer wins," not a bug to report.
+//
+// "We watched something else" is a deliberate omission — CLAUDE.md's
+// Open Questions, not ruled on yet.
+export async function confirmNight(
+  clubId: string,
+  nightId: string,
+  outcome: "watched" | "cancelled",
+) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const updated = await db
+    .update(nights)
+    .set({ state: outcome, confirmedAt: new Date(), confirmedBy: membershipId })
+    .where(
+      and(
+        eq(nights.id, nightId),
+        eq(nights.clubId, clubId),
+        inArray(nights.state, NON_TERMINAL_STATES),
+      ),
+    )
+    .returning({ id: nights.id });
+
+  if (updated.length === 0) return;
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Quality and fun, 0-10 in half-point steps — not specified anywhere in
+// docs/, chosen as a reasonable default for an unstyled v0 slider.
+// Upserts on (nightId, membershipId), same shape as setRsvp: a member
+// can change their rating by resubmitting, not create a second row.
+export async function submitRating(clubId: string, nightId: string, formData: FormData) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
+  if (!night || night.clubId !== clubId) {
+    throw new Error("Night not found.");
+  }
+  if (night.state !== "watched") {
+    throw new Error("Only a watched night can be rated.");
+  }
+
+  const scoreQuality = Number(formData.get("scoreQuality"));
+  const scoreFun = Number(formData.get("scoreFun"));
+  if (!Number.isFinite(scoreQuality) || !Number.isFinite(scoreFun)) {
+    throw new Error("Both scores are required.");
+  }
+  const hotTakeRaw = formData.get("hotTake");
+  const hotTake =
+    typeof hotTakeRaw === "string" && hotTakeRaw.trim() !== "" ? hotTakeRaw.trim() : null;
+
+  await db
+    .insert(ratings)
+    .values({
+      nightId,
+      membershipId,
+      scoreQuality: scoreQuality.toFixed(1),
+      scoreFun: scoreFun.toFixed(1),
+      hotTake,
+    })
+    .onConflictDoUpdate({
+      target: [ratings.nightId, ratings.membershipId],
+      set: { scoreQuality: scoreQuality.toFixed(1), scoreFun: scoreFun.toFixed(1), hotTake },
+    });
 
   revalidatePath(`/clubs/${clubId}`);
 }

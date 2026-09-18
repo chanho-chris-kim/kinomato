@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -13,6 +14,7 @@ import {
   time,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -262,7 +264,17 @@ export const nights = pgTable(
     // computed once at lock and cached here — a query, not a job.
     clubConnections: jsonb("club_connections"),
   },
-  (table) => [index("nights_club_id_idx").on(table.clubId)],
+  (table) => [
+    index("nights_club_id_idx").on(table.clubId),
+    // A club has at most one night in flight. draft/open/locked are
+    // non-terminal; watched/cancelled/unconfirmed are terminal and can
+    // stack up freely. Enforced here, not by the page picking between
+    // candidates, so a second in-flight night is a rejected insert, not a
+    // UI ambiguity.
+    uniqueIndex("nights_one_in_flight_per_club")
+      .on(table.clubId)
+      .where(sql`${table.state} IN ('draft', 'open', 'locked')`),
+  ],
 );
 
 export const nominations = pgTable(
@@ -391,7 +403,16 @@ export const ratings = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("ratings_night_id_idx").on(table.nightId)],
+  (table) => [
+    index("ratings_night_id_idx").on(table.nightId),
+    // One rating per member per night — the rating action upserts on
+    // this, and the blind-reveal count (lib/ratingReveal.ts) depends on
+    // rows here being one-per-member, not one-per-submit.
+    unique("ratings_night_id_membership_id_unique").on(
+      table.nightId,
+      table.membershipId,
+    ),
+  ],
 );
 
 export const filmFacts = pgTable(
