@@ -79,6 +79,13 @@ another month over the thing that picks a film faster.
 3. RSVP, night confirmation, turn advance.
 4. Only then make it look like the prototype.
 
+Built beyond this list as the need became concrete rather than as a
+separate planned step: lock (`/clubs/[clubId]`'s "Lock it in"), and club
+creation and invites (`/new`, `/clubs/[clubId]/join`) — the last piece
+needed to run a real club without hand-seeding it. What's left for v0 to
+be feature-complete is the Open Questions below, principally nothing
+creating a night's first `draft` row yet.
+
 The purpose of v0 is to find out which rulings below are wrong.
 
 ## Rulings that are load-bearing
@@ -223,6 +230,29 @@ Do not quietly change these — they encode decisions that took a while to reach
   Plus one extra on their picking week. Notifications dedup across clubs someone
   belongs to. Everything else is in-app. This is a product constraint, not a
   setting.
+- **Free tier caps a club at six members**, enforced server-side at the
+  moment someone actually joins (`lib/clubMembers.ts`'s `canAddMember`,
+  called from `/clubs/[clubId]/join`'s `joinAsNewMember`), not just at
+  creation — an invite can circulate well past who the owner first added.
+  A refused join redirects back to the join page with the limit named in
+  a visible message, never a silent no-op: unlike the lock-immovability
+  no-ops (a benign lost race), a refused signup is new information a
+  person needs to see and act on. Checked with a plain count query, not a
+  DB constraint — a soft business-tier cap, not a safety invariant like
+  "one night in flight," so a race under truly simultaneous joins
+  (someone slipping in as a seventh member) is an accepted gap. A hard
+  constraint here would also be the wrong shape long-term: the cap is
+  meant to change per plan once paid tiers exist, which a fixed DB check
+  can't express as easily as an application-level read.
+- **A club with no nights renders a distinct first-run state, not a
+  generic empty one.** `/clubs/[clubId]` distinguishes "this club has
+  never had a night" (`clubNights.length === 0`) from "nothing's in
+  flight right now, but history exists" (the older, more generic "No
+  open vote right now"). The first-run state doesn't say "coming soon" —
+  nothing creates a night's first `draft` row yet (see Open Questions),
+  so for every club created today this is permanent, not transitional —
+  and points at the one thing actually actionable right now: the invite
+  link, surfaced directly on the page next to a plain-text member list.
 
 ## Things not to do
 
@@ -249,6 +279,15 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Small commits, one branch per task, merge to `main` when tests pass.
 - `main` stays deployable at all times — friends are using the preview URL.
 - Pure logic in `lib/`, tested in isolation. UI components stay dumb.
+- **User-facing validation errors from a plain `<form action>` redirect
+  back to the same page with the message in an `?error=` query param**
+  (`app/new/actions.ts`, `app/clubs/[clubId]/join/actions.ts`), rather
+  than throwing. A thrown error in a server action has no error boundary
+  to land in anywhere in this app, so the only default is a dev-mode
+  overlay or a generic production digest — worse than the "clear
+  message" these screens need. Reserve this for validation the user is
+  meant to see and correct (a taken name, a cap hit); a genuine bug
+  (a failed DB write) should still throw.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every
@@ -369,7 +408,21 @@ and move on.
   arriving on the page for the first time that cycle?) is real,
   un-designed logic. (The multi-open-night lookup ambiguity that used to
   be noted here is resolved — see the "at most one night in flight"
-  ruling above.)
+  ruling above.) This is now the one thing standing between a freshly
+  created club and its first nomination — club creation itself
+  (`/new`) is built, so a brand-new club can gather members but can
+  never nominate. The smallest viable unblock, not yet built: on
+  `/clubs/[clubId]`'s own page load, if the club has no non-terminal
+  night at all and `getNextPicker` resolves someone, insert a `draft`
+  night for that picker right there in the request — lazy creation on
+  first view, no cron. The one open question inside that: what
+  `scheduledAt` to give it. Cheapest option is a placeholder (e.g. "one
+  week from now") that's wrong until someone edits it — nothing edits a
+  night's schedule yet either. The "do it right" option computes the
+  next real occurrence of `cadence`/`default_day`/`default_time`, which
+  is the same date math the eventual scheduled-lock job
+  (`lockNightCore.ts`'s SEAM comment) will also need for `lockTime`, so
+  building it once here would pay for both.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

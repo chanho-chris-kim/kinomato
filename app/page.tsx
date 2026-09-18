@@ -11,6 +11,11 @@ export default async function Home() {
   return (
     <main className="p-4">
       <h1 className="text-xl font-bold">kinomato</h1>
+      <p className="mt-2">
+        <Link href="/new" className="underline">
+          Start a club
+        </Link>
+      </p>
       {allClubs.length === 0 ? (
         <p className="mt-2">No clubs yet. Run `npm run db:seed`.</p>
       ) : (

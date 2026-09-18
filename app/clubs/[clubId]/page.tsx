@@ -306,6 +306,15 @@ export default async function ClubPage({
           My watchlist
         </Link>
       </p>
+      <p className="mt-1">
+        Invite link:{" "}
+        <Link href={`/clubs/${clubId}/join`} className="underline">
+          /clubs/{clubId}/join
+        </Link>
+      </p>
+
+      <h2 className="mt-4 font-semibold">Members</h2>
+      <p className="mt-1">{activeMemberships.map((m) => m.displayName).join(", ")}</p>
 
       <h2 className="mt-4 font-semibold">Whose turn</h2>
       <p>{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>
@@ -332,9 +341,26 @@ export default async function ClubPage({
           <p className="mt-4">Waiting on {draftPickerName} to nominate.</p>
         ))}
 
-      {!openNight && !draftNight && !confirmableNight && !ratingSection && (
-        <p className="mt-4">No open vote right now.</p>
-      )}
+      {!openNight &&
+        !draftNight &&
+        !confirmableNight &&
+        !ratingSection &&
+        (clubNights.length === 0 ? (
+          // The actual first impression for every new club (CLAUDE.md's
+          // Open Questions): nothing creates a night's first draft row
+          // yet, so this is permanent, not "coming soon," until that's
+          // built. Points at the one thing worth doing right now —
+          // growing the club — rather than implying a vote is imminent.
+          <>
+            <h2 className="mt-4 font-semibold">No night scheduled yet</h2>
+            <p className="mt-1">
+              This club hasn&apos;t had a movie night. Share the invite link
+              above with the rest of your group.
+            </p>
+          </>
+        ) : (
+          <p className="mt-4">No open vote right now.</p>
+        ))}
 
       {rsvpableNight && (
         <>
