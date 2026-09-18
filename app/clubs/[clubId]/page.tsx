@@ -19,6 +19,7 @@ import {
   castVote,
   clearIdentity,
   confirmNight,
+  lockNight,
   openVoting,
   pickIdentity,
   setRsvp,
@@ -104,6 +105,12 @@ export default async function ClubPage({
     : null;
 
   const openNight = clubNights.find((n) => n.state === "open") ?? null;
+  // RSVP stays live through lock — "the RSVP-flip problem" (analysis-
+  // v1.md §1.2) has Dana change her answer *after* lock; the ruling is
+  // that it doesn't re-run the filter or change the pick, not that the
+  // form disappears. Voting and locking are strictly "open"-only below.
+  const rsvpableNight =
+    clubNights.find((n) => n.state === "open" || n.state === "locked") ?? null;
 
   let pickerName: string | null = null;
   let nomineeRows: {
@@ -114,6 +121,19 @@ export default async function ClubPage({
     votedByMe: boolean;
   }[] = [];
   let myRsvpStatus: "yes" | "no" | null = null;
+
+  if (rsvpableNight) {
+    const [myRsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(
+        and(
+          eq(rsvps.nightId, rsvpableNight.id),
+          eq(rsvps.membershipId, currentMembership.id),
+        ),
+      );
+    myRsvpStatus = myRsvp?.status ?? null;
+  }
 
   if (openNight) {
     pickerName =
@@ -144,14 +164,6 @@ export default async function ClubPage({
         (v) => v.nominationId === n.nominationId && v.membershipId === currentMembership.id,
       ),
     }));
-
-    const [myRsvp] = await db
-      .select()
-      .from(rsvps)
-      .where(
-        and(eq(rsvps.nightId, openNight.id), eq(rsvps.membershipId, currentMembership.id)),
-      );
-    myRsvpStatus = myRsvp?.status ?? null;
   }
 
   // A night with no nominations yet — analysis-v1.md §1.1 stage 5. Only
@@ -324,18 +336,20 @@ export default async function ClubPage({
         <p className="mt-4">No open vote right now.</p>
       )}
 
-      {openNight && (
+      {rsvpableNight && (
         <>
-          <h2 className="mt-4 font-semibold">
-            This week&apos;s pick, nominated by {pickerName}
-          </h2>
+          {openNight && (
+            <h2 className="mt-4 font-semibold">
+              This week&apos;s pick, nominated by {pickerName}
+            </h2>
+          )}
 
           <h3 className="mt-4 font-semibold">RSVP</h3>
           <p className="mt-1">
             Current answer: {myRsvpStatus ?? "no answer yet"}
           </p>
           <div className="mt-1 flex gap-2">
-            <form action={setRsvp.bind(null, clubId, openNight.id, "yes")}>
+            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "yes")}>
               <button
                 type="submit"
                 className={`border px-3 py-1 ${myRsvpStatus === "yes" ? "bg-gray-200" : ""}`}
@@ -343,7 +357,7 @@ export default async function ClubPage({
                 Going
               </button>
             </form>
-            <form action={setRsvp.bind(null, clubId, openNight.id, "no")}>
+            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "no")}>
               <button
                 type="submit"
                 className={`border px-3 py-1 ${myRsvpStatus === "no" ? "bg-gray-200" : ""}`}
@@ -352,7 +366,11 @@ export default async function ClubPage({
               </button>
             </form>
           </div>
+        </>
+      )}
 
+      {openNight && (
+        <>
           <h3 className="mt-4 font-semibold">Nominees</h3>
           <ul className="mt-1 space-y-2">
             {nomineeRows.map((n) => (
@@ -370,6 +388,12 @@ export default async function ClubPage({
               </li>
             ))}
           </ul>
+
+          <form action={lockNight.bind(null, clubId, openNight.id)} className="mt-4">
+            <button type="submit" className="border px-3 py-1">
+              Lock it in
+            </button>
+          </form>
         </>
       )}
 

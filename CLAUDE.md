@@ -102,6 +102,26 @@ Do not quietly change these — they encode decisions that took a while to reach
   problem.
 - **Lock is immovable.** After lock, RSVP changes do not re-run the constraint
   filter and the pick does not change. A lock people can't trust is worthless.
+  Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
+  writes the winner to `winning_film_id` — two entry points, one shared core
+  (`lockNightCore`): a manual "Lock it in" button visible to any club member
+  on an open night (not just the picker — by lock time the vote is everyone's
+  business), and a not-yet-built scheduled job (SEAM comment in
+  `lockNightCore.ts` — needs a `lockTime` key added to `clubs.settings` and a
+  Cloudflare Cron Trigger). Tie-break chain: most votes, then fewest soft-
+  preference conflicts among attending members
+  (`countSoftPreferenceConflicts`), then nomination id ASC as a last-resort
+  deterministic fallback — `analysis-v2.md` §2's further "club overlap
+  descending" tiebreak key isn't wired in, since it needs a query this
+  function doesn't otherwise do (see Open Questions). Once locked: a vote is
+  a silent no-op, not a thrown error (the vote button only renders on an open
+  night, so the only way to reach this path is a stale tab or direct
+  tampering — the same "lost the race" shape as confirmNight and lockNight
+  losing a race to each other). A veto throws instead of no-opping: there's
+  no veto UI yet for a stale tab to leave open (see Open Questions), so
+  reaching this path at all means a caller — test or future UI — deserves an
+  explicit signal, not a silent swallow. An RSVP change still succeeds — per
+  the ruling above, it just doesn't touch `winning_film_id`.
 - **A club has at most one night in flight.** `draft`, `open`, and `locked`
   are non-terminal; `watched`, `cancelled`, and `unconfirmed` are terminal.
   Enforced by a partial unique index — `nights_one_in_flight_per_club` on
@@ -280,6 +300,31 @@ and move on.
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through
   nomination or a vote?
+- **Vetoes have no UI, no pool-cap enforcement, and no season lifecycle.**
+  `castVeto` (`app/clubs/[clubId]/actions.ts`) is a minimal seam — it inserts
+  a veto row and rejects one after lock, nothing more. It doesn't enforce the
+  two-per-member-per-season cap from the veto ruling above, doesn't let the
+  picker substitute a replacement nominee, and doesn't remove a vetoed film
+  from the nominee list the UI renders. Seasons aren't a built feature either
+  — nothing creates one on any real trigger; `getOrCreateCurrentSeasonId`
+  (`app/clubs/[clubId]/season.ts`) exists only so a veto has somewhere to
+  attach, not as season start/end policy. Consequently, "vetoes are rejected
+  after lock" is implemented but unverified by any test — there's no veto
+  button for an E2E test to click, and a "use server" action can't be unit-
+  tested the way pure `lib/` code can (it needs `cookies()`, which needs a
+  request context vitest doesn't have).
+- **Lock's tie-break stops one key short of analysis-v2.md §2.** After votes
+  and soft-preference conflicts, the documented next key is club-overlap-
+  descending, then film id. `lib/lockTally.ts` skips straight to a
+  nomination-id fallback — club overlap needs a per-film watchlist-overlap
+  count across every member, a separate query `lockNightCore` doesn't
+  otherwise make, not a filter over data already in hand the way the soft-
+  preference signal is.
+- **`clubs.settings.lockTime` doesn't exist.** Referenced in the lock
+  ruling's scheduled-job seam as what a cron would eventually read (paired
+  with analysis-v1.md §1.1 stage 8's "24 hours before the night" default) —
+  nobody has added the key, a reader for it (the `lib/clubSettings.ts`
+  shape), or any UI to set it.
 - **Member-level rating preferences.** The age-rating ceiling is a club-level
   filter (`films.certification`). Whether an individual member can also set
   their own rating preference, and if so whether it's hard or soft, isn't

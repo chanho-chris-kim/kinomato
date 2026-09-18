@@ -35,14 +35,17 @@ import {
   CLUB_2_ID,
   CLUB_3_ID,
   CLUB_4_ID,
+  CLUB_5_ID,
   CLUB_ID,
   FILM,
   MEMBERSHIP,
   MEMBERSHIP_2,
   MEMBERSHIP_3,
   MEMBERSHIP_4,
+  MEMBERSHIP_5,
   NIGHT_3_ID,
   NIGHT_4_ID,
+  NIGHT_5_ID,
   NIGHT_ID,
   NOMINATION,
   USER,
@@ -481,6 +484,68 @@ async function main() {
     state: "locked",
     winningFilmId: arrivalId,
     lockedAt: club4ScheduledAt,
+  });
+
+  // A fifth, separate club for the full nomination-to-lock-to-rating
+  // loop through a real "Lock it in" click — see seed-fixtures.ts's
+  // comment on CLUB_5_ID. Draft, not locked: this club's night is meant
+  // to be driven through open/locked/watched by the E2E test itself,
+  // not pre-seeded past those states like clubs 3 and 4.
+  console.log("Seeding a fifth club for the full lock loop...");
+  await db.insert(clubs).values({
+    id: CLUB_5_ID,
+    name: "Fifth Club",
+    cadence: "weekly",
+    defaultDay: 4,
+    defaultTime: "20:30",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_5.zoe,
+      clubId: CLUB_5_ID,
+      userId: null,
+      identityKey: "guest-cookie-zoe-example",
+      displayName: "Zoe",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_5.yara,
+      clubId: CLUB_5_ID,
+      userId: null,
+      identityKey: "guest-cookie-yara-example",
+      displayName: "Yara",
+      role: "member",
+      joinedAt: day(2),
+    },
+    {
+      id: MEMBERSHIP_5.xavier,
+      clubId: CLUB_5_ID,
+      userId: null,
+      identityKey: "guest-cookie-xavier-example",
+      displayName: "Xavier",
+      role: "member",
+      joinedAt: day(3),
+    },
+  ]);
+
+  await db.insert(watchlistItems).values([
+    { membershipId: MEMBERSHIP_5.zoe, filmId: bladeRunnerId },
+    { membershipId: MEMBERSHIP_5.zoe, filmId: zodiacId },
+  ]);
+
+  // Already past its scheduled time from the moment it's seeded — see
+  // seed-fixtures.ts's comment on why this doesn't need to change
+  // mid-test the way a real night's clock would.
+  await db.insert(nights).values({
+    id: NIGHT_5_ID,
+    clubId: CLUB_5_ID,
+    scheduledAt: new Date(Date.now() - 60 * 60 * 1000), // an hour ago
+    pickerMembershipId: MEMBERSHIP_5.zoe,
+    state: "draft",
   });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);

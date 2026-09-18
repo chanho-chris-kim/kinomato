@@ -113,3 +113,28 @@ export const DISPLAY_NAME_4: Record<keyof typeof MEMBERSHIP_4, string> = {
 };
 
 export const NIGHT_4_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2";
+
+// A fifth, separate club — for the full nomination-to-rating loop
+// through a real "Lock it in" click, rather than a seeded winner
+// standing in for one (clubs 3 and 4 seed winningFilmId directly since
+// there's no lock UI when they were written). scheduledAt is seeded in
+// the past from the start, not left in the future and advanced mid-test
+// — nothing in the vote/lock flow reads scheduledAt, so locking works
+// identically either way, and seeding it past-due lets the same night
+// qualify for confirmation immediately once locked, with no need to
+// fake the passage of time inside the test.
+export const CLUB_5_ID = "99999999-9999-9999-9999-999999999993";
+
+export const MEMBERSHIP_5 = {
+  zoe: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1", // picker, nominates and votes
+  yara: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2",
+  xavier: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee3",
+};
+
+export const DISPLAY_NAME_5: Record<keyof typeof MEMBERSHIP_5, string> = {
+  zoe: "Zoe",
+  yara: "Yara",
+  xavier: "Xavier",
+};
+
+export const NIGHT_5_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3";

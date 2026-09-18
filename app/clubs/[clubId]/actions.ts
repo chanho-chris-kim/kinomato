@@ -11,11 +11,14 @@ import {
   ratings,
   rsvps,
   votes,
+  vetoes,
   watchlistItems,
 } from "@/db/schema";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
+import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
+import { getOrCreateCurrentSeasonId } from "./season";
 
 // No auth in v0: identity is a membership id in a per-club cookie, set by
 // picking a name from the club's member list. Nothing here trusts a
@@ -53,6 +56,15 @@ export async function clearIdentity(clubId: string) {
 // non-interactive Postgres transaction, atomic the same way — it's a
 // fit here specifically because the insert doesn't need to read the
 // delete's result, unlike a generic transaction callback.
+//
+// "Lock is immovable" (CLAUDE.md): once a night leaves "open", a vote
+// is rejected. Rejected means a silent no-op, not a thrown error — the
+// vote button only ever renders while a night is genuinely open, so the
+// only way to reach this path is a stale tab left open from before lock
+// (or direct tampering), the same "lost the race" shape confirmNight
+// and lockNight already treat as benign rather than an app error. It's
+// the DB write that's the actual guard: nothing about a vote cast here
+// is allowed to touch the votes table once locked.
 export async function castVote(clubId: string, nominationId: string) {
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const membershipId = await requireCurrentMembershipId(clubId);
@@ -62,6 +74,10 @@ export async function castVote(clubId: string, nominationId: string) {
     .from(nominations)
     .where(eq(nominations.id, nominationId));
   if (!nomination) throw new Error("Nomination not found.");
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nomination.nightId));
+  if (!night || night.clubId !== clubId) throw new Error("Night not found.");
+  if (night.state !== "open") return;
 
   const sameNightNominations = await db
     .select({ id: nominations.id })
@@ -236,6 +252,58 @@ export async function submitRating(clubId: string, nightId: string, formData: Fo
       target: [ratings.nightId, ratings.membershipId],
       set: { scoreQuality: scoreQuality.toFixed(1), scoreFun: scoreFun.toFixed(1), hotTake },
     });
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// "Lock it in" (analysis-v1.md §1.1 stage 8) — any club member, not just
+// the picker, since by this point the vote is everyone's business.
+// membershipId is only used to prove the caller holds some identity in
+// this club; there's no lockedBy column to attribute it to, unlike
+// confirmNight. The actual tally/tiebreak/write is lockNightCore, shared
+// with the not-yet-built scheduled job — see that file's SEAM comment.
+export async function lockNight(clubId: string, nightId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  await requireCurrentMembershipId(clubId);
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
+  if (!night || night.clubId !== clubId) throw new Error("Night not found.");
+
+  await lockNightCore(db, nightId);
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Minimal seam, not the full veto feature (see CLAUDE.md's veto ruling
+// for the intended shape — a token pool capped at two per member per
+// season). This exists only to prove and test "no vetoes after lock";
+// it doesn't enforce the pool cap, doesn't let the picker substitute a
+// replacement nominee, and doesn't remove the vetoed film from the
+// nominee list the UI renders. All of that is a separate, not-yet-
+// started feature.
+export async function castVeto(clubId: string, nominationId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [nomination] = await db
+    .select({ nightId: nominations.nightId })
+    .from(nominations)
+    .where(eq(nominations.id, nominationId));
+  if (!nomination) throw new Error("Nomination not found.");
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nomination.nightId));
+  if (!night || night.clubId !== clubId) throw new Error("Night not found.");
+  if (night.state !== "open") {
+    throw new Error("Vetoes are only allowed before lock.");
+  }
+
+  const seasonId = await getOrCreateCurrentSeasonId(db, clubId);
+  await db.insert(vetoes).values({
+    nightId: nomination.nightId,
+    nominationId,
+    membershipId,
+    seasonId,
+  });
 
   revalidatePath(`/clubs/${clubId}`);
 }
