@@ -51,3 +51,23 @@ export const NOMINATION = {
   chungkingExpress: "66666666-6666-6666-6666-666666666662",
   paddington2: "66666666-6666-6666-6666-666666666663",
 };
+
+// A second, separate club — exists so the nomination E2E tests have a
+// club with exactly one night (draft, then open) to work with. Reusing
+// CLUB_ID would mean two simultaneously "open" nights once that draft
+// opens (Chris's pre-existing one plus this one), and the club page's
+// single `clubNights.find(n => n.state === "open")` has no defined way
+// to pick between them — a real gap, not a testing inconvenience to
+// route around by asserting less. Isolating in a second club sidesteps
+// it without changing that page logic on a guess at the right rule.
+export const CLUB_2_ID = "77777777-7777-7777-7777-777777777771";
+
+export const MEMBERSHIP_2 = {
+  nadia: "88888888-8888-8888-8888-888888888881", // picker
+  omar: "88888888-8888-8888-8888-888888888882", // votes on Nadia's nominees
+};
+
+export const DISPLAY_NAME_2: Record<keyof typeof MEMBERSHIP_2, string> = {
+  nadia: "Nadia",
+  omar: "Omar",
+};

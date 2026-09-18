@@ -1,10 +1,21 @@
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { getDb } from "@/db";
-import { clubs, films, memberships, nights, nominations, rsvps, votes } from "@/db/schema";
+import {
+  clubs,
+  films,
+  memberships,
+  nights,
+  nominations,
+  rsvps,
+  votes,
+  watchlistItems,
+} from "@/db/schema";
+import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
-import { castVote, clearIdentity, pickIdentity, setRsvp } from "./actions";
+import { castVote, clearIdentity, openVoting, pickIdentity, setRsvp } from "./actions";
 import { getIdentityMembershipId } from "./identity";
+import { NominationSelector } from "./NominationSelector";
 
 export default async function ClubPage({
   params,
@@ -125,6 +136,33 @@ export default async function ClubPage({
     myRsvpStatus = myRsvp?.status ?? null;
   }
 
+  // A night with no nominations yet — analysis-v1.md §1.1 stage 5. Only
+  // the picker sees anything selectable; everyone else sees whose turn
+  // it is. Once nominations exist, this night moves to "open" and the
+  // section above takes over — the two can't both be true for the same
+  // night, but a different night could independently be in each state
+  // (this club's seed data has exactly that: one open night mid-vote,
+  // one draft night waiting on its picker).
+  const draftNight = clubNights.find((n) => n.state === "draft") ?? null;
+  let draftPickerName: string | null = null;
+  let myWatchlistFilms: { id: string; title: string; year: number }[] = [];
+  let nomineesPerTurn = 3;
+
+  if (draftNight) {
+    draftPickerName =
+      clubMemberships.find((m) => m.id === draftNight.pickerMembershipId)?.displayName ??
+      "someone who's left";
+
+    if (draftNight.pickerMembershipId === currentMembership.id) {
+      nomineesPerTurn = getNomineesPerTurn(club.settings);
+      myWatchlistFilms = await db
+        .select({ id: films.id, title: films.title, year: films.year })
+        .from(watchlistItems)
+        .innerJoin(films, eq(watchlistItems.filmId, films.id))
+        .where(eq(watchlistItems.membershipId, currentMembership.id));
+    }
+  }
+
   return (
     <main className="p-4">
       <h1 className="text-xl font-bold">{club.name}</h1>
@@ -149,7 +187,29 @@ export default async function ClubPage({
       <h2 className="mt-4 font-semibold">Whose turn</h2>
       <p>{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>
 
-      {!openNight && <p className="mt-4">No open vote right now.</p>}
+      {draftNight &&
+        (draftNight.pickerMembershipId === currentMembership.id ? (
+          <>
+            <h2 className="mt-4 font-semibold">Your turn to nominate</h2>
+            {myWatchlistFilms.length === 0 ? (
+              <p className="mt-1">
+                Your watchlist is empty.{" "}
+                <Link href={`/clubs/${clubId}/list`} className="underline">
+                  Add films to it
+                </Link>{" "}
+                before you can nominate.
+              </p>
+            ) : (
+              <form action={openVoting.bind(null, clubId, draftNight.id)}>
+                <NominationSelector films={myWatchlistFilms} cap={nomineesPerTurn} />
+              </form>
+            )}
+          </>
+        ) : (
+          <p className="mt-4">Waiting on {draftPickerName} to nominate.</p>
+        ))}
+
+      {!openNight && !draftNight && <p className="mt-4">No open vote right now.</p>}
 
       {openNight && (
         <>

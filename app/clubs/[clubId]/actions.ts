@@ -4,7 +4,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getDb } from "@/db";
-import { nominations, rsvps, votes } from "@/db/schema";
+import { clubs, nights, nominations, rsvps, votes, watchlistItems } from "@/db/schema";
+import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
 
 // No auth in v0: identity is a membership id in a per-club cookie, set by
@@ -89,6 +90,66 @@ export async function setRsvp(
       target: [rsvps.nightId, rsvps.membershipId],
       set: { status, updatedAt: new Date() },
     });
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Nominees come only from the picker's own watchlist — analysis-v1.md
+// §1.1 stage 5 ("that person picks ... from their own list"), and
+// CLAUDE.md's "the picker never loses their turn, only which film"
+// ruling only makes sense because every nominee is theirs. Never
+// trusts the client-submitted film ids without checking them against
+// the picker's actual watchlist_items server-side.
+//
+// SEAM for lib/constraints.ts: hard limits aren't wired up yet. Once
+// they are, filterEligibleFilms() belongs right here — filtering the
+// picker's watchlist down to eligible films before nomination, using
+// this club's active constraints and the current RSVPs for this
+// night. That second input doesn't fully exist yet either: nothing in
+// the app collects RSVPs before a night has nominations, so "the set
+// of yes-RSVPs at nomination time" needs its own answer first.
+export async function openVoting(clubId: string, nightId: string, formData: FormData) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
+  if (!night || night.clubId !== clubId) {
+    throw new Error("Night not found.");
+  }
+  if (night.pickerMembershipId !== membershipId) {
+    throw new Error("Only this week's picker can open voting.");
+  }
+  if (night.state !== "draft") {
+    throw new Error("This night already has nominations.");
+  }
+
+  const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+  const cap = getNomineesPerTurn(club?.settings);
+
+  // Never trust the cap from the client either — re-read it, don't
+  // accept it as an argument.
+  const requestedFilmIds = Array.from(new Set(formData.getAll("filmId").map(String))).slice(
+    0,
+    cap,
+  );
+  if (requestedFilmIds.length === 0) {
+    throw new Error("Pick at least one film.");
+  }
+
+  const pickerItems = await db
+    .select({ filmId: watchlistItems.filmId })
+    .from(watchlistItems)
+    .where(eq(watchlistItems.membershipId, membershipId));
+  const ownedFilmIds = new Set(pickerItems.map((item) => item.filmId));
+  const filmIds = requestedFilmIds.filter((id) => ownedFilmIds.has(id));
+  if (filmIds.length === 0) {
+    throw new Error("None of the selected films are on your watchlist.");
+  }
+
+  await db.batch([
+    db.update(nights).set({ state: "open" }).where(eq(nights.id, nightId)),
+    ...filmIds.map((filmId) => db.insert(nominations).values({ nightId, filmId, membershipId })),
+  ]);
 
   revalidatePath(`/clubs/${clubId}`);
 }

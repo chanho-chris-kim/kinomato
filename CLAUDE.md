@@ -297,6 +297,19 @@ and move on.
   consent architecture built, not boilerplate. The privacy architecture
   has to be right before there's data to migrate — this can't be
   retrofitted later the way some other things can.
+- **Nothing creates a night's initial `draft` row.** The nomination
+  screen (`/clubs/[clubId]`) populates an existing draft-state night and
+  flips it to `open` — it doesn't create the night itself. Computing
+  `scheduledAt` from a club's `cadence`/`default_day`/`default_time` and
+  deciding what triggers creation (a cron job per cadence? the picker
+  arriving on the page for the first time that cycle?) is real,
+  un-designed logic. Related: the current club page only handles one
+  night in `open` state at a time (`clubNights.find(n => n.state ===
+  "open")`) — if a club ever legitimately has two nights in flight, that
+  lookup has no defined way to choose between them. Not hit in practice
+  yet because nothing creates a second night without this being solved
+  first, but worth deciding before it's a real bug instead of a
+  hypothetical one.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

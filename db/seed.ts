@@ -31,14 +31,27 @@ import {
   votes,
   watchlistItems,
 } from "./schema";
-import { CLUB_ID, FILM, MEMBERSHIP, NIGHT_ID, NOMINATION, USER } from "./seed-fixtures";
+import {
+  CLUB_2_ID,
+  CLUB_ID,
+  FILM,
+  MEMBERSHIP,
+  MEMBERSHIP_2,
+  NIGHT_ID,
+  NOMINATION,
+  USER,
+} from "./seed-fixtures";
 import { getMovieById, tmdbMovieToFilmRow } from "../lib/tmdb";
 
-// tmdbIds from lib/tmdb.ts's fixture, for the watchlist screen: Hereditary,
-// The Babadook, Get Out, Arrival. Inserted via the same TMDB-row mapper the
-// app itself uses when a member adds a film, so seed data and a real "Add"
-// click produce identically-shaped films rows.
-const WATCHLIST_DEMO_TMDB_IDS = [400001, 400002, 400003, 400013] as const;
+// tmdbIds from lib/tmdb.ts's fixture: Hereditary, The Babadook, Get Out,
+// Arrival (watchlist screen), Blade Runner, Zodiac, Whiplash (Nadia's
+// watchlist in the second club, for the nomination cap). Inserted via
+// the same TMDB-row mapper the app itself uses when a member adds a
+// film, so seed data and a real "Add" click produce identically-shaped
+// films rows.
+const WATCHLIST_DEMO_TMDB_IDS = [
+  400001, 400002, 400003, 400013, 400014, 400017, 400020,
+] as const;
 
 const databaseUrl = process.env.DATABASE_URL!;
 const client = postgres(databaseUrl);
@@ -209,6 +222,9 @@ async function main() {
   const getOutId = demoFilmIdByTmdbId.get(400003)!;
   const arrivalId = demoFilmIdByTmdbId.get(400013)!;
   const hereditaryId = demoFilmIdByTmdbId.get(400001)!;
+  const bladeRunnerId = demoFilmIdByTmdbId.get(400014)!;
+  const zodiacId = demoFilmIdByTmdbId.get(400017)!;
+  const whiplashId = demoFilmIdByTmdbId.get(400020)!;
 
   console.log("Seeding one open night, nominated by Chris...");
   const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
@@ -286,7 +302,69 @@ async function main() {
     { membershipId: MEMBERSHIP.marco, filmId: hereditaryId },
   ]);
 
-  console.log(`Done. Club id: ${CLUB_ID}`);
+  // A second, separate club for the nomination flow — see
+  // seed-fixtures.ts's comment on CLUB_2_ID for why this isn't just a
+  // second night bolted onto "Movie Night Crew": that would leave two
+  // nights simultaneously "open" once this one opens, and the club
+  // page's single-open-night lookup has no defined way to choose
+  // between them. Two members is enough: one picks, one votes.
+  console.log("Seeding a second club for the nomination flow...");
+  await db.insert(clubs).values({
+    id: CLUB_2_ID,
+    name: "Second Club",
+    cadence: "weekly",
+    defaultDay: 3,
+    defaultTime: "19:30",
+    timezone: "America/New_York",
+    mode: "remote",
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_2.nadia,
+      clubId: CLUB_2_ID,
+      userId: null,
+      identityKey: "guest-cookie-nadia-example",
+      displayName: "Nadia",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_2.omar,
+      clubId: CLUB_2_ID,
+      userId: null,
+      identityKey: "guest-cookie-omar-example",
+      displayName: "Omar",
+      role: "member",
+      joinedAt: day(2),
+    },
+  ]);
+
+  console.log("Seeding Nadia's watchlist (four films, one over the nomination cap)...");
+  // Films are shared across clubs, cached once — reusing the same rows
+  // already inserted above rather than re-fetching or duplicating them.
+  await db.insert(watchlistItems).values([
+    { membershipId: MEMBERSHIP_2.nadia, filmId: hereditaryId },
+    { membershipId: MEMBERSHIP_2.nadia, filmId: bladeRunnerId },
+    { membershipId: MEMBERSHIP_2.nadia, filmId: zodiacId },
+    { membershipId: MEMBERSHIP_2.nadia, filmId: whiplashId },
+  ]);
+
+  console.log("Seeding a draft night for Nadia's turn to nominate...");
+  // Nadia joined first, so she's who getNextPicker computes as next in
+  // this club — no last_picked_at exists yet for anyone here, unlike
+  // "Movie Night Crew". A club only has one night in flight in the real
+  // flow, but nothing yet creates a night's initial draft row (see
+  // CLAUDE.md's Open Questions), so this is seeded directly rather than
+  // produced by any app code path.
+  await db.insert(nights).values({
+    clubId: CLUB_2_ID,
+    scheduledAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+    pickerMembershipId: MEMBERSHIP_2.nadia,
+    state: "draft",
+  });
+
+  console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);
 }
 
