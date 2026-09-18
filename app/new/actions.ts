@@ -111,6 +111,16 @@ export async function createClub(formData: FormData) {
   const clubId = crypto.randomUUID();
   const ownerMembershipId = crypto.randomUUID();
 
+  // All these inserts ride in one db.batch() (one Postgres transaction),
+  // and defaultNow() resolves to the transaction's start time — every
+  // row would otherwise get an *identical* joined_at, leaving rotation
+  // order's joined_at-ASC tiebreak to fall through to id (a random
+  // UUID), which could hand the very first pick to someone other than
+  // the owner. Stamped explicitly instead, one millisecond apart in
+  // creation order, so the owner is deterministically first.
+  const baseJoinedAt = Date.now();
+  const joinedAtFor = (index: number) => new Date(baseJoinedAt + index);
+
   await db.batch([
     db.insert(clubs).values({
       id: clubId,
@@ -128,8 +138,9 @@ export async function createClub(formData: FormData) {
       identityKey: crypto.randomUUID(),
       displayName: yourName,
       role: "owner",
+      joinedAt: joinedAtFor(0),
     }),
-    ...memberNames.map((displayName) =>
+    ...memberNames.map((displayName, index) =>
       db.insert(memberships).values({
         id: crypto.randomUUID(),
         clubId,
@@ -137,6 +148,7 @@ export async function createClub(formData: FormData) {
         identityKey: crypto.randomUUID(),
         displayName,
         role: "member",
+        joinedAt: joinedAtFor(index + 1),
       }),
     ),
   ]);

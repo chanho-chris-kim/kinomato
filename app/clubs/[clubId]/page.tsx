@@ -15,6 +15,7 @@ import {
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { areTakesRevealed } from "@/lib/ratingReveal";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
+import { getNextOccurrence } from "@/lib/schedule";
 import {
   castVote,
   clearIdentity,
@@ -80,8 +81,16 @@ export default async function ClubPage({
     );
   }
 
-  const clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
+  let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
 
+  // Computed once, from the state as of this request, and never
+  // recomputed after a lazy-create below — getNextPicker already treats
+  // any non-cancelled night (draft included) as "picked" (CLAUDE.md's
+  // lock ruling covers the same mechanic), so re-deriving this against
+  // clubNights *after* inserting today's draft night would flip "Whose
+  // turn" to a different, more-confusing answer than the "Your turn to
+  // nominate" section below it on the very same page load. Both read
+  // this one result.
   const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
     id: m.id,
     identityKey: m.identityKey,
@@ -103,6 +112,54 @@ export default async function ClubPage({
   const whoseTurn = whoseTurnResult
     ? clubMemberships.find((m) => m.id === whoseTurnResult.id)
     : null;
+
+  // A night's first draft row is created lazily, right here (CLAUDE.md's
+  // load-bearing rulings) — whichever page load first finds the club
+  // with no non-terminal night and a resolvable next picker creates one.
+  // ad_hoc has no computable schedule (lib/schedule.ts returns null for
+  // it on purpose) — the ad_hoc-specific empty state below explains that
+  // rather than this silently doing nothing.
+  const hasNonTerminalNight = clubNights.some((n) =>
+    NON_TERMINAL_STATES.includes(n.state as (typeof NON_TERMINAL_STATES)[number]),
+  );
+  const adHocNeedsManualNight =
+    !hasNonTerminalNight && whoseTurnResult !== null && club.cadence === "ad_hoc";
+
+  if (!hasNonTerminalNight && whoseTurnResult && club.cadence !== "ad_hoc") {
+    const scheduledAt = getNextOccurrence(
+      {
+        cadence: club.cadence,
+        defaultDay: club.defaultDay,
+        defaultTime: club.defaultTime,
+        timezone: club.timezone,
+      },
+      new Date(now),
+      club.createdAt,
+    );
+    if (scheduledAt) {
+      try {
+        await db.insert(nights).values({
+          clubId,
+          scheduledAt,
+          pickerMembershipId: whoseTurnResult.id,
+          state: "draft",
+        });
+      } catch (error) {
+        // "A club has at most one night in flight" (CLAUDE.md) is a
+        // partial unique index — a second concurrent lazy-create is a
+        // rejected insert (Postgres 23505), not a duplicate row. Losing
+        // that race is expected, not a bug: re-read below picks up
+        // whichever request won. Anything else genuinely is a failure.
+        const isUniqueViolation =
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { code?: unknown }).code === "23505";
+        if (!isUniqueViolation) throw error;
+      }
+      clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
+    }
+  }
 
   const openNight = clubNights.find((n) => n.state === "open") ?? null;
   // RSVP stays live through lock — "the RSVP-flip problem" (analysis-
@@ -345,12 +402,27 @@ export default async function ClubPage({
         !draftNight &&
         !confirmableNight &&
         !ratingSection &&
-        (clubNights.length === 0 ? (
-          // The actual first impression for every new club (CLAUDE.md's
-          // Open Questions): nothing creates a night's first draft row
-          // yet, so this is permanent, not "coming soon," until that's
-          // built. Points at the one thing worth doing right now —
-          // growing the club — rather than implying a vote is imminent.
+        (adHocNeedsManualNight ? (
+          // "ad_hoc" has no computable next occurrence on purpose
+          // (lib/schedule.ts) — an ad-hoc club doesn't have a standing
+          // day/time to compute from, so lazy-creation can't fire here.
+          // Named explicitly so this reads as a real, permanent property
+          // of an ad_hoc club rather than a bug — there's no UI yet to
+          // schedule one manually either (a real gap, not solved here).
+          <>
+            <h2 className="mt-4 font-semibold">No night scheduled</h2>
+            <p className="mt-1">
+              This club is ad hoc — nights aren&apos;t scheduled
+              automatically. There&apos;s no way to schedule one manually
+              yet either.
+            </p>
+          </>
+        ) : clubNights.length === 0 ? (
+          // Reachable when nobody's active in the club yet to become the
+          // picker lazy-creation needs — not the common case once a club
+          // has its owner, but a real one (e.g. every membership somehow
+          // left). The actual first impression for a normal new club is
+          // the draft night created above, same request, not this.
           <>
             <h2 className="mt-4 font-semibold">No night scheduled yet</h2>
             <p className="mt-1">

@@ -80,11 +80,14 @@ another month over the thing that picks a film faster.
 4. Only then make it look like the prototype.
 
 Built beyond this list as the need became concrete rather than as a
-separate planned step: lock (`/clubs/[clubId]`'s "Lock it in"), and club
-creation and invites (`/new`, `/clubs/[clubId]/join`) — the last piece
-needed to run a real club without hand-seeding it. What's left for v0 to
-be feature-complete is the Open Questions below, principally nothing
-creating a night's first `draft` row yet.
+separate planned step: lock (`/clubs/[clubId]`'s "Lock it in"), club
+creation and invites (`/new`, `/clubs/[clubId]/join`), and first-night
+(`lib/schedule.ts` plus the lazy draft-night creation on `/clubs/[clubId]`
+page load — see the ruling below). A club created today reaches its
+first nomination with zero hand-seeding: `e2e/first-night.spec.ts` is
+the proof, running the whole loop — create, invite, join, watchlist,
+nominate, vote, lock, confirm, rate — on data the test itself creates.
+v0 is feature-complete; what's left is the Open Questions below.
 
 The purpose of v0 is to find out which rulings below are wrong.
 
@@ -137,6 +140,34 @@ Do not quietly change these — they encode decisions that took a while to reach
   "the" open or draft night for a club can look it up with a plain `find`
   and never has to decide between two candidates, because the database
   guarantees there's only ever one.
+- **A night's first `draft` row is created lazily, on `/clubs/[clubId]`
+  page load** — not a cron, not a button. If the club has no
+  non-terminal night and `getNextPicker` resolves someone, that request
+  inserts a `draft` night for them with `scheduledAt` from
+  `lib/schedule.ts`'s `getNextOccurrence`, computed once and never
+  recomputed for "Whose turn" on that same render (recomputing after the
+  insert would flip it to a different, more confusing answer than the
+  nomination section right below it — see the comment in
+  `app/clubs/[clubId]/page.tsx`). The "one night in flight" index turns
+  a race between two simultaneous page loads into a rejected insert on
+  the loser, caught and re-read rather than thrown — same shape as
+  confirmNight and lockNight losing a race to each other. `ad_hoc`
+  clubs can't lazy-create (no standing day/time to compute from) and get
+  their own explicit "no night scheduled" state, not a broken-looking
+  blank one — and there's no UI yet to schedule one for them manually.
+- **`lib/schedule.ts`'s "monthly" means the Nth occurrence of a weekday,
+  not a calendar day.** `clubs` only stores `default_day` (a weekday),
+  not a day-of-month, so "the 2nd Saturday of the month" is the only
+  reading "monthly" + a weekday picker can support — chosen because it's
+  what most recurring-meetup products mean by that combination, not
+  because it's the only defensible choice. When the Nth occurrence
+  doesn't exist in a later month (a "5th Friday" club hits a 4-Friday
+  month), it clamps to that month's last occurrence rather than skipping
+  the month — skipping would make the club's own page look broken one
+  month most years. DST correctness (get 8pm local right on both sides
+  of a transition) is the part of this module that's actually tested
+  hard; the monthly interpretation is a reasoned judgment call worth
+  revisiting if it doesn't match what a club expects.
 - **A cancelled night does not consume a turn.** A lost vote does — but all
   nominees belong to the picker, so they can only lose *which* of their films.
 - **Never auto-advance as if confirmed.** No answer within the window logs the
@@ -400,29 +431,6 @@ and move on.
   consent architecture built, not boilerplate. The privacy architecture
   has to be right before there's data to migrate — this can't be
   retrofitted later the way some other things can.
-- **Nothing creates a night's initial `draft` row.** The nomination
-  screen (`/clubs/[clubId]`) populates an existing draft-state night and
-  flips it to `open` — it doesn't create the night itself. Computing
-  `scheduledAt` from a club's `cadence`/`default_day`/`default_time` and
-  deciding what triggers creation (a cron job per cadence? the picker
-  arriving on the page for the first time that cycle?) is real,
-  un-designed logic. (The multi-open-night lookup ambiguity that used to
-  be noted here is resolved — see the "at most one night in flight"
-  ruling above.) This is now the one thing standing between a freshly
-  created club and its first nomination — club creation itself
-  (`/new`) is built, so a brand-new club can gather members but can
-  never nominate. The smallest viable unblock, not yet built: on
-  `/clubs/[clubId]`'s own page load, if the club has no non-terminal
-  night at all and `getNextPicker` resolves someone, insert a `draft`
-  night for that picker right there in the request — lazy creation on
-  first view, no cron. The one open question inside that: what
-  `scheduledAt` to give it. Cheapest option is a placeholder (e.g. "one
-  week from now") that's wrong until someone edits it — nothing edits a
-  night's schedule yet either. The "do it right" option computes the
-  next real occurrence of `cadence`/`default_day`/`default_time`, which
-  is the same date math the eventual scheduled-lock job
-  (`lockNightCore.ts`'s SEAM comment) will also need for `lockTime`, so
-  building it once here would pay for both.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
