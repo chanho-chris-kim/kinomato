@@ -26,6 +26,7 @@ import {
   setRsvp,
   submitRating,
 } from "./actions";
+import { ClubNav } from "./ClubNav";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
 import { NON_TERMINAL_STATES } from "./nightState";
@@ -64,7 +65,7 @@ export default async function ClubPage({
   if (!currentMembership) {
     return (
       <main className="p-4">
-        <h1 className="text-xl font-bold">{club.name}</h1>
+        <ClubNav clubId={clubId} clubName={club.name} current="club" />
         <p className="mt-2">Who are you?</p>
         <ul className="mt-2 space-y-2">
           {activeMemberships.map((m) => (
@@ -345,7 +346,7 @@ export default async function ClubPage({
 
   return (
     <main className="p-4">
-      <h1 className="text-xl font-bold">{club.name}</h1>
+      <ClubNav clubId={clubId} clubName={club.name} current="club" />
       <div className="mt-1">
         You are: {currentMembership.displayName}{" "}
         <form
@@ -358,11 +359,6 @@ export default async function ClubPage({
         </form>
       </div>
 
-      <p className="mt-1">
-        <Link href={`/clubs/${clubId}/list`} className="underline">
-          My watchlist
-        </Link>
-      </p>
       <p className="mt-1">
         Invite link:{" "}
         <Link href={`/clubs/${clubId}/join`} className="underline">
@@ -487,11 +483,18 @@ export default async function ClubPage({
             ))}
           </ul>
 
-          <form action={lockNight.bind(null, clubId, openNight.id)} className="mt-4">
-            <button type="submit" className="border px-3 py-1">
-              Lock it in
-            </button>
-          </form>
+          {(currentMembership.role === "owner" || currentMembership.role === "admin") && (
+            <div className="mt-4">
+              <form action={lockNight.bind(null, clubId, openNight.id)}>
+                <button type="submit" className="border px-3 py-1">
+                  Close voting and set the pick
+                </button>
+              </form>
+              <p className="text-sm mt-1">
+                The pick can&apos;t be changed after this.
+              </p>
+            </div>
+          )}
         </>
       )}
 

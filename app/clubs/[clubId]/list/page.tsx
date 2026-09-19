@@ -3,9 +3,10 @@ import Image from "next/image";
 import { getDb } from "@/db";
 import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
-import { getMovieById, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
+import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { pickIdentity } from "../actions";
+import { ClubNav } from "../ClubNav";
 import { getIdentityMembershipId } from "../identity";
 import { addFilm, removeFilm } from "./actions";
 
@@ -55,7 +56,7 @@ export default async function WatchlistPage({
   if (!currentMembership) {
     return (
       <main className="p-4">
-        <h1 className="text-xl font-bold">{club.name} — My watchlist</h1>
+        <ClubNav clubId={clubId} clubName={club.name} current="watchlist" />
         <p className="mt-2">Who are you?</p>
         <ul className="mt-2 space-y-2">
           {activeMemberships.map((m) => (
@@ -142,18 +143,39 @@ export default async function WatchlistPage({
       const freshMovies = await Promise.all(uncachedIds.map((id) => getMovieById(id)));
       for (const movie of freshMovies) {
         if (!movie) continue;
-        const filmRow = tmdbMovieToFilmRow(movie);
-        const [inserted] = await db
-          .insert(films)
-          .values(filmRow)
-          .onConflictDoNothing({ target: films.tmdbId })
-          .returning();
-        // A concurrent search/add for the same film between our select
-        // and this insert loses the race and gets nothing back — same
-        // "re-read rather than fail" shape as addFilm's own race guard.
-        const row =
-          inserted ?? (await db.select().from(films).where(eq(films.tmdbId, movie.id)))[0];
-        filmByTmdbId.set(movie.id, row);
+        // A single malformed TMDB result (CLAUDE.md — real example: a
+        // stub search hit with no release_date, which NaNs films.year
+        // and fails the insert) must never take down the whole search.
+        // Caught per-candidate and logged server-side, not per-request —
+        // the rest of the results still render.
+        try {
+          const filmRow = tmdbMovieToFilmRow(movie);
+          if (!isValidFilmRow(filmRow)) {
+            throw new Error(`unusable data from TMDB (year=${filmRow.year})`);
+          }
+          const [inserted] = await db
+            .insert(films)
+            .values(filmRow)
+            .onConflictDoNothing({ target: films.tmdbId })
+            .returning();
+          // A concurrent search/add for the same film between our select
+          // and this insert loses the race and gets nothing back — same
+          // "re-read rather than fail" shape as addFilm's own race guard.
+          const row =
+            inserted ?? (await db.select().from(films).where(eq(films.tmdbId, movie.id)))[0];
+          filmByTmdbId.set(movie.id, row);
+        } catch (err) {
+          // warn, not error — this is a handled, recovered condition
+          // (the request itself still succeeds), not a crash. Matters
+          // in dev specifically: Next.js replays a Server Component's
+          // console.error to the browser console (a debugging aid),
+          // which would otherwise trip the E2E suite's zero-tolerance
+          // console-error fixture for something that isn't a bug.
+          console.warn(
+            `Skipping unusable search result (tmdbId=${movie.id}, title="${movie.title}"):`,
+            err,
+          );
+        }
       }
     }
 
@@ -218,7 +240,7 @@ export default async function WatchlistPage({
 
   return (
     <main className="p-4">
-      <h1 className="text-xl font-bold">{club.name} — My watchlist</h1>
+      <ClubNav clubId={clubId} clubName={club.name} current="watchlist" />
       <p className="mt-1">You are: {currentMembership.displayName}</p>
 
       <form className="mt-4">

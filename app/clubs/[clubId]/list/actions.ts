@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { films, watchlistItems } from "@/db/schema";
-import { getMovieById, tmdbMovieToFilmRow } from "@/lib/tmdb";
+import { getMovieById, isValidFilmRow, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { requireCurrentMembershipId } from "../identity";
 
 // Adding a film that's never been fetched before caches it (one films
@@ -26,6 +26,13 @@ export async function addFilm(clubId: string, tmdbId: number) {
       throw new Error(`No TMDB movie with id ${tmdbId}.`);
     }
     const filmRow = tmdbMovieToFilmRow(movie);
+    // Shouldn't be reachable through the UI — the search results page
+    // already skips a candidate this malformed (CLAUDE.md) — but a
+    // direct/stale call still deserves a clear error over a doomed
+    // insert (films.year is NOT NULL).
+    if (!isValidFilmRow(filmRow)) {
+      throw new Error(`TMDB has unusable data for "${movie.title}" (id ${tmdbId}).`);
+    }
     const [film] = await db
       .insert(films)
       .values(filmRow)

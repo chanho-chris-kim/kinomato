@@ -211,3 +211,15 @@ export function tmdbMovieToFilmRow(m: TmdbMovie) {
     releaseDate: m.release_date,
   };
 }
+
+// Whether a mapped row is actually insertable. TMDB has stub/incomplete
+// entries with no release_date at all — real search result, not a
+// hypothetical (searching "fleabag" turns one up alongside the real
+// "National Theatre Live: Fleabag") — and films.year is NOT NULL, so
+// new Date("").getUTCFullYear()'s NaN fails the insert outright rather
+// than storing a wrong-but-harmless value. Callers building search
+// results or adding a film should check this and skip/log rather than
+// let one malformed candidate take the whole request down with it.
+export function isValidFilmRow(row: ReturnType<typeof tmdbMovieToFilmRow>): boolean {
+  return Number.isFinite(row.year);
+}

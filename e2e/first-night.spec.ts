@@ -97,13 +97,13 @@ test.describe("first night — a brand-new club, start to finish", () => {
     await expect(page.getByText(/Whiplash.*— 1 vote/)).toBeVisible();
   });
 
-  test("Priya RSVPs yes, then locks it in", async ({ page }) => {
+  test("Priya RSVPs yes, then closes voting (she's the owner)", async ({ page }) => {
     await page.goto(clubUrl);
     await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await page.getByRole("button", { name: "Going", exact: true }).click();
     await expect(page.getByText("Current answer: yes")).toBeVisible();
 
-    await page.getByRole("button", { name: "Lock it in" }).click();
+    await page.getByRole("button", { name: "Close voting and set the pick" }).click();
   });
 
   test("the club's night is genuinely scheduled in the future — there's no in-app way to advance past it", async ({

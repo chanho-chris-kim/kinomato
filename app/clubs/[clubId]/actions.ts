@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { getDb } from "@/db";
 import {
   clubs,
+  memberships,
   nights,
   nominations,
   ratings,
@@ -256,15 +257,29 @@ export async function submitRating(clubId: string, nightId: string, formData: Fo
   revalidatePath(`/clubs/${clubId}`);
 }
 
-// "Lock it in" (analysis-v1.md §1.1 stage 8) — any club member, not just
-// the picker, since by this point the vote is everyone's business.
-// membershipId is only used to prove the caller holds some identity in
-// this club; there's no lockedBy column to attribute it to, unlike
-// confirmNight. The actual tally/tiebreak/write is lockNightCore, shared
-// with the not-yet-built scheduled job — see that file's SEAM comment.
+// "Close voting and set the pick" (analysis-v1.md §1.1 stage 8) —
+// restricted to owner/admin (CLAUDE.md — overrides an earlier "any
+// member" ruling). This button is scaffolding until the scheduled-lock
+// cron exists; a member accidentally ending the vote early is a worse
+// failure than waiting for an admin. There's no lockedBy column to
+// attribute it to, unlike confirmNight — membership is only fetched
+// here to check role. The actual tally/tiebreak/write is
+// lockNightCore, shared with the not-yet-built scheduled job — see
+// that file's SEAM comment.
 export async function lockNight(clubId: string, nightId: string) {
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  await requireCurrentMembershipId(clubId);
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [membership] = await db
+    .select()
+    .from(memberships)
+    .where(eq(memberships.id, membershipId));
+  if (!membership || membership.clubId !== clubId) {
+    throw new Error("No identity set for this club — pick a name first.");
+  }
+  if (membership.role !== "owner" && membership.role !== "admin") {
+    throw new Error("Only the club owner or an admin can close voting.");
+  }
 
   const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
   if (!night || night.clubId !== clubId) throw new Error("Night not found.");

@@ -32,6 +32,22 @@ test.describe("watchlist", () => {
     await expect(resultRow(page, "Whiplash")).toBeVisible();
   });
 
+  // Real TMDB data (lib/tmdbFixture.ts) — searching "fleabag" returns a
+  // normal result alongside a stub entry with no release_date and no
+  // credits, which used to 500 the whole page (films.year's NOT NULL
+  // insert failing on NaN). CLAUDE.md: a single malformed result must
+  // never take down the whole search — this proves the rest still
+  // renders, not just that isValidFilmRow returns the right boolean.
+  test("a malformed search result doesn't break the page — the rest still renders", async ({
+    page,
+  }) => {
+    await pickIdentity(page, "Dana");
+    await search(page, "fleabag");
+    await expect(resultRow(page, "National Theatre Live: Fleabag")).toBeVisible();
+    // The malformed stub itself is silently skipped, not shown broken.
+    await expect(page.getByText("Fleabag", { exact: true })).not.toBeVisible();
+  });
+
   test("the overlap badge shows the right count against seeded data", async ({ page }) => {
     await pickIdentity(page, "Dana");
     await search(page, "Hereditary");

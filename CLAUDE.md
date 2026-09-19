@@ -130,11 +130,19 @@ Do not quietly change these — they encode decisions that took a while to reach
   filter and the pick does not change. A lock people can't trust is worthless.
   Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
   writes the winner to `winning_film_id` — two entry points, one shared core
-  (`lockNightCore`): a manual "Lock it in" button visible to any club member
-  on an open night (not just the picker — by lock time the vote is everyone's
-  business), and a not-yet-built scheduled job (SEAM comment in
-  `lockNightCore.ts` — needs a `lockTime` key added to `clubs.settings` and a
-  Cloudflare Cron Trigger). Tie-break chain: most votes, then fewest soft-
+  (`lockNightCore`): a manual "Close voting and set the pick" button, and a
+  not-yet-built scheduled job (SEAM comment in `lockNightCore.ts` — needs a
+  `lockTime` key added to `clubs.settings` and a Cloudflare Cron Trigger).
+  **The button is restricted to owner/admin**, not any club member — this
+  overrides an earlier ruling here that any member could lock. Reasoning for
+  the change: the button only exists because the cron doesn't yet — it's
+  scaffolding for a mechanism that's supposed to be automatic and time-
+  based, not a discretionary member action. A member accidentally ending
+  the vote early (fixing the pick before people meant to finish voting) is
+  a worse failure than making people wait for an owner or admin to do it.
+  Once the scheduled job ships, this button's role question mostly stops
+  mattering — the clock will beat manual clicks to it in the common case.
+  Tie-break chain: most votes, then fewest soft-
   preference conflicts among attending members
   (`countSoftPreferenceConflicts`), then nomination id ASC as a last-resort
   deterministic fallback — `analysis-v2.md` §2's further "club overlap

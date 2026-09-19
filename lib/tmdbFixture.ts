@@ -528,6 +528,38 @@ const FIXTURE_MOVIES: TmdbMovie[] = [
     ],
     keywords: keywords(KEYWORD.rockClimbing),
   }),
+
+  // A real pair from TMDB's own data (not invented) — searching
+  // "fleabag" against the live API returns exactly this: a normal
+  // result alongside a stub entry with no release_date and no credits.
+  // The stub is what 500'd search in production before films.year's
+  // NOT NULL insert was guarded against it (CLAUDE.md). Kept here,
+  // using TMDB's real ids, so E2E can exercise "one malformed result
+  // doesn't take down the rest of the page" without a real API key.
+  movie({
+    id: 620350,
+    title: "National Theatre Live: Fleabag",
+    release_date: "2019-09-12",
+    runtime: 81,
+    original_language: "en",
+    popularity: 8.4,
+    genres: [GENRE.comedy, GENRE.drama],
+    cast: [["Phoebe Waller-Bridge", "Fleabag"]],
+    crew: [["Tim Van Someren", "Director", "Directing"]],
+    keywords: keywords(),
+  }),
+  movie({
+    id: 1766152,
+    title: "Fleabag",
+    release_date: "",
+    runtime: 0,
+    original_language: "en",
+    popularity: 0,
+    genres: [],
+    cast: [],
+    crew: [],
+    keywords: keywords(),
+  }),
 ];
 
 export async function searchMovies(query: string): Promise<TmdbMovie[]> {
