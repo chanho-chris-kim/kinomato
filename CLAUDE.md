@@ -55,6 +55,22 @@ another month over the thing that picks a film faster.
   `initOpenNextCloudflareForDev()` so local dev behaves like the Worker.
   Cloudflare Cron Triggers (`wrangler.jsonc`) replace Vercel Cron for
   scheduled jobs, once there are any.
+- **`next/image` works on this deployment without an `env.IMAGES`
+  binding — verified, not assumed.** Confirmed by building with
+  `opennextjs-cloudflare build`, running the real bundle under `wrangler
+  dev`, and fetching a real TMDB poster through `/_next/image?url=...`:
+  `200`, correct `image/jpeg`, exactly the requested pixel dimensions.
+  OpenNext's `/_next/image` handler (`@opennextjs/cloudflare`'s
+  `handleImageRequest`) degrades gracefully when `env.IMAGES` is
+  undefined — it still validates the URL against `images.remotePatterns`
+  (so that config in `next.config.ts` is load-bearing, not optional) and
+  serves the original image unchanged, just without Cloudflare's own
+  resize/format-conversion step. That's a non-issue here specifically:
+  TMDB already serves pre-sized assets by path (`/t/p/w92/...`,
+  `/t/p/w185/...`), so the "optimization" Cloudflare's binding would add
+  on top is marginal. No `images.unoptimized` or custom loader needed.
+  Revisit only if a future image source doesn't pre-size (Cloudflare
+  Images is a separate product/cost to opt into, not a Workers default).
 - **Two deployments, on purpose, until launch:**
   - `kinomato.com` + `www` — a static holding page (Cloudflare project
     `kinomato-landing`, hand-uploaded, not in this repo). Deliberately

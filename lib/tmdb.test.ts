@@ -8,12 +8,12 @@ import {
 } from "./tmdb";
 
 // These exercise lib/tmdb.ts's own exports, not the fixture's — but
-// since `npm test`/CI never sets TMDB_API_KEY (CLAUDE.md: no real
+// since `npm test`/CI never sets TMDB_READ_TOKEN (CLAUDE.md: no real
 // network access from unit tests), every call here takes the same
 // fallback-to-fixture path a real, unconfigured deployment would. That
 // makes this a real test of the fallback wiring itself, not just a
 // duplicate of lib/tmdbFixture.test.ts's coverage.
-describe("searchMovieCandidates (no TMDB_API_KEY — fixture fallback)", () => {
+describe("searchMovieCandidates (no TMDB_READ_TOKEN — fixture fallback)", () => {
   it("returns candidates for a fixture title", async () => {
     const results = await searchMovieCandidates("Whiplash");
     expect(results.map((c) => c.title)).toContain("Whiplash");
@@ -30,7 +30,7 @@ describe("searchMovieCandidates (no TMDB_API_KEY — fixture fallback)", () => {
   });
 });
 
-describe("searchMovies (no TMDB_API_KEY — fixture fallback)", () => {
+describe("searchMovies (no TMDB_READ_TOKEN — fixture fallback)", () => {
   it("returns the full enriched shape, same contract as always", async () => {
     const [first] = await searchMovies("Whiplash");
     expect(first.title).toBe("Whiplash");
@@ -38,7 +38,7 @@ describe("searchMovies (no TMDB_API_KEY — fixture fallback)", () => {
   });
 });
 
-describe("getMovieById (no TMDB_API_KEY — fixture fallback)", () => {
+describe("getMovieById (no TMDB_READ_TOKEN — fixture fallback)", () => {
   it("returns a known fixture film", async () => {
     const movie = await getMovieById(1091); // The Thing
     expect(movie?.title).toBe("The Thing");

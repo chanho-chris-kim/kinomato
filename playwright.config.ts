@@ -46,13 +46,13 @@ export default defineConfig({
       // E2E_DATABASE_URL is set.
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       // Explicitly cleared, not just left unset — a developer's own
-      // .env has a real key for local `npm run dev`, and this webServer
-      // env is merged onto (not a replacement for) the inherited
-      // process.env, so without this override a local E2E run would
-      // silently start hitting the real TMDB API. Empty string forces
-      // lib/tmdb.ts's fixture fallback, same as CI (which never has a
-      // key at all).
-      TMDB_API_KEY: "",
+      // .env has a real token for local `npm run dev`, and this
+      // webServer env is merged onto (not a replacement for) the
+      // inherited process.env, so without this override a local E2E run
+      // would silently start hitting the real TMDB API. Empty string
+      // forces lib/tmdb.ts's fixture fallback, same as CI (which never
+      // has a token at all).
+      TMDB_READ_TOKEN: "",
     },
   },
 });

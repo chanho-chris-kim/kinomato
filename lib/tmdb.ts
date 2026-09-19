@@ -1,8 +1,8 @@
 // Live TMDB client. lib/tmdbFixture.ts holds a fixed ~25-film fixture
 // with the identical shape, used by db/seed.ts directly (always — its
 // hardcoded ids are fixture-only) and as this module's own fallback
-// when TMDB_API_KEY isn't set (E2E/CI never set it, on purpose, so
-// tests never need a key or real network access).
+// when TMDB_READ_TOKEN isn't set (E2E/CI never set it, on purpose, so
+// tests never need a token or real network access).
 //
 // Every exported type mirrors TMDB's actual response shapes — GET
 // /movie/{id}?append_to_response=credits,keywords for the per-film
@@ -71,9 +71,11 @@ export interface TmdbSearchCandidate {
 }
 
 const API_BASE = "https://api.themoviedb.org/3";
-// Server-side only — never NEXT_PUBLIC_ (CLAUDE.md). v3 API key, sent
-// as a query param, not the v4 read-access-token/Bearer-header form.
-const API_KEY = process.env.TMDB_API_KEY;
+// Server-side only — never NEXT_PUBLIC_ (CLAUDE.md). v4 read-access
+// token, sent as an Authorization: Bearer header — keeps the
+// credential out of URLs and logs, unlike the v3 api_key-as-query-
+// param form.
+const READ_TOKEN = process.env.TMDB_READ_TOKEN;
 
 // A search page is a disambiguation list, not an exhaustive result
 // set — capping here bounds both the one search call and (for
@@ -82,10 +84,11 @@ const MAX_SEARCH_RESULTS = 10;
 
 async function tmdbFetch(path: string, params: Record<string, string>): Promise<unknown | null> {
   const url = new URL(`${API_BASE}${path}`);
-  url.searchParams.set("api_key", API_KEY!);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${READ_TOKEN}` },
+  });
   if (res.status === 404) return null; // "no such movie" — a normal, expected outcome
   if (!res.ok) {
     throw new Error(`TMDB request to ${path} failed: ${res.status} ${res.statusText}`);
@@ -114,7 +117,7 @@ function mapSearchResult(raw: {
 export async function searchMovieCandidates(query: string): Promise<TmdbSearchCandidate[]> {
   const normalized = query.trim();
   if (!normalized) return [];
-  if (!API_KEY) {
+  if (!READ_TOKEN) {
     const fixtureResults = await tmdbFixture.searchMovies(normalized);
     return fixtureResults.slice(0, MAX_SEARCH_RESULTS).map(mapSearchResult);
   }
@@ -163,7 +166,7 @@ function mapMovieDetail(raw: {
 }
 
 export async function getMovieById(id: number): Promise<TmdbMovie | null> {
-  if (!API_KEY) return tmdbFixture.getMovieById(id);
+  if (!READ_TOKEN) return tmdbFixture.getMovieById(id);
 
   const data = await tmdbFetch(`/movie/${id}`, { append_to_response: "credits,keywords" });
   if (!data) return null;
@@ -177,7 +180,7 @@ export async function getMovieById(id: number): Promise<TmdbMovie | null> {
 // can skip the detail call for a cache hit — this composes the two
 // unconditionally and is for callers that don't need that.
 export async function searchMovies(query: string): Promise<TmdbMovie[]> {
-  if (!API_KEY) return tmdbFixture.searchMovies(query);
+  if (!READ_TOKEN) return tmdbFixture.searchMovies(query);
 
   const candidates = await searchMovieCandidates(query);
   const enriched = await Promise.all(candidates.map((c) => getMovieById(c.id)));

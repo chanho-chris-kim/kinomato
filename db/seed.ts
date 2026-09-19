@@ -53,7 +53,7 @@ import {
 import { tmdbMovieToFilmRow } from "../lib/tmdb";
 // Always the fixture, never lib/tmdb.ts's real client — these ids
 // (400001 and up) only exist in the fixture, so seeding must not
-// depend on whether a real TMDB_API_KEY happens to be configured.
+// depend on whether a real TMDB_READ_TOKEN happens to be configured.
 import { getMovieById } from "../lib/tmdbFixture";
 
 // tmdbIds from lib/tmdb.ts's fixture: Hereditary, The Babadook, Get Out,

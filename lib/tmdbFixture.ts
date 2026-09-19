@@ -7,11 +7,11 @@
 // - db/seed.ts always imports this module directly, never lib/tmdb.ts.
 //   Its hardcoded ids (400001 and up) are fixture-only — they don't
 //   exist on the real API, so seeding must never depend on whether a
-//   real TMDB_API_KEY happens to be configured.
+//   real TMDB_READ_TOKEN happens to be configured.
 // - lib/tmdb.ts (the real client) falls back to this module when
-//   TMDB_API_KEY is unset, which is how E2E/CI run without a key or
+//   TMDB_READ_TOKEN is unset, which is how E2E/CI run without a token or
 //   real network access: the dev server they hit is the same app code,
-//   just missing the key, and degrades to this instead of erroring.
+//   just missing the token, and degrades to this instead of erroring.
 //
 // poster_path is null throughout (not a fake "/fixture/..." path) —
 // once poster images are real <img>/<Image> tags, a fake path would
