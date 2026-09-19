@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canAddMember, FREE_TIER_MEMBER_CAP, isDisplayNameTaken } from "./clubMembers";
+import {
+  canAddMember,
+  FREE_TIER_MEMBER_CAP,
+  isDisplayNameTaken,
+  MAX_PRE_ADDED_MEMBERS,
+} from "./clubMembers";
+
+describe("MAX_PRE_ADDED_MEMBERS", () => {
+  it("is one less than the cap — the owner is always the plus-one", () => {
+    expect(MAX_PRE_ADDED_MEMBERS).toBe(FREE_TIER_MEMBER_CAP - 1);
+  });
+});
 
 describe("canAddMember", () => {
   it("allows joining below the free-tier cap", () => {

@@ -1,8 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
+import Image from "next/image";
 import { getDb } from "@/db";
 import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
-import { searchMovies } from "@/lib/tmdb";
+import { getMovieById, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { pickIdentity } from "../actions";
 import { getIdentityMembershipId } from "../identity";
@@ -124,14 +125,39 @@ export default async function WatchlistPage({
   // by-keyword/URL/CSV modes aren't built yet).
   let searchRows: SearchRow[] = [];
   if (query) {
-    const results = await searchMovies(query);
-    const tmdbIds = results.map((r) => r.id);
+    const candidates = await searchMovieCandidates(query);
+    const tmdbIds = candidates.map((c) => c.id);
 
     const existingFilms = tmdbIds.length
       ? await db.select().from(films).where(inArray(films.tmdbId, tmdbIds))
       : [];
     const filmByTmdbId = new Map(existingFilms.map((f) => [f.tmdbId, f]));
-    const existingFilmIds = existingFilms.map((f) => f.id);
+
+    // Enrich only what isn't already cached — films.cached_at is kept
+    // indefinitely (CLAUDE.md: "never re-fetch on browse"), so a repeat
+    // search for something already added (by anyone) or previously
+    // searched costs nothing beyond the one /search/movie call above.
+    const uncachedIds = tmdbIds.filter((id) => !filmByTmdbId.has(id));
+    if (uncachedIds.length > 0) {
+      const freshMovies = await Promise.all(uncachedIds.map((id) => getMovieById(id)));
+      for (const movie of freshMovies) {
+        if (!movie) continue;
+        const filmRow = tmdbMovieToFilmRow(movie);
+        const [inserted] = await db
+          .insert(films)
+          .values(filmRow)
+          .onConflictDoNothing({ target: films.tmdbId })
+          .returning();
+        // A concurrent search/add for the same film between our select
+        // and this insert loses the race and gets nothing back — same
+        // "re-read rather than fail" shape as addFilm's own race guard.
+        const row =
+          inserted ?? (await db.select().from(films).where(eq(films.tmdbId, movie.id)))[0];
+        filmByTmdbId.set(movie.id, row);
+      }
+    }
+
+    const existingFilmIds = [...filmByTmdbId.values()].map((f) => f.id);
 
     const otherMemberRows = existingFilmIds.length
       ? await db
@@ -161,28 +187,29 @@ export default async function WatchlistPage({
       watchedNights.map((n) => n.winningFilmId).filter((id): id is string => id !== null),
     );
 
-    searchRows = results.map((movie) => {
-      const existing = filmByTmdbId.get(movie.id);
-      const director =
-        movie.credits.crew.find((c) => c.job === "Director")?.name ?? null;
-      return {
-        tmdbId: movie.id,
-        title: movie.title,
-        year: new Date(movie.release_date).getUTCFullYear(),
-        posterPath: movie.poster_path,
-        director,
-        cast: movie.credits.cast.slice(0, 3).map((c) => c.name),
-        genres: movie.genres.map((g) => g.name),
-        runtime: movie.runtime,
-        otherMembersCount: existing ? otherCountByFilmId.get(existing.id) ?? 0 : 0,
-        alreadyWatched: existing ? watchedFilmIds.has(existing.id) : false,
-        onMyList: existing ? myFilmIdSet.has(existing.id) : false,
-      };
-    });
+    // Built from the cached films row (whether it was already there or
+    // just inserted above), not from the TMDB response directly — one
+    // shape regardless of cache hit or miss.
+    searchRows = candidates
+      .map((c) => filmByTmdbId.get(c.id))
+      .filter((f) => f !== undefined)
+      .map((f) => ({
+        tmdbId: f.tmdbId,
+        title: f.title,
+        year: f.year,
+        posterPath: f.posterPath,
+        director: f.directors[0] ?? null,
+        cast: f.cast.slice(0, 3),
+        genres: f.genres,
+        runtime: f.runtime ?? 0,
+        otherMembersCount: otherCountByFilmId.get(f.id) ?? 0,
+        alreadyWatched: watchedFilmIds.has(f.id),
+        onMyList: myFilmIdSet.has(f.id),
+      }));
 
     // Any film already on another club member's list floats to the top,
     // regardless of popularity (watchlist-spec.md §1.1). Stable sort
-    // preserves the popularity order searchMovies() already returned
+    // preserves the relevance order searchMovieCandidates() returned
     // within each group.
     searchRows.sort(
       (a, b) => Number(b.otherMembersCount > 0) - Number(a.otherMembersCount > 0),
@@ -214,7 +241,12 @@ export default async function WatchlistPage({
           <ul className="mt-2 space-y-3">
             {searchRows.map((r) => (
               <li key={r.tmdbId} className="border p-2 flex gap-3">
-                <PosterPlaceholder className="w-11 h-16 shrink-0" />
+                <Poster
+                  posterPath={r.posterPath}
+                  title={r.title}
+                  size={92}
+                  className="w-11 h-16 shrink-0"
+                />
                 <div>
                   <div>
                     {r.title} ({r.year})
@@ -262,14 +294,35 @@ export default async function WatchlistPage({
   );
 }
 
-// lib/tmdb.ts's fixture poster_path values are placeholders that don't
-// resolve to anything — a real <img src> against them 404s, which is a
-// real console error (browsers do log failed resource loads), not noise
-// the E2E console-error fixture should ignore. Swap this for a real
-// <img src={`https://image.tmdb.org/t/p/w92${posterPath}`}> once posters
-// are real; needs images.remotePatterns in next.config.ts too.
-function PosterPlaceholder({ className }: { className: string }) {
-  return <div className={`bg-gray-200 ${className}`} />;
+// TMDB posters are a fixed 2:3 ratio at every size — width/height here
+// are the intrinsic source dimensions next/image needs for layout, not
+// the displayed size (the className's own w-*/h-* controls that, same
+// as before this was a plain placeholder div). null posterPath (every
+// fixture film, and any real film TMDB has no poster for) keeps the
+// placeholder — a real <img>/<Image> against a path that doesn't
+// resolve 404s, which is a real console error the E2E console-error
+// fixture would correctly fail on, not noise to ignore.
+function Poster({
+  posterPath,
+  title,
+  size,
+  className,
+}: {
+  posterPath: string | null;
+  title: string;
+  size: 92 | 185;
+  className: string;
+}) {
+  if (!posterPath) return <div className={`bg-gray-200 ${className}`} />;
+  return (
+    <Image
+      src={`https://image.tmdb.org/t/p/w${size}${posterPath}`}
+      alt={`${title} poster`}
+      width={size}
+      height={Math.round(size * 1.5)}
+      className={`${className} object-cover`}
+    />
+  );
 }
 
 function ShelfSection({ shelf, clubId }: { shelf: Shelf; clubId: string }) {
@@ -281,7 +334,7 @@ function ShelfSection({ shelf, clubId }: { shelf: Shelf; clubId: string }) {
       <div className="mt-1 flex flex-wrap gap-3">
         {shelf.films.map((f) => (
           <div key={f.watchlistItemId} className="w-24">
-            <PosterPlaceholder className="w-24 h-36" />
+            <Poster posterPath={f.posterPath} title={f.title} size={185} className="w-24 h-36" />
             <div className="text-sm">
               {f.title} ({f.year})
             </div>

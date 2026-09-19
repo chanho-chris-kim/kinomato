@@ -275,6 +275,23 @@ Do not quietly change these — they encode decisions that took a while to reach
   constraint here would also be the wrong shape long-term: the cap is
   meant to change per plan once paid tiers exist, which a fixed DB check
   can't express as easily as an application-level read.
+- **A name is first name + last initial, always — never a single free-
+  text field.** `display_name` stays the one stored column, composed
+  from the two (`lib/memberName.ts`'s `composeDisplayName`, e.g. "Chris
+  K."), not stored separately — same "not eight nullable fields"
+  reasoning as `clubs.settings`. This is mandatory, not a form
+  preference, specifically because `/clubs/[clubId]/join` lets someone
+  claim a name the owner pre-added: if the owner wrote "Priya S." and
+  Priya typed just "Priya," she'd create a second membership instead of
+  claiming her own. `/new` (both the creator's own name and pre-added
+  members) and `/join`'s add-yourself path all call the same
+  `validateMemberName` — first name non-empty, last initial exactly one
+  letter, both trimmed, the initial uppercased so "k" and "K" can't
+  become two different people. That last point is load-bearing, not
+  cosmetic: it's specifically what makes "the same person always
+  composes to the same string" true, which is what makes claiming an
+  existing name actually work. No email, no full last name — this is
+  the full extent of "who are you" in v0.
 - **A club with no nights renders a distinct first-run state, not a
   generic empty one.** `/clubs/[clubId]` distinguishes "this club has
   never had a night" (`clubNights.length === 0`) from "nothing's in

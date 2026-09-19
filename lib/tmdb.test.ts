@@ -1,46 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { getMovieById, searchMovies, tmdbMovieToFilmRow, type TmdbMovie } from "./tmdb";
+import {
+  getMovieById,
+  searchMovieCandidates,
+  searchMovies,
+  tmdbMovieToFilmRow,
+  type TmdbMovie,
+} from "./tmdb";
 
-describe("searchMovies", () => {
-  it("finds a film by a case-insensitive substring of its title", async () => {
-    const results = await searchMovies("paddington");
-    expect(results.map((m) => m.title)).toEqual(
-      expect.arrayContaining(["Paddington", "Paddington 2"]),
-    );
+// These exercise lib/tmdb.ts's own exports, not the fixture's — but
+// since `npm test`/CI never sets TMDB_API_KEY (CLAUDE.md: no real
+// network access from unit tests), every call here takes the same
+// fallback-to-fixture path a real, unconfigured deployment would. That
+// makes this a real test of the fallback wiring itself, not just a
+// duplicate of lib/tmdbFixture.test.ts's coverage.
+describe("searchMovieCandidates (no TMDB_API_KEY — fixture fallback)", () => {
+  it("returns candidates for a fixture title", async () => {
+    const results = await searchMovieCandidates("Whiplash");
+    expect(results.map((c) => c.title)).toContain("Whiplash");
   });
 
-  it("matches regardless of query case", async () => {
-    const results = await searchMovies("HEAT");
-    expect(results.map((m) => m.title)).toContain("Heat");
+  it("returns an empty array for an empty query", async () => {
+    expect(await searchMovieCandidates("  ")).toEqual([]);
   });
 
-  it("returns nothing for a query matching no title", async () => {
-    const results = await searchMovies("xyzzy-not-a-real-film");
-    expect(results).toEqual([]);
-  });
-
-  it("returns an empty array for an empty query rather than everything", async () => {
-    const results = await searchMovies("   ");
-    expect(results).toEqual([]);
-  });
-
-  it("sorts results by popularity, descending", async () => {
-    const results = await searchMovies("paddington");
-    for (let i = 1; i < results.length; i++) {
-      expect(results[i - 1].popularity).toBeGreaterThanOrEqual(results[i].popularity);
-    }
+  it("candidates have no runtime/credits/keywords — the thinner search shape", async () => {
+    const [first] = await searchMovieCandidates("Whiplash");
+    expect(first).not.toHaveProperty("runtime");
+    expect(first).not.toHaveProperty("credits");
   });
 });
 
-describe("getMovieById", () => {
-  it("returns the full enriched movie for a known id", async () => {
+describe("searchMovies (no TMDB_API_KEY — fixture fallback)", () => {
+  it("returns the full enriched shape, same contract as always", async () => {
+    const [first] = await searchMovies("Whiplash");
+    expect(first.title).toBe("Whiplash");
+    expect(first.credits.cast.length).toBeGreaterThan(0);
+  });
+});
+
+describe("getMovieById (no TMDB_API_KEY — fixture fallback)", () => {
+  it("returns a known fixture film", async () => {
     const movie = await getMovieById(1091); // The Thing
     expect(movie?.title).toBe("The Thing");
-    expect(movie?.credits.crew.some((c) => c.job === "Director")).toBe(true);
-    expect(movie?.keywords.keywords.length).toBeGreaterThan(0);
   });
 
-  it("returns null for an unknown id", async () => {
+  it("returns null for an id the fixture doesn't have", async () => {
     expect(await getMovieById(999999999)).toBeNull();
   });
 });

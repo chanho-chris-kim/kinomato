@@ -7,30 +7,45 @@ import { films, watchlistItems } from "@/db/schema";
 import { getMovieById, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { requireCurrentMembershipId } from "../identity";
 
-// Adding a film that's never been searched by this club before caches it
-// (one films row per tmdbId, cached indefinitely — watchlist-spec.md §5).
-// Adding one that's already cached (another member searched it first, or
-// it's already club history) refreshes that row instead of creating a
-// second one — onConflictDoUpdate, keyed on the tmdb id.
+// Adding a film that's never been fetched before caches it (one films
+// row per tmdbId, cached indefinitely — watchlist-spec.md §5, CLAUDE.md:
+// "films don't change, never re-fetch on browse"). Adding one that's
+// already cached (another member added it first, it surfaced from a
+// search that already cached it, or it's already club history) reuses
+// that row rather than calling TMDB again — no re-fetch, no rewrite.
 export async function addFilm(clubId: string, tmdbId: number) {
   const membershipId = await requireCurrentMembershipId(clubId);
   const db = getDb();
 
-  const movie = await getMovieById(tmdbId);
-  if (!movie) {
-    throw new Error(`No TMDB movie with id ${tmdbId}.`);
-  }
-  const filmRow = tmdbMovieToFilmRow(movie);
+  const [existing] = await db.select().from(films).where(eq(films.tmdbId, tmdbId));
+  let filmId = existing?.id;
 
-  const [film] = await db
-    .insert(films)
-    .values(filmRow)
-    .onConflictDoUpdate({ target: films.tmdbId, set: filmRow })
-    .returning({ id: films.id });
+  if (!filmId) {
+    const movie = await getMovieById(tmdbId);
+    if (!movie) {
+      throw new Error(`No TMDB movie with id ${tmdbId}.`);
+    }
+    const filmRow = tmdbMovieToFilmRow(movie);
+    const [film] = await db
+      .insert(films)
+      .values(filmRow)
+      .onConflictDoNothing({ target: films.tmdbId })
+      .returning({ id: films.id });
+    // onConflictDoNothing returns no row on a race (someone else's
+    // concurrent add/search cached it between our select and insert) —
+    // re-read rather than treat that as a failure, same shape as the
+    // lazy-night-creation race in app/clubs/[clubId]/page.tsx.
+    if (film) {
+      filmId = film.id;
+    } else {
+      const [wonByOther] = await db.select().from(films).where(eq(films.tmdbId, tmdbId));
+      filmId = wonByOther!.id;
+    }
+  }
 
   // Adding a film already on this member's list is a harmless no-op —
   // see the unique constraint on (membership_id, film_id).
-  await db.insert(watchlistItems).values({ membershipId, filmId: film.id }).onConflictDoNothing();
+  await db.insert(watchlistItems).values({ membershipId, filmId }).onConflictDoNothing();
 
   revalidatePath(`/clubs/${clubId}/list`);
 }

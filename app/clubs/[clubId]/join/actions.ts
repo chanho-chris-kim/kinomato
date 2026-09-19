@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { memberships } from "@/db/schema";
 import { canAddMember, FREE_TIER_MEMBER_CAP, isDisplayNameTaken } from "@/lib/clubMembers";
+import { validateMemberName } from "@/lib/memberName";
 import { identityCookieName } from "../identity";
 
 async function setIdentityCookie(clubId: string, membershipId: string) {
@@ -55,8 +56,14 @@ export async function claimExistingName(clubId: string, membershipId: string) {
 // the free-tier cap explicitly needs "a clear message," not a dev-mode
 // error overlay.
 export async function joinAsNewMember(clubId: string, formData: FormData) {
-  const displayName = String(formData.get("displayName") ?? "").trim();
-  if (!displayName) redirect(joinErrorUrl(clubId, "Enter a name."));
+  const nameResult = validateMemberName(
+    String(formData.get("firstName") ?? ""),
+    String(formData.get("lastInitial") ?? ""),
+  );
+  if ("error" in nameResult) {
+    redirect(joinErrorUrl(clubId, nameResult.error));
+  }
+  const displayName = nameResult.displayName;
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const clubMemberships = await db

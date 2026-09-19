@@ -76,12 +76,29 @@ export default async function JoinPage({
       </ul>
 
       <p className="mt-4">Not listed? Add yourself:</p>
+      <p className="text-sm">This is what the rest of the club sees you as.</p>
       <form action={joinAsNewMember.bind(null, clubId)} className="mt-1 flex gap-2">
         <label>
-          Your name
-          <input type="text" name="displayName" required className="border px-2 py-1" />
+          First name
+          <input
+            type="text"
+            name="firstName"
+            required
+            className="block border px-2 py-1"
+          />
         </label>
-        <button type="submit" className="border px-3 py-1">
+        <label>
+          Last initial
+          <input
+            type="text"
+            name="lastInitial"
+            required
+            maxLength={1}
+            size={2}
+            className="block border px-2 py-1"
+          />
+        </label>
+        <button type="submit" className="border px-3 py-1 self-end">
           Join
         </button>
       </form>

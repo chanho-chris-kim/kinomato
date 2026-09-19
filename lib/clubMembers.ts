@@ -8,6 +8,12 @@
 // nothing.
 export const FREE_TIER_MEMBER_CAP = 6;
 
+// The /new form's fixed number of optional pre-add rows — derived from
+// the cap (not a separate literal) so the form can never submit more
+// pre-added names than the owner-plus-cap arithmetic allows, and so the
+// two never quietly drift apart.
+export const MAX_PRE_ADDED_MEMBERS = FREE_TIER_MEMBER_CAP - 1;
+
 export function canAddMember(activeMemberCount: number): boolean {
   return activeMemberCount < FREE_TIER_MEMBER_CAP;
 }

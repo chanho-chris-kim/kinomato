@@ -5,9 +5,15 @@ import { expect, test } from "./fixtures";
 // The real deliverable this spec proves: a club that didn't exist when
 // the test started can go all the way from /new through nomination,
 // voting, lock, confirmation, and rating — with zero seeded data. Every
-// other spec runs against db/seed.ts fixtures; this one deliberately
-// doesn't, since the whole point of first-night is that a club no
-// longer needs hand-seeding to reach its first nomination.
+// other spec runs against clubs db/seed.ts pre-populates (which sets
+// display_name directly and never goes through validateMemberName —
+// those single-word names like "Chris" are untouched by the name-field
+// ruling below); this one deliberately doesn't seed, since the whole
+// point of first-night is that a club no longer needs hand-seeding to
+// reach its first nomination.
+//
+// Every name is first name + last initial (CLAUDE.md's name-field
+// ruling) — Priya S. and Owen R. here, never bare "Priya"/"Owen".
 //
 // Serial: every step is a one-way transition the next step builds on.
 test.describe.configure({ mode: "serial" });
@@ -23,24 +29,26 @@ test.describe("first night — a brand-new club, start to finish", () => {
   test("Priya creates the club with Owen pre-added", async ({ page }) => {
     await page.goto("/new");
     await page.getByLabel("Club name").fill("Brand New Club");
-    await page.getByLabel("Your name").fill("Priya");
+    await page.getByLabel("First name").first().fill("Priya");
+    await page.getByLabel("Last initial").first().fill("S");
     // Weekly, Saturday 8pm (the form's own defaults) — a real cadence,
     // not ad_hoc, so lib/schedule.ts has something to compute from.
     await page.getByLabel("Timezone").fill("America/New_York");
-    await page.getByLabel(/Add people now/).fill("Owen");
+    await page.locator('input[name="memberFirstName0"]').fill("Owen");
+    await page.locator('input[name="memberLastInitial0"]').fill("R");
     await page.getByRole("button", { name: "Create club" }).click();
 
     await expect(page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
     clubUrl = page.url();
     joinUrl = `${clubUrl}/join`;
-    await expect(page.getByText("You are: Priya")).toBeVisible();
+    await expect(page.getByText("You are: Priya S.")).toBeVisible();
   });
 
   test("Owen joins by claiming his pre-added name", async ({ page }) => {
     await page.goto(joinUrl);
-    await page.getByRole("button", { name: "Owen", exact: true }).click();
+    await page.getByRole("button", { name: "Owen R.", exact: true }).click();
     await expect(page).toHaveURL(clubUrl);
-    await expect(page.getByText("You are: Owen")).toBeVisible();
+    await expect(page.getByText("You are: Owen R.")).toBeVisible();
   });
 
   test("Priya (joined first, so she picks first) adds a film to her watchlist", async ({
@@ -50,7 +58,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
     // this is Priya's very first visit to any page in this club, before
     // a night of any kind exists.
     await page.goto(`${clubUrl}/list`);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await page.getByPlaceholder("Search films").fill("Whiplash");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page
@@ -61,9 +69,9 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("visiting the club page lazily creates the first draft night", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await expect(page.getByText("Whose turn")).toBeVisible();
-    await expect(page.locator("main")).toContainText("Priya");
+    await expect(page.locator("main")).toContainText("Priya S.");
     // No seed, no cron, no manual step — this is the lazy-create path
     // (lib/schedule.ts + the page-load insert) firing for the first
     // time, on this exact request.
@@ -73,15 +81,15 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("Priya nominates Whiplash, opening the vote", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await checkbox(page, "Whiplash").check();
     await page.getByRole("button", { name: "Open voting" }).click();
-    await expect(page.getByRole("heading", { name: /nominated by Priya/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /nominated by Priya S\./ })).toBeVisible();
   });
 
   test("Owen votes for it", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Owen", exact: true }).click();
+    await page.getByRole("button", { name: "Owen R.", exact: true }).click();
     await page
       .locator("li", { hasText: "Whiplash" })
       .getByRole("button", { name: /Vote/ })
@@ -91,7 +99,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("Priya RSVPs yes, then locks it in", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await page.getByRole("button", { name: "Going", exact: true }).click();
     await expect(page.getByText("Current answer: yes")).toBeVisible();
 
@@ -102,7 +110,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
     page,
   }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     // lib/schedule.ts computed a real next-Saturday-8pm occurrence — this
     // is the one deliberate exception to "everything through the app":
     // nothing in this product can fast-forward real time, so the only
@@ -125,7 +133,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("Owen confirms it watched", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Owen", exact: true }).click();
+    await page.getByRole("button", { name: "Owen R.", exact: true }).click();
     await page.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Did you watch Whiplash?" }),
@@ -134,7 +142,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("Priya rates it, closing the loop", async ({ page }) => {
     await page.goto(clubUrl);
-    await page.getByRole("button", { name: "Priya", exact: true }).click();
+    await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Rate Whiplash" })).toBeVisible();
 
     await page.getByLabel("Quality").evaluate((el) => {

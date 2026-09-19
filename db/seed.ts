@@ -50,7 +50,11 @@ import {
   NOMINATION,
   USER,
 } from "./seed-fixtures";
-import { getMovieById, tmdbMovieToFilmRow } from "../lib/tmdb";
+import { tmdbMovieToFilmRow } from "../lib/tmdb";
+// Always the fixture, never lib/tmdb.ts's real client — these ids
+// (400001 and up) only exist in the fixture, so seeding must not
+// depend on whether a real TMDB_API_KEY happens to be configured.
+import { getMovieById } from "../lib/tmdbFixture";
 
 // tmdbIds from lib/tmdb.ts's fixture: Hereditary, The Babadook, Get Out,
 // Arrival (watchlist screen), Blade Runner, Zodiac, Whiplash (Nadia's

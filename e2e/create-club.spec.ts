@@ -9,6 +9,10 @@ import { expect, test } from "./fixtures";
 // browser contexts throughout (not the default `page`) since several
 // distinct people need independent cookies within one test — same
 // pattern as voting-flow.spec.ts's two-browser-context scenario.
+//
+// Every name here is first name + last initial (CLAUDE.md's name-field
+// ruling) — "Robin" alone is not a valid submission anymore, and the
+// composed form ("Robin B.") is what buttons/text actually show.
 test.describe("club creation and invites", () => {
   test("create, invite, join, see each other, and the seventh member is refused", async ({
     browser,
@@ -28,7 +32,8 @@ test.describe("club creation and invites", () => {
 
       await ownerPage.goto("/new");
       await ownerPage.getByLabel("Club name").fill("E2E Test Club");
-      await ownerPage.getByLabel("Your name").fill("Robin");
+      await ownerPage.getByLabel("First name").first().fill("Robin");
+      await ownerPage.getByLabel("Last initial").first().fill("B");
       await ownerPage.getByLabel("Timezone").fill("America/New_York");
       await ownerPage.getByRole("button", { name: "Create club" }).click();
 
@@ -36,8 +41,8 @@ test.describe("club creation and invites", () => {
       const clubUrl = ownerPage.url();
       const joinUrl = `${clubUrl}/join`;
 
-      await expect(ownerPage.getByText("You are: Robin")).toBeVisible();
-      await expect(ownerPage.locator('h2:has-text("Members") + p')).toHaveText("Robin");
+      await expect(ownerPage.getByText("You are: Robin B.")).toBeVisible();
+      await expect(ownerPage.locator('h2:has-text("Members") + p')).toHaveText("Robin B.");
 
       // --- A second person joins via the invite link, under a new name. ---
       const friendContext = await newContext();
@@ -46,26 +51,34 @@ test.describe("club creation and invites", () => {
 
       await friendPage.goto(joinUrl);
       await expect(friendPage.getByRole("heading", { name: "E2E Test Club" })).toBeVisible();
-      await expect(friendPage.locator('h2:has-text("Who\'s in") + p')).toHaveText("Robin");
-      await friendPage.getByLabel("Your name").fill("Sam");
-      await friendPage.getByRole("button", { name: "Join" }).click();
+      await expect(friendPage.locator('h2:has-text("Who\'s in") + p')).toHaveText("Robin B.");
+      await joinAsNewMember(friendPage, joinUrl, "Sam", "K");
 
       await expect(friendPage).toHaveURL(clubUrl);
-      await expect(friendPage.getByText("You are: Sam")).toBeVisible();
+      await expect(friendPage.getByText("You are: Sam K.")).toBeVisible();
 
       // --- Both now see each other in the member list. ---
       await ownerPage.reload();
-      await expect(ownerPage.locator('h2:has-text("Members") + p')).toHaveText("Robin, Sam");
-      await expect(friendPage.locator('h2:has-text("Members") + p')).toHaveText("Robin, Sam");
+      await expect(ownerPage.locator('h2:has-text("Members") + p')).toHaveText(
+        "Robin B., Sam K.",
+      );
+      await expect(friendPage.locator('h2:has-text("Members") + p')).toHaveText(
+        "Robin B., Sam K.",
+      );
 
       expect(ownerErrors, `Robin's console:\n\n${ownerErrors.join("\n\n")}`).toEqual([]);
       expect(friendErrors, `Sam's console:\n\n${friendErrors.join("\n\n")}`).toEqual([]);
 
       // --- Fill the club to the free-tier cap of six (Robin, Sam + 4). ---
-      for (const name of ["Ann", "Bo", "Cid", "Dee"]) {
+      for (const [firstName, lastInitial] of [
+        ["Ann", "O"],
+        ["Bo", "L"],
+        ["Cid", "M"],
+        ["Dee", "N"],
+      ] as const) {
         const ctx = await newContext();
         const page = await ctx.newPage();
-        await joinAsNewMember(page, joinUrl, name);
+        await joinAsNewMember(page, joinUrl, firstName, lastInitial);
         await expect(page).toHaveURL(clubUrl);
       }
 
@@ -75,14 +88,15 @@ test.describe("club creation and invites", () => {
       const seventhErrors = collectConsoleErrors(seventhPage);
 
       await seventhPage.goto(joinUrl);
-      await seventhPage.getByLabel("Your name").fill("Zed");
+      await seventhPage.getByLabel("First name").fill("Zed");
+      await seventhPage.getByLabel("Last initial").fill("Q");
       await seventhPage.getByRole("button", { name: "Join" }).click();
 
       // Refused, not silently dropped: still on /join (never reached the
       // club), with the free-tier limit named in a visible message.
       await expect(seventhPage).toHaveURL(new RegExp(`${joinUrl}\\?error=`));
       await expect(seventhPage.getByText(/free-tier limit of 6 members/)).toBeVisible();
-      await expect(seventhPage.getByText("You are: Zed")).not.toBeVisible();
+      await expect(seventhPage.getByText("You are: Zed Q.")).not.toBeVisible();
 
       expect(seventhErrors, `Zed's console:\n\n${seventhErrors.join("\n\n")}`).toEqual([]);
     } finally {
@@ -91,8 +105,14 @@ test.describe("club creation and invites", () => {
   });
 });
 
-async function joinAsNewMember(page: Page, joinUrl: string, name: string) {
+async function joinAsNewMember(
+  page: Page,
+  joinUrl: string,
+  firstName: string,
+  lastInitial: string,
+) {
   await page.goto(joinUrl);
-  await page.getByLabel("Your name").fill(name);
+  await page.getByLabel("First name").fill(firstName);
+  await page.getByLabel("Last initial").fill(lastInitial);
   await page.getByRole("button", { name: "Join" }).click();
 }

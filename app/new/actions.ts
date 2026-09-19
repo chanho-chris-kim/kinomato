@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { clubs, memberships } from "@/db/schema";
-import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
+import { FREE_TIER_MEMBER_CAP, MAX_PRE_ADDED_MEMBERS } from "@/lib/clubMembers";
+import { validateMemberName } from "@/lib/memberName";
 import { identityCookieName } from "@/app/clubs/[clubId]/identity";
 
 const CADENCES = ["weekly", "biweekly", "monthly", "ad_hoc"] as const;
@@ -45,13 +46,11 @@ function isSupportedTimeZone(value: string): boolean {
 // that's the accepted v0 auth model, not a gap specific to this screen.
 export async function createClub(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
-  const yourName = String(formData.get("yourName") ?? "").trim();
   const cadence = String(formData.get("cadence") ?? "");
   const defaultDay = Number(formData.get("defaultDay"));
   const defaultTime = String(formData.get("defaultTime") ?? "");
   const timezone = String(formData.get("timezone") ?? "").trim();
   const mode = String(formData.get("mode") ?? "");
-  const memberNamesRaw = String(formData.get("memberNames") ?? "");
 
   // Validation failures redirect back to the form with a readable
   // message in a query param rather than throwing — a thrown error in a
@@ -60,7 +59,16 @@ export async function createClub(formData: FormData) {
   // tier cap explicitly asked for. Genuine bugs (a DB write failing)
   // still throw; this is only for expected, user-facing input problems.
   if (!name) redirect("/new?error=" + encodeURIComponent("Club name is required."));
-  if (!yourName) redirect("/new?error=" + encodeURIComponent("Your name is required."));
+
+  const yourNameResult = validateMemberName(
+    String(formData.get("yourFirstName") ?? ""),
+    String(formData.get("yourLastInitial") ?? ""),
+  );
+  if ("error" in yourNameResult) {
+    redirect("/new?error=" + encodeURIComponent(yourNameResult.error));
+  }
+  const yourName = yourNameResult.displayName;
+
   if (!isCadence(cadence)) {
     redirect("/new?error=" + encodeURIComponent("Pick a valid cadence."));
   }
@@ -81,18 +89,24 @@ export async function createClub(formData: FormData) {
   }
 
   // Silently deduped, not rejected — this is the owner tidying their
-  // own input (a repeated line), not a joiner contesting an identity,
+  // own input (a repeated row), not a joiner contesting an identity,
   // which is the scenario that gets a hard error instead (see
   // join/actions.ts's isDisplayNameTaken check).
   const seen = new Set([yourName.toLowerCase()]);
   const memberNames: string[] = [];
-  for (const raw of memberNamesRaw.split("\n")) {
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    const key = trimmed.toLowerCase();
+  for (let i = 0; i < MAX_PRE_ADDED_MEMBERS; i++) {
+    const firstName = String(formData.get(`memberFirstName${i}`) ?? "");
+    const lastInitial = String(formData.get(`memberLastInitial${i}`) ?? "");
+    if (!firstName.trim() && !lastInitial.trim()) continue; // an unused row
+
+    const result = validateMemberName(firstName, lastInitial);
+    if ("error" in result) {
+      redirect("/new?error=" + encodeURIComponent(result.error));
+    }
+    const key = result.displayName.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    memberNames.push(trimmed);
+    memberNames.push(result.displayName);
   }
 
   const totalMembers = 1 + memberNames.length; // 1 = the owner

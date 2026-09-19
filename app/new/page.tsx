@@ -1,3 +1,4 @@
+import { MAX_PRE_ADDED_MEMBERS } from "@/lib/clubMembers";
 import { createClub } from "./actions";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -45,10 +46,30 @@ export default async function NewClubPage({
         </div>
 
         <div>
-          <label className="block">
-            Your name
-            <input type="text" name="yourName" required className="block border px-2 py-1" />
-          </label>
+          <span>Your name</span>
+          <p className="text-sm">This is what the rest of the club sees you as.</p>
+          <div className="flex gap-2">
+            <label>
+              First name
+              <input
+                type="text"
+                name="yourFirstName"
+                required
+                className="block border px-2 py-1"
+              />
+            </label>
+            <label>
+              Last initial
+              <input
+                type="text"
+                name="yourLastInitial"
+                required
+                maxLength={1}
+                size={2}
+                className="block border px-2 py-1"
+              />
+            </label>
+          </div>
         </div>
 
         <div>
@@ -121,10 +142,34 @@ export default async function NewClubPage({
         </div>
 
         <div>
-          <label className="block">
-            Add people now (optional, one name per line)
-            <textarea name="memberNames" rows={4} className="block border px-2 py-1" />
-          </label>
+          <span>Add people now (optional)</span>
+          <p className="text-sm">
+            So the invite lands on a club that already looks populated, not empty.
+          </p>
+          <div className="mt-1 space-y-2">
+            {Array.from({ length: MAX_PRE_ADDED_MEMBERS }, (_, i) => (
+              <div key={i} className="flex gap-2">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    name={`memberFirstName${i}`}
+                    className="block border px-2 py-1"
+                  />
+                </label>
+                <label>
+                  Last initial
+                  <input
+                    type="text"
+                    name={`memberLastInitial${i}`}
+                    maxLength={1}
+                    size={2}
+                    className="block border px-2 py-1"
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
         </div>
 
         <button type="submit" className="border px-3 py-1">

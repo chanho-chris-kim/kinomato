@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    // Poster images (lib/tmdb.ts) — films.poster_path is a relative
+    // TMDB path, resolved to a full URL at display time as
+    // https://image.tmdb.org/t/p/{size}{poster_path}.
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "image.tmdb.org",
+        pathname: "/t/p/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
