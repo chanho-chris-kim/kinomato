@@ -125,7 +125,11 @@ test.describe("first night — a brand-new club, start to finish", () => {
     const sql = postgres(process.env.E2E_DATABASE_URL!);
     try {
       const clubId = clubUrl.split("/").pop();
-      await sql`UPDATE nights SET scheduled_at = now() - interval '1 day' WHERE club_id = ${clubId!}`;
+      // 2 days, not 1 — confirmAt defaults to "morning_after" (9am
+      // local the day after scheduledAt), so "1 day ago" isn't
+      // reliably past that threshold at every time of day this test
+      // might run. "2 days ago" is, regardless.
+      await sql`UPDATE nights SET scheduled_at = now() - interval '2 days' WHERE club_id = ${clubId!}`;
     } finally {
       await sql.end();
     }
@@ -145,12 +149,12 @@ test.describe("first night — a brand-new club, start to finish", () => {
     await page.getByRole("button", { name: "Priya S.", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Rate Whiplash" })).toBeVisible();
 
-    await page.getByLabel("Quality").evaluate((el) => {
-      (el as HTMLInputElement).value = "9";
-    });
-    await page.getByLabel("Fun").evaluate((el) => {
-      (el as HTMLInputElement).value = "8";
-    });
+    // RatingSlider's paired number input — .fill() fires a real input
+    // event, which is what actually updates the underlying React state
+    // (and so the hidden input the form submits); a raw DOM value
+    // assignment on the range input wouldn't.
+    await page.getByLabel("Quality (as a number)").fill("9");
+    await page.getByLabel("Fun (as a number)").fill("8");
     await page.getByLabel("One-line take (optional)").fill("Not quite my tempo.");
     await page.getByRole("button", { name: "Submit rating" }).click();
 

@@ -28,12 +28,15 @@ export interface ScheduleConfig {
   timezone: string; // IANA zone name
 }
 
-interface TimeOfDay {
+// Exported for lib/confirmTiming.ts (and anything else that needs
+// timezone-correct date math) to reuse rather than re-deriving its own
+// raw-hours arithmetic.
+export interface TimeOfDay {
   hour: number;
   minute: number;
 }
 
-interface CalendarDate {
+export interface CalendarDate {
   year: number;
   month: number; // 1-12
   day: number;
@@ -51,7 +54,7 @@ function parseTime(raw: string | null): TimeOfDay | null {
 
 // Pure calendar-day arithmetic (no timezone involved) — correctly rolls
 // over month and year boundaries via Date.UTC's day-overflow handling.
-function addDays(date: CalendarDate, days: number): CalendarDate {
+export function addDays(date: CalendarDate, days: number): CalendarDate {
   const d = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
@@ -65,7 +68,7 @@ function weekdayOf(date: CalendarDate): number {
 }
 
 // The zone's local calendar date for a given UTC instant.
-function localDateParts(instant: Date, timeZone: string): CalendarDate {
+export function localDateParts(instant: Date, timeZone: string): CalendarDate {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
@@ -107,7 +110,7 @@ function offsetMillisAt(instant: Date, timeZone: string): number {
 // gap) or is ambiguous (fall-back repeat) isn't rejected — this returns
 // some valid instant rather than throwing, which is the right call for
 // an evening default_time that will practically never land in a 2am gap.
-function zonedTimeToUtc(date: CalendarDate, time: TimeOfDay, timeZone: string): Date {
+export function zonedTimeToUtc(date: CalendarDate, time: TimeOfDay, timeZone: string): Date {
   const naiveUtc = Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute, 0, 0);
   const offset1 = offsetMillisAt(new Date(naiveUtc), timeZone);
   const candidate1 = naiveUtc - offset1;

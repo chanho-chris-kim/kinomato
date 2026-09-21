@@ -24,8 +24,10 @@ import {
   nights,
   nominations,
   ratings,
+  ratingTags,
   rsvps,
   seasons,
+  tags,
   users,
   vetoes,
   votes,
@@ -36,6 +38,7 @@ import {
   CLUB_3_ID,
   CLUB_4_ID,
   CLUB_5_ID,
+  CLUB_6_ID,
   CLUB_ID,
   FILM,
   MEMBERSHIP,
@@ -43,9 +46,11 @@ import {
   MEMBERSHIP_3,
   MEMBERSHIP_4,
   MEMBERSHIP_5,
+  MEMBERSHIP_6,
   NIGHT_3_ID,
   NIGHT_4_ID,
   NIGHT_5_ID,
+  NIGHT_6_ID,
   NIGHT_ID,
   NOMINATION,
   USER,
@@ -80,6 +85,7 @@ async function main() {
   console.log("Wiping existing data...");
   await db.delete(votes);
   await db.delete(vetoes);
+  await db.delete(ratingTags);
   await db.delete(ratings);
   await db.delete(rsvps);
   await db.delete(nominations);
@@ -88,6 +94,7 @@ async function main() {
   await db.delete(films);
   await db.delete(memberships);
   await db.delete(seasons);
+  await db.delete(tags);
   await db.delete(users);
   await db.delete(clubs);
 
@@ -425,7 +432,12 @@ async function main() {
     },
   ]);
 
-  const club3ScheduledAt = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  // 2 days ago, not 1 — confirmAt defaults to "morning_after" (9am
+  // local the day after scheduledAt), and "1 day ago" is only reliably
+  // past that threshold if the seed happens to run after 9am local;
+  // "2 days ago" is unambiguously past it at any time of day the E2E
+  // suite runs.
+  const club3ScheduledAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
   await db.insert(nights).values({
     id: NIGHT_3_ID,
     clubId: CLUB_3_ID,
@@ -479,7 +491,8 @@ async function main() {
     },
   ]);
 
-  const club4ScheduledAt = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  // 2 days ago, not 1 — same reasoning as club3ScheduledAt above.
+  const club4ScheduledAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
   await db.insert(nights).values({
     id: NIGHT_4_ID,
     clubId: CLUB_4_ID,
@@ -541,16 +554,72 @@ async function main() {
     { membershipId: MEMBERSHIP_5.zoe, filmId: zodiacId },
   ]);
 
-  // Already past its scheduled time from the moment it's seeded — see
-  // seed-fixtures.ts's comment on why this doesn't need to change
-  // mid-test the way a real night's clock would.
+  // 2 days ago, not an hour — see seed-fixtures.ts's comment on why
+  // this doesn't need to change mid-test the way a real night's clock
+  // would. Far enough in the past that confirmAt's default
+  // "morning_after" threshold (9am local the day after scheduledAt) has
+  // already passed once lock.spec.ts's own real lock click produces a
+  // confirmable night, regardless of what time of day the suite runs.
   await db.insert(nights).values({
     id: NIGHT_5_ID,
     clubId: CLUB_5_ID,
-    scheduledAt: new Date(Date.now() - 60 * 60 * 1000), // an hour ago
+    scheduledAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     pickerMembershipId: MEMBERSHIP_5.zoe,
     state: "draft",
   });
+
+  // A sixth, separate club — see seed-fixtures.ts's comment on
+  // CLUB_6_ID. settings.confirmAt: "manual_only" plus a scheduledAt in
+  // the future is what proves confirmAt actually shifts the
+  // confirmation prompt's timing, not just its default value.
+  console.log("Seeding a sixth club for confirmAt, slider sync, and tag autocomplete...");
+  await db.insert(clubs).values({
+    id: CLUB_6_ID,
+    name: "Sixth Club",
+    cadence: "weekly",
+    defaultDay: 5,
+    defaultTime: "21:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+    settings: { confirmAt: "manual_only" },
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_6.nora,
+      clubId: CLUB_6_ID,
+      userId: null,
+      identityKey: "guest-cookie-nora-example",
+      displayName: "Nora",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_6.iris,
+      clubId: CLUB_6_ID,
+      userId: null,
+      identityKey: "guest-cookie-iris-example",
+      displayName: "Iris",
+      role: "member",
+      joinedAt: day(2),
+    },
+  ]);
+
+  const club6ScheduledAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  await db.insert(nights).values({
+    id: NIGHT_6_ID,
+    clubId: CLUB_6_ID,
+    scheduledAt: club6ScheduledAt,
+    pickerMembershipId: MEMBERSHIP_6.nora,
+    state: "locked",
+    winningFilmId: hereditaryId,
+    lockedAt: club6ScheduledAt,
+  });
+
+  await db.insert(rsvps).values([
+    { nightId: NIGHT_6_ID, membershipId: MEMBERSHIP_6.nora, status: "yes" },
+    { nightId: NIGHT_6_ID, membershipId: MEMBERSHIP_6.iris, status: "yes" },
+  ]);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

@@ -325,6 +325,55 @@ Do not quietly change these — they encode decisions that took a while to reach
   so for every club created today this is permanent, not transitional —
   and points at the one thing actually actionable right now: the invite
   link, surfaced directly on the page next to a plain-text member list.
+- **The confirmation prompt respects `clubs.settings.confirmAt`, not a
+  fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
+  `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5
+  documented options — `morning_after` (default, 9am local the day after
+  `scheduled_at`, reusing `lib/schedule.ts`'s timezone-correct date math
+  rather than raw-hours arithmetic), `same_night` (the old fixed
+  behavior, now one option among several), and `manual_only` (no time
+  gate at all — confirmable even before the night happens). `"2 days"`
+  and `"off"` aren't implemented; `getConfirmAt` (`lib/clubSettings.ts`)
+  falls back to the default for either, same as any unrecognized value —
+  see Open Questions. The three implemented options read as an
+  increasingly permissive gate (same_night → morning_after →
+  manual_only); that ordering is a judgment call, not something
+  analysis-v2.md specifies, and is worth revisiting if it doesn't match
+  what a club expects.
+- **`RatingSlider` (`app/clubs/[clubId]/RatingSlider.tsx`) is the second
+  justified client component**, after `NominationSelector` — same
+  reasoning: a plain form can't keep a range input and a number input
+  showing the same live value in sync, so it needs local `useState`. The
+  server action (`submitRating`) re-validates the 0–10 range
+  independently; the client component's only job is display and the two
+  inputs agreeing with each other.
+- **Tags on a rating are club-scoped, alongside the hot take, never
+  replacing it.** `tags` (club_id, name, display_name) and `rating_tags`
+  (rating_id, tag_id) — "cozy" is one tag per club, not six near-
+  duplicates across members, consistent with "reuse over invention."
+  `lib/tags.ts`'s `normalizeTag` (trim, lowercase, collapse inner
+  whitespace) is the single matching key; `displayName` keeps the
+  first-seen casing, never overwritten by a later member's casing on the
+  same tag (`addRatingTag` in `app/clubs/[clubId]/actions.ts`).
+  Deliberately **no rename-in-place**: a club-scoped tag is a reference
+  to a shared row, so "editing" a tag on your rating is remove-then-add,
+  not relabeling the row (which would silently rename it for every other
+  rating that shares it) — "edit and remove your own tags" is served by
+  remove + re-add, not a third action. Tags follow the same blind-reveal
+  rule as scores and hot takes: they only show on `revealedRatings`, and
+  a club-scoped tag page (`/clubs/[clubId]/tags/[tag]`, keyed on the
+  normalized name) only lists a film once its night's ratings are fully
+  revealed. **No cross-club or global tag aggregation** — that's the
+  public data story from analysis-v2.md §1.5 and it has privacy
+  constraints not designed for yet; every tag query is scoped to one
+  `club_id`. One accepted, narrow leak: the add-tag autocomplete
+  (`ratingSection.clubTagOptions`) draws from every tag ever used in the
+  club regardless of reveal state, so a brand-new tag from someone's
+  not-yet-revealed rating can theoretically appear in another member's
+  autocomplete before the reveal — a weak signal that "someone already
+  rated," not the rating itself. Judged not worth gating a plain
+  `<datalist>` on reveal state for; revisit if it turns out to bother
+  people in practice.
 
 ## Things not to do
 
@@ -411,6 +460,15 @@ and move on.
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through
   nomination or a vote?
+- **`confirmAt`'s "2 days" and "off" options aren't implemented.**
+  analysis-v2.md §2 documents 5 options; `lib/confirmTiming.ts` and
+  `lib/clubSettings.ts`'s `getConfirmAt` only know `morning_after`,
+  `same_night`, and `manual_only` — either unimplemented value silently
+  falls back to the `morning_after` default, same as any unrecognized
+  string. Needs a ruling on what "2 days" delays from (scheduled_at, same
+  as morning_after) and what "off" means operationally (never
+  confirmable through this prompt at all — does the night just sit
+  non-terminal forever, or does something else eventually close it?).
 - **Vetoes have no UI, no pool-cap enforcement, and no season lifecycle.**
   `castVeto` (`app/clubs/[clubId]/actions.ts`) is a minimal seam — it inserts
   a veto row and rejects one after lock, nothing more. It doesn't enforce the

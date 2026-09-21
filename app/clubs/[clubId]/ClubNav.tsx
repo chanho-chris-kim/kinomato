@@ -11,7 +11,10 @@ export function ClubNav({
 }: {
   clubId: string;
   clubName: string;
-  current: "club" | "watchlist";
+  // "tags" (a club-scoped tag page) has no nav link of its own — it's
+  // only reached via a tag link on a revealed rating, not a primary
+  // section — so it renders with neither "Club" nor "Watchlist" bolded.
+  current: "club" | "watchlist" | "tags";
 }) {
   return (
     <div className="pb-2 mb-4 border-b flex flex-wrap items-baseline gap-x-4 gap-y-1">

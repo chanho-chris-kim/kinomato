@@ -10,14 +10,17 @@ async function pickIdentity(page: Page, url: string, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
 }
 
-// Playwright's locator.fill() doesn't support type=range — these are
-// uncontrolled native inputs (no React state), so setting the DOM value
-// directly is enough for the surrounding <form>'s FormData to pick it
-// up on submit.
+// RatingSlider (app/clubs/[clubId]/RatingSlider.tsx) is a client
+// component — the range input, the live number, and a paired number
+// input are all views onto one piece of React state, submitted via a
+// hidden input. Playwright's locator.fill() doesn't support type=range,
+// but does support the paired number input, which is exactly the
+// "type instead of dragging" affordance the component exists for — and
+// unlike a raw DOM value assignment on the range input, .fill() fires a
+// real input event, which is what actually updates the React state (and
+// therefore the hidden input the form submits).
 async function setSlider(page: Page, label: string, value: string) {
-  await page.getByLabel(label).evaluate((el, v) => {
-    (el as HTMLInputElement).value = v;
-  }, value);
+  await page.getByLabel(`${label} (as a number)`).fill(value);
 }
 
 // Club 3 (Leo/Mika/Theo, db/seed.ts) has a "locked" night, scheduled
@@ -80,7 +83,9 @@ test.describe("confirmation — watched path (club 3)", () => {
     await page.getByRole("button", { name: "Submit rating" }).click();
 
     await expect(page.getByRole("heading", { name: "Rate Get Out" })).toBeVisible();
-    await expect(page.getByLabel("Quality")).not.toBeVisible();
+    // exact: true — "Quality (as a number)" (the paired number input)
+    // would otherwise also match a plain substring "Quality" query.
+    await expect(page.getByLabel("Quality", { exact: true })).not.toBeVisible();
     await expect(page.getByText("1/2 ratings in")).toBeVisible();
     await expect(page.getByText("Amazing")).not.toBeVisible();
   });
@@ -89,7 +94,7 @@ test.describe("confirmation — watched path (club 3)", () => {
     page,
   }) => {
     await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.theo);
-    await expect(page.getByLabel("Quality")).toBeVisible();
+    await expect(page.getByLabel("Quality", { exact: true })).toBeVisible();
     await setSlider(page, "Quality", "6");
     await setSlider(page, "Fun", "9");
     await page.getByRole("button", { name: "Submit rating" }).click();

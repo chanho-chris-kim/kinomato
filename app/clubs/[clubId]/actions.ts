@@ -10,12 +10,15 @@ import {
   nights,
   nominations,
   ratings,
+  ratingTags,
   rsvps,
+  tags,
   votes,
   vetoes,
   watchlistItems,
 } from "@/db/schema";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
+import { normalizeTag } from "@/lib/tags";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
@@ -236,6 +239,12 @@ export async function submitRating(clubId: string, nightId: string, formData: Fo
   if (!Number.isFinite(scoreQuality) || !Number.isFinite(scoreFun)) {
     throw new Error("Both scores are required.");
   }
+  // The client component clamps to 0-10 via the number/range inputs'
+  // min/max, but that's advisory HTML, not a guarantee — re-checked
+  // here independently, never trusting what the client sent.
+  if (scoreQuality < 0 || scoreQuality > 10 || scoreFun < 0 || scoreFun > 10) {
+    throw new Error("Scores must be between 0 and 10.");
+  }
   const hotTakeRaw = formData.get("hotTake");
   const hotTake =
     typeof hotTakeRaw === "string" && hotTakeRaw.trim() !== "" ? hotTakeRaw.trim() : null;
@@ -253,6 +262,87 @@ export async function submitRating(clubId: string, nightId: string, formData: Fo
       target: [ratings.nightId, ratings.membershipId],
       set: { scoreQuality: scoreQuality.toFixed(1), scoreFun: scoreFun.toFixed(1), hotTake },
     });
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Tags on a rating (CLAUDE.md) — alongside the hot take, not replacing
+// it. Club-scoped: "cozy" is one tag per club, not six near-duplicates
+// across members, so adding a tag upserts onto the club's existing
+// tags row rather than creating a new one. A rating row (and so its id)
+// has to exist first — that's why this is a separate action from
+// submitRating rather than folded into the same form; the tag-add UI
+// only appears once a rating exists to attach tags to.
+export async function addRatingTag(clubId: string, nightId: string, formData: FormData) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [rating] = await db
+    .select()
+    .from(ratings)
+    .where(and(eq(ratings.nightId, nightId), eq(ratings.membershipId, membershipId)));
+  if (!rating) {
+    throw new Error("Rate the film before tagging it.");
+  }
+
+  const raw = formData.get("tag");
+  const normalized = typeof raw === "string" ? normalizeTag(raw) : null;
+  if (!normalized) return;
+
+  const [existingTag] = await db
+    .select()
+    .from(tags)
+    .where(and(eq(tags.clubId, clubId), eq(tags.name, normalized.name)));
+  let tagId = existingTag?.id;
+
+  if (!tagId) {
+    const [inserted] = await db
+      .insert(tags)
+      .values({ clubId, name: normalized.name, displayName: normalized.displayName })
+      .onConflictDoNothing({ target: [tags.clubId, tags.name] })
+      .returning({ id: tags.id });
+    // onConflictDoNothing returns no row on a race (another member added
+    // the same normalized tag between our select and insert) — re-read
+    // rather than treat that as a failure, same shape as addFilm's
+    // films.tmdbId race in ./list/actions.ts. Whoever won the race set
+    // displayName; that's the "first-seen casing" rule working as
+    // intended, not a bug in this branch.
+    if (inserted) {
+      tagId = inserted.id;
+    } else {
+      const [wonByOther] = await db
+        .select()
+        .from(tags)
+        .where(and(eq(tags.clubId, clubId), eq(tags.name, normalized.name)));
+      tagId = wonByOther!.id;
+    }
+  }
+
+  await db.insert(ratingTags).values({ ratingId: rating.id, tagId }).onConflictDoNothing();
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Scoped to the current membership's own rating, same shape as
+// removeFilm in ./list/actions.ts — a member can only remove a tag from
+// their own rating, never someone else's. There's no separate "edit"
+// action: a club-scoped tag is a reference to a shared row, not free
+// text on the rating, so changing which tag applies is remove-then-add,
+// not a rename-in-place (a rename would silently relabel the tag for
+// every other rating that shares it).
+export async function removeRatingTag(clubId: string, nightId: string, tagId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [rating] = await db
+    .select()
+    .from(ratings)
+    .where(and(eq(ratings.nightId, nightId), eq(ratings.membershipId, membershipId)));
+  if (!rating) return;
+
+  await db
+    .delete(ratingTags)
+    .where(and(eq(ratingTags.ratingId, rating.id), eq(ratingTags.tagId, tagId)));
 
   revalidatePath(`/clubs/${clubId}`);
 }

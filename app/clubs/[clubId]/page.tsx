@@ -8,27 +8,33 @@ import {
   nights,
   nominations,
   ratings,
+  ratingTags,
   rsvps,
+  tags,
   votes,
   watchlistItems,
 } from "@/db/schema";
-import { getNomineesPerTurn } from "@/lib/clubSettings";
+import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
+import { isConfirmable } from "@/lib/confirmTiming";
 import { areTakesRevealed } from "@/lib/ratingReveal";
 import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
 import { getNextOccurrence } from "@/lib/schedule";
 import {
+  addRatingTag,
   castVote,
   clearIdentity,
   confirmNight,
   lockNight,
   openVoting,
   pickIdentity,
+  removeRatingTag,
   setRsvp,
   submitRating,
 } from "./actions";
 import { ClubNav } from "./ClubNav";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
+import { RatingSlider } from "./RatingSlider";
 import { NON_TERMINAL_STATES } from "./nightState";
 
 export default async function ClubPage({
@@ -252,15 +258,20 @@ export default async function ClubPage({
   }
 
   // "Did you watch X?" (analysis-v1.md §1.1 stage 10) — a non-terminal
-  // night past its scheduled time, with a winner already set. Gated on
-  // winningFilmId because nothing locks a night yet (see nightState.ts);
-  // in practice this only ever matches a "locked" night.
+  // night with a winner already set (gated on winningFilmId because
+  // nothing locks a night yet, see nightState.ts; in practice this only
+  // ever matches a "locked" night), once the club's confirmAt timing
+  // (clubs.settings, analysis-v2.md §2 — default "morning after")
+  // allows it. Not just "past scheduled_at": that was the old, fixed
+  // behavior "same_night" now models exactly; "morning_after" waits
+  // longer, "manual_only" doesn't wait for a schedule at all.
+  const confirmAt = getConfirmAt(club.settings);
   const confirmableNight =
     clubNights.find(
       (n) =>
         NON_TERMINAL_STATES.includes(n.state as (typeof NON_TERMINAL_STATES)[number]) &&
         n.winningFilmId !== null &&
-        n.scheduledAt.getTime() < now,
+        isConfirmable(confirmAt, n.scheduledAt, club.timezone, new Date(now)),
     ) ?? null;
 
   let confirmableFilmTitle: string | null = null;
@@ -288,6 +299,8 @@ export default async function ClubPage({
     filmTitle: string;
     myRsvpYes: boolean;
     myRating: { scoreQuality: string; scoreFun: string } | null;
+    myTags: { tagId: string; displayName: string }[];
+    clubTagOptions: string[];
     attendingCount: number;
     ratedAttendingCount: number;
     revealed: boolean;
@@ -296,6 +309,7 @@ export default async function ClubPage({
       scoreQuality: string;
       scoreFun: string;
       hotTake: string | null;
+      tags: { name: string; displayName: string }[];
     }[];
   } | null = null;
 
@@ -320,12 +334,45 @@ export default async function ClubPage({
     const ratedMembershipIds = nightRatings.map((r) => r.membershipId);
     const revealed = areTakesRevealed(attendingMembershipIds, ratedMembershipIds);
 
+    const nightRatingIds = nightRatings.map((r) => r.id);
+    const nightRatingTags = nightRatingIds.length
+      ? await db
+          .select({
+            ratingId: ratingTags.ratingId,
+            tagId: ratingTags.tagId,
+            name: tags.name,
+            displayName: tags.displayName,
+          })
+          .from(ratingTags)
+          .innerJoin(tags, eq(ratingTags.tagId, tags.id))
+          .where(inArray(ratingTags.ratingId, nightRatingIds))
+      : [];
+
+    // Autocomplete source for the add-tag form below — "reuse over
+    // invention is the whole point" (CLAUDE.md). Club-scoped, not
+    // filtered by reveal state: a brand-new tag from an unrevealed
+    // rating could theoretically surface here before the reveal, a
+    // narrow and accepted leak (weakly signals "someone already rated"),
+    // not worth gating a plain <datalist> on reveal state for.
+    const clubTags = await db
+      .select({ name: tags.name, displayName: tags.displayName })
+      .from(tags)
+      .where(eq(tags.clubId, clubId));
+
+    const myRatingRow =
+      nightRatings.find((r) => r.membershipId === currentMembership.id) ?? null;
+
     ratingSection = {
       nightId: mostRecentWatchedNight.id,
       filmTitle: film?.title ?? "this film",
       myRsvpYes: attendingMembershipIds.includes(currentMembership.id),
-      myRating:
-        nightRatings.find((r) => r.membershipId === currentMembership.id) ?? null,
+      myRating: myRatingRow,
+      myTags: myRatingRow
+        ? nightRatingTags
+            .filter((t) => t.ratingId === myRatingRow.id)
+            .map((t) => ({ tagId: t.tagId, displayName: t.displayName }))
+        : [],
+      clubTagOptions: clubTags.map((t) => t.displayName),
       attendingCount: attendingMembershipIds.length,
       ratedAttendingCount: attendingMembershipIds.filter((id) =>
         ratedMembershipIds.includes(id),
@@ -339,6 +386,9 @@ export default async function ClubPage({
             scoreQuality: r.scoreQuality,
             scoreFun: r.scoreFun,
             hotTake: r.hotTake,
+            tags: nightRatingTags
+              .filter((t) => t.ratingId === r.id)
+              .map((t) => ({ name: t.name, displayName: t.displayName })),
           }))
         : [],
     };
@@ -529,32 +579,8 @@ export default async function ClubPage({
               action={submitRating.bind(null, clubId, ratingSection.nightId)}
               className="mt-1 space-y-2"
             >
-              <div>
-                <label>
-                  Quality{" "}
-                  <input
-                    type="range"
-                    name="scoreQuality"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    defaultValue="5"
-                  />
-                </label>
-              </div>
-              <div>
-                <label>
-                  Fun{" "}
-                  <input
-                    type="range"
-                    name="scoreFun"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    defaultValue="5"
-                  />
-                </label>
-              </div>
+              <RatingSlider name="scoreQuality" label="Quality" />
+              <RatingSlider name="scoreFun" label="Fun" />
               <div>
                 <label>
                   One-line take (optional){" "}
@@ -565,6 +591,60 @@ export default async function ClubPage({
                 Submit rating
               </button>
             </form>
+          )}
+
+          {ratingSection.myRating && (
+            // Tags live on the rating row, so they can only be added once
+            // the rating itself exists — that's why this is a separate
+            // section below the initial submit rather than more fields on
+            // that form (CLAUDE.md: tags alongside the hot take, editable
+            // and removable on a rating you've already submitted).
+            <div className="mt-2">
+              <h3 className="font-semibold">Your tags</h3>
+              {ratingSection.myTags.length > 0 && (
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {ratingSection.myTags.map((t) => (
+                    <li key={t.tagId} className="border px-2 py-1 text-sm">
+                      {t.displayName}{" "}
+                      <form
+                        action={removeRatingTag.bind(
+                          null,
+                          clubId,
+                          ratingSection.nightId,
+                          t.tagId,
+                        )}
+                        className="inline"
+                      >
+                        <button type="submit" className="underline">
+                          remove
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form
+                action={addRatingTag.bind(null, clubId, ratingSection.nightId)}
+                className="mt-1"
+              >
+                <input
+                  type="text"
+                  name="tag"
+                  list="club-tag-options"
+                  placeholder="Add a tag"
+                  maxLength={50}
+                  className="border"
+                />
+                <datalist id="club-tag-options">
+                  {ratingSection.clubTagOptions.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>{" "}
+                <button type="submit" className="border px-3 py-1">
+                  Add tag
+                </button>
+              </form>
+            </div>
           )}
 
           {!ratingSection.revealed && ratingSection.attendingCount > 0 && (
@@ -582,6 +662,19 @@ export default async function ClubPage({
                     {r.displayName} — quality {r.scoreQuality}, fun {r.scoreFun}
                   </div>
                   {r.hotTake && <div>&quot;{r.hotTake}&quot;</div>}
+                  {r.tags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-2 text-sm">
+                      {r.tags.map((t) => (
+                        <Link
+                          key={t.name}
+                          href={`/clubs/${clubId}/tags/${encodeURIComponent(t.name)}`}
+                          className="underline"
+                        >
+                          {t.displayName}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

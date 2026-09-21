@@ -138,3 +138,25 @@ export const DISPLAY_NAME_5: Record<keyof typeof MEMBERSHIP_5, string> = {
 };
 
 export const NIGHT_5_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3";
+
+// A sixth, separate club — proves confirmAt shifts the confirmation
+// prompt's timing (clubs.settings.confirmAt = "manual_only" here) and
+// carries both attendees through rating, which is what the RatingSlider
+// sync check and the cross-member tag-autocomplete check both need.
+// scheduledAt is seeded in the *future*: under the default
+// "morning_after", "Did you watch X?" would never appear yet, so seeing
+// it appear anyway is what demonstrates manual_only actually changed
+// the threshold, not just narrowed it.
+export const CLUB_6_ID = "99999999-9999-9999-9999-999999999994";
+
+export const MEMBERSHIP_6 = {
+  nora: "ffffffff-ffff-ffff-ffff-fffffffffff1", // picker, rates first, adds a tag
+  iris: "ffffffff-ffff-ffff-ffff-fffffffffff2", // rates second, should see Nora's tag as autocomplete
+};
+
+export const DISPLAY_NAME_6: Record<keyof typeof MEMBERSHIP_6, string> = {
+  nora: "Nora",
+  iris: "Iris",
+};
+
+export const NIGHT_6_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4";

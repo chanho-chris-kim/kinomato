@@ -415,6 +415,51 @@ export const ratings = pgTable(
   ],
 );
 
+// Club-scoped on purpose (CLAUDE.md) — "cozy" is one tag per club, not
+// one per member and not a cross-club/global vocabulary. name is the
+// normalized matching key (lib/tags.ts: trim, lowercase, collapse inner
+// whitespace); displayName is the first-seen casing, shown in the UI —
+// matching lib/tmdb.ts's "value vs label" split for constraints, never
+// the reverse.
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id),
+    name: text("name").notNull(),
+    displayName: text("display_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("tags_club_id_idx").on(table.clubId),
+    // One row per normalized name per club — adding an existing tag
+    // upserts onto this rather than creating a near-duplicate.
+    unique("tags_club_id_name_unique").on(table.clubId, table.name),
+  ],
+);
+
+export const ratingTags = pgTable(
+  "rating_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ratingId: uuid("rating_id")
+      .notNull()
+      .references(() => ratings.id),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id),
+  },
+  (table) => [
+    index("rating_tags_rating_id_idx").on(table.ratingId),
+    index("rating_tags_tag_id_idx").on(table.tagId),
+    unique("rating_tags_rating_id_tag_id_unique").on(table.ratingId, table.tagId),
+  ],
+);
+
 export const filmFacts = pgTable(
   "film_facts",
   {
