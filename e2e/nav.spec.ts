@@ -5,9 +5,9 @@ const CLUB_URL = `/clubs/${CLUB_ID}`;
 const LIST_URL = `${CLUB_URL}/list`;
 
 // There was no way back from the watchlist before this (CLAUDE.md) —
-// ClubNav is the fix, present on both club-scoped routes once someone
-// has an identity, with whichever page you're on marked instead of
-// linked.
+// AppShell's nav is the fix, present on both club-scoped routes once
+// someone has an identity, with whichever page you're on marked instead
+// of linked.
 test.describe("club nav", () => {
   test("the watchlist link on the club page goes to the watchlist, with it marked current there", async ({
     page,

@@ -1,13 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
-import Image from "next/image";
 import { getDb } from "@/db";
 import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
 import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { pickIdentity } from "../actions";
-import { ClubNav } from "../ClubNav";
+import { AppShell } from "../AppShell";
 import { getIdentityMembershipId } from "../identity";
+import { Poster } from "../Poster";
 import { addFilm, removeFilm } from "./actions";
 
 interface SearchRow {
@@ -55,21 +55,20 @@ export default async function WatchlistPage({
   // the club home page.
   if (!currentMembership) {
     return (
-      <main className="p-4">
-        <ClubNav clubId={clubId} clubName={club.name} current="watchlist" />
-        <p className="mt-2">Who are you?</p>
-        <ul className="mt-2 space-y-2">
+      <AppShell clubId={clubId} clubName={club.name} current="watchlist">
+        <p className="small muted mt14">Who are you?</p>
+        <ul className="stack gap8 mt14">
           {activeMemberships.map((m) => (
             <li key={m.id}>
               <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="border px-3 py-1">
+                <button type="submit" className="btn">
                   {m.displayName}
                 </button>
               </form>
             </li>
           ))}
         </ul>
-      </main>
+      </AppShell>
     );
   }
 
@@ -239,59 +238,49 @@ export default async function WatchlistPage({
   }
 
   return (
-    <main className="p-4">
-      <ClubNav clubId={clubId} clubName={club.name} current="watchlist" />
-      <p className="mt-1">You are: {currentMembership.displayName}</p>
+    <AppShell clubId={clubId} clubName={club.name} current="watchlist">
+      <p className="small mt14">You are: {currentMembership.displayName}</p>
 
-      <form className="mt-4">
-        <input
-          type="text"
-          name="q"
-          defaultValue={query}
-          placeholder="Search films"
-          className="border px-2 py-1"
-        />
-        <button type="submit" className="border px-3 py-1 ml-2">
+      <form className="search mt14">
+        <input type="text" name="q" defaultValue={query} placeholder="Search films" />
+        <button type="submit" className="btn" style={{ width: "auto" }}>
           Search
         </button>
       </form>
 
       {query && (
-        <section className="mt-4">
-          <h2 className="font-semibold">Results for &quot;{query}&quot;</h2>
-          {searchRows.length === 0 && <p className="mt-1">No results.</p>}
-          <ul className="mt-2 space-y-3">
+        <section className="mt20">
+          <h2 className="sec">Results for &quot;{query}&quot;</h2>
+          {searchRows.length === 0 && <p className="small muted mt-1">No results.</p>}
+          <ul className="stack gap8 mt14">
             {searchRows.map((r) => (
-              <li key={r.tmdbId} className="border p-2 flex gap-3">
-                <Poster
-                  posterPath={r.posterPath}
-                  title={r.title}
-                  size={92}
-                  className="w-11 h-16 shrink-0"
-                />
-                <div>
-                  <div>
-                    {r.title} ({r.year})
+              <li key={r.tmdbId} className="result">
+                <div className="thumb">
+                  <Poster posterPath={r.posterPath} title={r.title} size={92} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="small">
+                    {r.title} <span className="dim">({r.year})</span>
                   </div>
-                  {r.director && <div className="text-sm">{r.director}</div>}
-                  {r.cast.length > 0 && <div className="text-sm">{r.cast.join(", ")}</div>}
-                  <div className="text-sm">
+                  {r.director && <div className="tiny muted mt-1">{r.director}</div>}
+                  {r.cast.length > 0 && <div className="tiny dim mt-1">{r.cast.join(", ")}</div>}
+                  <div className="row gap6 mt-1" style={{ flexWrap: "wrap" }}>
                     {r.genres.map((g) => (
-                      <span key={g} className="border px-1 mr-1">
+                      <span key={g} className="chip tiny">
                         {g}
                       </span>
                     ))}
+                    <span className="chip tiny">{formatRuntime(r.runtime)}</span>
                   </div>
-                  <div className="text-sm">{formatRuntime(r.runtime)}</div>
                   {r.otherMembersCount > 0 && (
-                    <div className="text-sm">
+                    <p className="tiny mt-1">
                       {r.otherMembersCount} other{r.otherMembersCount === 1 ? "" : "s"} in your
                       club want this
-                    </div>
+                    </p>
                   )}
-                  {r.alreadyWatched && <div className="text-sm">Club already watched this</div>}
-                  <form action={addFilm.bind(null, clubId, r.tmdbId)}>
-                    <button type="submit" className="border px-3 py-1 mt-1">
+                  {r.alreadyWatched && <p className="tiny dim mt-1">Club already watched this</p>}
+                  <form action={addFilm.bind(null, clubId, r.tmdbId)} className="mt14">
+                    <button type="submit" className="btn" style={{ width: "auto" }}>
                       {r.onMyList ? "Added" : "Add"}
                     </button>
                   </form>
@@ -302,9 +291,9 @@ export default async function WatchlistPage({
         </section>
       )}
 
-      <div className="mt-6">
+      <p className="small muted mt20">
         {myItems.length} films · {formatRuntime(totalRuntime)}
-      </div>
+      </p>
 
       {smartShelves.map((shelf) => (
         <ShelfSection key={shelf.name} shelf={shelf} clubId={clubId} />
@@ -312,56 +301,27 @@ export default async function WatchlistPage({
       {genreShelves.map((shelf) => (
         <ShelfSection key={shelf.name} shelf={shelf} clubId={clubId} />
       ))}
-    </main>
-  );
-}
-
-// TMDB posters are a fixed 2:3 ratio at every size — width/height here
-// are the intrinsic source dimensions next/image needs for layout, not
-// the displayed size (the className's own w-*/h-* controls that, same
-// as before this was a plain placeholder div). null posterPath (every
-// fixture film, and any real film TMDB has no poster for) keeps the
-// placeholder — a real <img>/<Image> against a path that doesn't
-// resolve 404s, which is a real console error the E2E console-error
-// fixture would correctly fail on, not noise to ignore.
-function Poster({
-  posterPath,
-  title,
-  size,
-  className,
-}: {
-  posterPath: string | null;
-  title: string;
-  size: 92 | 185;
-  className: string;
-}) {
-  if (!posterPath) return <div className={`bg-gray-200 ${className}`} />;
-  return (
-    <Image
-      src={`https://image.tmdb.org/t/p/w${size}${posterPath}`}
-      alt={`${title} poster`}
-      width={size}
-      height={Math.round(size * 1.5)}
-      className={`${className} object-cover`}
-    />
+    </AppShell>
   );
 }
 
 function ShelfSection({ shelf, clubId }: { shelf: Shelf; clubId: string }) {
   return (
-    <div className="mt-4">
-      <h3 className="font-semibold">
+    <div className="mt20">
+      <h3 className="sec">
         {shelf.name} ({shelf.films.length})
       </h3>
-      <div className="mt-1 flex flex-wrap gap-3">
+      <div className="grid3">
         {shelf.films.map((f) => (
-          <div key={f.watchlistItemId} className="w-24">
-            <Poster posterPath={f.posterPath} title={f.title} size={185} className="w-24 h-36" />
-            <div className="text-sm">
-              {f.title} ({f.year})
+          <div key={f.watchlistItemId} className="watchlist-item">
+            <div className="poster">
+              <Poster posterPath={f.posterPath} title={f.title} size={185} />
+            </div>
+            <div className="tiny">
+              {f.title} <span className="dim">({f.year})</span>
             </div>
             <form action={removeFilm.bind(null, clubId, f.watchlistItemId)}>
-              <button type="submit" className="text-sm underline">
+              <button type="submit" className="tiny underline">
                 Remove
               </button>
             </form>

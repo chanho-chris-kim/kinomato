@@ -3,8 +3,9 @@ import { getDb } from "@/db";
 import { clubs, films, memberships, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
 import { areTakesRevealed } from "@/lib/ratingReveal";
 import { pickIdentity } from "../../actions";
-import { ClubNav } from "../../ClubNav";
+import { AppShell } from "../../AppShell";
 import { getIdentityMembershipId } from "../../identity";
+import { Poster } from "../../Poster";
 
 // Club-scoped only (CLAUDE.md) — no cross-club or global tag
 // aggregation. `tag` in the URL is the normalized name (lib/tags.ts),
@@ -38,21 +39,20 @@ export default async function TagPage({
   // every other club-scoped page.
   if (!currentMembership) {
     return (
-      <main className="p-4">
-        <ClubNav clubId={clubId} clubName={club.name} current="tags" />
-        <p className="mt-2">Who are you?</p>
-        <ul className="mt-2 space-y-2">
+      <AppShell clubId={clubId} clubName={club.name} current="tags">
+        <p className="small muted mt14">Who are you?</p>
+        <ul className="stack gap8 mt14">
           {activeMemberships.map((m) => (
             <li key={m.id}>
               <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="border px-3 py-1">
+                <button type="submit" className="btn">
                   {m.displayName}
                 </button>
               </form>
             </li>
           ))}
         </ul>
-      </main>
+      </AppShell>
     );
   }
 
@@ -61,7 +61,7 @@ export default async function TagPage({
     .from(tags)
     .where(and(eq(tags.clubId, clubId), eq(tags.name, tagName)));
 
-  const taggedFilms: { title: string; year: number }[] = [];
+  const taggedFilms: { title: string; year: number; posterPath: string | null }[] = [];
 
   if (tagRow) {
     const rows = await db
@@ -70,6 +70,7 @@ export default async function TagPage({
         filmId: nights.winningFilmId,
         filmTitle: films.title,
         filmYear: films.year,
+        posterPath: films.posterPath,
       })
       .from(ratingTags)
       .innerJoin(ratings, eq(ratingTags.ratingId, ratings.id))
@@ -103,27 +104,31 @@ export default async function TagPage({
     for (const row of revealedRows) {
       if (row.filmId === null || seenFilmIds.has(row.filmId)) continue;
       seenFilmIds.add(row.filmId);
-      taggedFilms.push({ title: row.filmTitle, year: row.filmYear });
+      taggedFilms.push({ title: row.filmTitle, year: row.filmYear, posterPath: row.posterPath });
     }
   }
 
   return (
-    <main className="p-4">
-      <ClubNav clubId={clubId} clubName={club.name} current="tags" />
-      <h2 className="font-semibold">
+    <AppShell clubId={clubId} clubName={club.name} current="tags">
+      <h2 className="h-display mt14" style={{ fontSize: 22 }}>
         Tagged &quot;{tagRow?.displayName ?? tagName}&quot;
       </h2>
       {taggedFilms.length === 0 ? (
-        <p className="mt-1">Nothing tagged this way yet.</p>
+        <div className="empty mt20">Nothing tagged this way yet.</div>
       ) : (
-        <ul className="mt-1 space-y-1">
+        <div className="grid3 mt20">
           {taggedFilms.map((f, i) => (
-            <li key={i}>
-              {f.title} ({f.year})
-            </li>
+            <div key={i} className="watchlist-item">
+              <div className="poster">
+                <Poster posterPath={f.posterPath} title={f.title} size={185} />
+              </div>
+              <div className="tiny">
+                {f.title} <span className="dim">({f.year})</span>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
-    </main>
+    </AppShell>
   );
 }

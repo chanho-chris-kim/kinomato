@@ -1,15 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Oswald } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Oswald for display headings (h-display), Inter for everything else —
+// docs/prototype.html's "late show" theme. Weight 500 is the one the
+// theme's --display-w token actually uses; 400 covers the odd default.
+const oswald = Oswald({
+  variable: "--font-oswald",
+  weight: ["400", "500"],
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
+  weight: ["400", "500"],
   subsets: ["latin"],
 });
 
@@ -26,11 +31,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-theme="late"
+      className={`${oswald.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <div className="flex-1">{children}</div>
-        <footer className="p-4 text-xs text-gray-500">
+        <footer className="tiny dim p-4">
           This product uses the TMDB API but is not endorsed or certified by
           TMDB.
         </footer>

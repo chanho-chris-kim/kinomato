@@ -375,6 +375,55 @@ Do not quietly change these — they encode decisions that took a while to reach
   `<datalist>` on reveal state for; revisit if it turns out to bother
   people in practice.
 
+- **Theming is one attribute, not a rewrite.** `docs/prototype.html`'s
+  "late show" palette is ported into `app/globals.css` as
+  `:root[data-theme="late"]` custom properties, set once via
+  `data-theme="late"` on `<html>` (`app/layout.tsx`) — every page
+  inherits `--bg`/`--fg`/`--accent`/etc. through normal CSS cascade, no
+  React context needed. "Rep house" and "video rental" are future
+  `[data-theme="..."]` blocks alongside this one, not a rewrite — and
+  there's no theme picker UI yet (deliberately not built this pass, see
+  Open Questions). The prototype's shared component classes (`.card`,
+  `.btn`, `.chip`, `.pill`, `.avatar`, `.poster`, `.nominee`, `.search`,
+  `.result`, `.slider`, `.grid3`, etc.) are ported the same way — used
+  directly in JSX className props, not reimplemented as Tailwind
+  utilities, so the palette and spacing rhythm stay exactly what the
+  prototype specifies rather than a hand-translated approximation.
+  `AppShell` (`app/clubs/[clubId]/AppShell.tsx`) is the responsive shell
+  (bottom tab bar on phones → icon sidebar at 620px → labeled sidebar at
+  900px → optional context rail at 1120px, all via `.app`'s
+  `container-type: inline-size` and `@container` queries, not viewport
+  media queries) used by the club page, watchlist, and tag page — /new
+  and /join stay standalone themed cards with no nav shell, matching
+  their pre-styling behavior of not rendering one. `.main` establishes
+  its *own* nested container context specifically so `.grid3`'s column
+  count responds to `.main`'s actual rendered width, not `.app`'s full
+  width — without that, a page with no rail (full-bleed `.main` at
+  1120px+) would cram 5 poster columns into whatever width happened to
+  be available instead of the width that's actually there.
+  **The context rail only ever shows real data, repurposed — never the
+  prototype's fake turn-order queue, streaming-expiry list, or
+  attendance leaderboard.** The club page's rail mirrors the Members
+  list (also still in `.main`, unabbreviated, so nothing about who's in
+  the club or the invite link ever depends on a 1120px+ viewport to be
+  reachable — most of this club's members are on phones). Pages with no
+  genuine secondary content (watchlist, tags) pass no `rail` prop at
+  all, rather than rendering an empty or fabricated one; `.main:only-child`
+  in the 1120px query keeps a railless page's content column capped at
+  the same width the 900px breakpoint set, instead of stretching
+  full-bleed with nothing to balance it against.
+- **The "locked" night display (starts/runs/out-by) is a new section,
+  not a restyle of an existing one.** Before this, the gap between a
+  night locking and the confirmAt threshold clearing rendered nothing at
+  all — CLAUDE.md's confirmAt ruling only covers when the "Did you watch
+  X?" prompt appears, not what shows before that. This section
+  (`app/clubs/[clubId]/page.tsx`) is pure display over data already on
+  hand (`films.runtime`, `nights.scheduledAt`, `nights.winningFilmId`) —
+  no new query shape, no new write, no new user action, and it only ever
+  renders in place of the confirm prompt, never alongside it (the
+  "one night in flight" invariant guarantees there's only ever one
+  candidate night for either section).
+
 ## Things not to do
 
 - Don't port the prototype HTML into React. Rebuild, check against it.
@@ -456,6 +505,20 @@ Kinoma (former Marvell division) are the nearest existing marks.
 Things that aren't ruled on yet. Don't guess at these — ask, or flag them here
 and move on.
 
+- **No theme picker, and only "late show" is built.** `docs/prototype.html`
+  documents "rep house" and "video rental" as two more full palettes —
+  the CSS structure (`[data-theme="..."]` blocks in `app/globals.css`)
+  is ready for them, but nobody has ported their tokens, and there's no
+  UI anywhere (club settings or otherwise) to choose a theme per club.
+  Every club renders "late show" today, hardcoded via `<html
+  data-theme="late">` in `app/layout.tsx`.
+- **The new "locked" night section has no E2E coverage.** Every seeded
+  club currently either reaches confirmability before the page ever
+  renders the locked state, or (club 6) is confirmable immediately
+  (`manual_only`), so nothing in `e2e/` exercises the starts/runs/out-by
+  display. Verified manually against a temporarily-nudged night during
+  this session, not by an automated test — a club seeded specifically
+  into the locked-but-not-yet-confirmable gap would close this.
 - **"We watched something else" confirmation.** What film gets recorded? Does
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through

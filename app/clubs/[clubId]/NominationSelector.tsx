@@ -30,14 +30,14 @@ export function NominationSelector({ films, cap }: { films: NominableFilm[]; cap
 
   return (
     <div>
-      <p className="text-sm">Pick up to {cap} from your watchlist.</p>
-      <ul className="mt-1 space-y-1">
+      <p className="small muted">Pick up to {cap} from your watchlist.</p>
+      <ul className="stack gap8 mt14">
         {films.map((film) => {
           const checked = selected.includes(film.id);
           const disabled = !checked && selected.length >= cap;
           return (
-            <li key={film.id}>
-              <label className={disabled ? "text-gray-400" : ""}>
+            <li key={film.id} className="nominee">
+              <label className={`row ${disabled ? "dim" : ""}`}>
                 <input
                   type="checkbox"
                   name="filmId"
@@ -45,14 +45,18 @@ export function NominationSelector({ films, cap }: { films: NominableFilm[]; cap
                   checked={checked}
                   disabled={disabled}
                   onChange={() => toggle(film.id)}
-                />{" "}
+                />
                 {film.title} ({film.year})
               </label>
             </li>
           );
         })}
       </ul>
-      <button type="submit" disabled={selected.length === 0} className="border px-3 py-1 mt-2">
+      <button
+        type="submit"
+        disabled={selected.length === 0}
+        className={`btn mt14 ${selected.length ? "primary" : ""}`}
+      >
         Open voting
       </button>
     </div>

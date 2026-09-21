@@ -1,26 +1,475 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Design system ported from docs/prototype.html's <style> block —
+ * exact palette, spacing rhythm and card treatment, not a
+ * reinterpretation. Only the "late show" theme's tokens are here
+ * (CLAUDE.md: don't build a theme picker yet); "rep" and "rental" are
+ * future [data-theme="..."] blocks alongside this one, not a rewrite.
+ * Prototype-only stage chrome (.stage, .ctrls, .frame, .devlabel) is
+ * deliberately not ported — it's the demo harness, not product UI.
+ */
+
+:root[data-theme="late"] {
+  --bg: #14100e;
+  --card: #1e1815;
+  --line: #2c231d;
+  --accent: #e8a33d;
+  --accent-soft: #3a2a12;
+  --fg: #f0e6d6;
+  --mut: #b99a78;
+  --dim: #7a6a55;
+  --ok: #7fbf6a;
+  --warn: #e07a5f;
+  --display: var(--font-oswald), Impact, sans-serif;
+  --display-tr: 0.02em;
+  --display-w: 500;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* ---------- app shell: nav / main / rail ---------- */
+.app {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.nav {
+  order: 2;
+  display: flex;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+}
+.nav a,
+.nav span.navcurrent {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--dim);
+  padding: 9px 2px 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  text-decoration: none;
+}
+.nav [aria-current="page"] {
+  color: var(--accent);
+}
+.nav svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.navlabel {
+  display: block;
+}
+.body {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.main {
+  container-type: inline-size;
+  flex: 1;
+  min-width: 0;
+  padding: 18px 16px 28px;
+}
+.rail {
+  display: none;
+}
+
+@container (min-width: 620px) {
+  .app {
+    flex-direction: row;
+  }
+  .nav {
+    order: 0;
+    flex-direction: column;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    width: 66px;
+    padding-top: 14px;
+    position: static;
+  }
+  .nav a,
+  .nav span.navcurrent {
+    flex: 0 0 auto;
+    padding: 11px 4px;
+  }
+  .body {
+    order: 1;
+  }
+  .main {
+    padding: 22px 22px 30px;
+  }
+}
+@container (min-width: 900px) {
+  .nav {
+    width: 186px;
+    align-items: stretch;
+  }
+  .nav a,
+  .nav span.navcurrent {
+    flex-direction: row;
+    gap: 11px;
+    justify-content: flex-start;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  .main {
+    padding: 26px 28px 34px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+@container (min-width: 1120px) {
+  /* Only widen past the 900px-breakpoint's centered column when a rail
+     is actually splitting the row with it — .main:only-child means
+     AppShell was given no rail content, so there's nothing to balance
+     a full-bleed .main against (docs/prototype.html's rail always had
+     something to show; several real pages here don't). */
+  .main:not(:only-child) {
+    max-width: none;
+    margin: 0;
+    flex: 1.35;
+  }
+  .rail {
+    display: block;
+    flex: 1;
+    min-width: 300px;
+    max-width: 390px;
+    border-left: 1px solid var(--line);
+    padding: 26px 22px;
+  }
+}
+
+/* ---------- shared components ---------- */
+.eyebrow {
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0 0 8px;
+}
+.h-display {
+  font-family: var(--display);
+  font-weight: var(--display-w);
+  letter-spacing: var(--display-tr);
+  line-height: 1.08;
+  margin: 0;
+}
+.sec {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 10px;
+  color: var(--fg);
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 14px;
+}
+.muted {
+  color: var(--mut);
+}
+.dim {
+  color: var(--dim);
+}
+.small {
+  font-size: 12px;
+}
+.tiny {
+  font-size: 11px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.between {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+.gap6 {
+  gap: 6px;
+}
+.gap8 {
+  gap: 8px;
+}
+.gap10 {
+  gap: 10px;
+}
+.gap14 {
+  gap: 14px;
+}
+.mt14 {
+  margin-top: 14px;
+}
+.mt20 {
+  margin-top: 20px;
+}
+.mt26 {
+  margin-top: 26px;
+}
+.chip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--mut);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  display: inline-block;
+}
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  display: inline-block;
+}
+.pill.quiet {
+  background: var(--card);
+  color: var(--dim);
+}
+.btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  width: 100%;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.btn.ghost {
+  color: var(--mut);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.divide {
+  border-top: 1px solid var(--line);
+  margin: 18px 0;
+  height: 0;
+}
+.bar {
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 9px;
+}
+.bar i {
+  display: block;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--mut);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.avatar.me {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.poster {
+  aspect-ratio: 2 / 3;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+@container (min-width: 620px) {
+  .grid3 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@container (min-width: 1120px) {
+  .grid3 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.watchlist-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nominee {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 13px;
+  color: var(--fg);
+  display: block;
+}
+.sel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.toggle:last-child {
+  border-bottom: 0;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 12px;
+}
+.search input {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  min-width: 0;
+}
+.search input:focus {
+  outline: none;
+}
+.search input[type="time"],
+.search input[type="text"] {
+  width: 100%;
+}
+.result {
+  display: flex;
+  gap: 11px;
+  padding: 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.thumb {
+  width: 44px;
+  height: 66px;
+  border-radius: 3px;
+  background: var(--line);
+  color: var(--dim);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3px;
+  flex: 0 0 auto;
+  line-height: 1.2;
+  overflow: hidden;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.note {
+  border-left: 2px solid var(--accent);
+  background: var(--card);
+  padding: 11px 13px;
+  border-radius: 0;
+}
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }

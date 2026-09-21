@@ -30,52 +30,52 @@ export default async function NewClubPage({
   const { error } = await searchParams;
 
   return (
-    <main className="p-4">
-      <h1 className="text-xl font-bold">Start a club</h1>
-      <p className="mt-1">
+    <main className="p-4" style={{ maxWidth: 480, margin: "0 auto" }}>
+      <h1 className="h-display" style={{ fontSize: 26 }}>
+        Start a club
+      </h1>
+      <p className="small muted mt-1">
         No account needed — you&apos;ll be in as soon as you submit this.
       </p>
-      {error && <p className="mt-2 text-red-700">{error}</p>}
+      {error && (
+        <p className="small mt14" style={{ color: "var(--warn)" }}>
+          {error}
+        </p>
+      )}
 
-      <form action={createClub} className="mt-4 space-y-4">
+      <form action={createClub} className="stack gap14 mt20">
         <div>
-          <label className="block">
+          <label className="small muted">
             Club name
-            <input type="text" name="name" required className="block border px-2 py-1" />
+            <div className="search mt-1">
+              <input type="text" name="name" required />
+            </div>
           </label>
         </div>
 
-        <div>
-          <span>Your name</span>
-          <p className="text-sm">This is what the rest of the club sees you as.</p>
-          <div className="flex gap-2">
-            <label>
+        <div className="card">
+          <span className="small">Your name</span>
+          <p className="tiny dim mt-1">This is what the rest of the club sees you as.</p>
+          <div className="row gap10 mt14">
+            <label className="small muted" style={{ flex: 1 }}>
               First name
-              <input
-                type="text"
-                name="yourFirstName"
-                required
-                className="block border px-2 py-1"
-              />
+              <div className="search mt-1">
+                <input type="text" name="yourFirstName" required />
+              </div>
             </label>
-            <label>
+            <label className="small muted" style={{ width: 72 }}>
               Last initial
-              <input
-                type="text"
-                name="yourLastInitial"
-                required
-                maxLength={1}
-                size={2}
-                className="block border px-2 py-1"
-              />
+              <div className="search mt-1">
+                <input type="text" name="yourLastInitial" required maxLength={1} size={2} />
+              </div>
             </label>
           </div>
         </div>
 
         <div>
-          <label className="block">
+          <label className="small muted">
             Cadence
-            <select name="cadence" defaultValue="weekly" className="block border px-2 py-1">
+            <select name="cadence" defaultValue="weekly" className="sel mt-1" style={{ display: "block", width: "100%" }}>
               <option value="weekly">Weekly</option>
               <option value="biweekly">Biweekly</option>
               <option value="monthly">Monthly</option>
@@ -85,9 +85,14 @@ export default async function NewClubPage({
         </div>
 
         <div>
-          <label className="block">
+          <label className="small muted">
             Day
-            <select name="defaultDay" defaultValue="6" className="block border px-2 py-1">
+            <select
+              name="defaultDay"
+              defaultValue="6"
+              className="sel mt-1"
+              style={{ display: "block", width: "100%" }}
+            >
               {DAY_LABELS.map((label, value) => (
                 <option key={value} value={value}>
                   {label}
@@ -98,29 +103,26 @@ export default async function NewClubPage({
         </div>
 
         <div>
-          <label className="block">
+          <label className="small muted">
             Time
-            <input
-              type="time"
-              name="defaultTime"
-              defaultValue="20:00"
-              required
-              className="block border px-2 py-1"
-            />
+            <div className="search mt-1">
+              <input type="time" name="defaultTime" defaultValue="20:00" required />
+            </div>
           </label>
         </div>
 
         <div>
-          <label className="block">
+          <label className="small muted">
             Timezone
-            <input
-              type="text"
-              name="timezone"
-              list="timezone-options"
-              placeholder="America/New_York"
-              required
-              className="block border px-2 py-1"
-            />
+            <div className="search mt-1">
+              <input
+                type="text"
+                name="timezone"
+                list="timezone-options"
+                placeholder="America/New_York"
+                required
+              />
+            </div>
             <datalist id="timezone-options">
               {COMMON_TIMEZONES.map((tz) => (
                 <option key={tz} value={tz} />
@@ -130,49 +132,43 @@ export default async function NewClubPage({
         </div>
 
         <div>
-          <span>Mode</span>
-          <div className="flex gap-4">
-            <label>
+          <span className="small muted">Mode</span>
+          <div className="row gap14 mt-1">
+            <label className="small">
               <input type="radio" name="mode" value="in_person" defaultChecked /> In person
             </label>
-            <label>
+            <label className="small">
               <input type="radio" name="mode" value="remote" /> Remote
             </label>
           </div>
         </div>
 
-        <div>
-          <span>Add people now (optional)</span>
-          <p className="text-sm">
+        <div className="card">
+          <span className="small">Add people now (optional)</span>
+          <p className="tiny dim mt-1">
             So the invite lands on a club that already looks populated, not empty.
           </p>
-          <div className="mt-1 space-y-2">
+          <div className="stack gap8 mt14">
             {Array.from({ length: MAX_PRE_ADDED_MEMBERS }, (_, i) => (
-              <div key={i} className="flex gap-2">
-                <label>
+              <div key={i} className="row gap10">
+                <label className="small muted" style={{ flex: 1 }}>
                   First name
-                  <input
-                    type="text"
-                    name={`memberFirstName${i}`}
-                    className="block border px-2 py-1"
-                  />
+                  <div className="search mt-1">
+                    <input type="text" name={`memberFirstName${i}`} />
+                  </div>
                 </label>
-                <label>
+                <label className="small muted" style={{ width: 72 }}>
                   Last initial
-                  <input
-                    type="text"
-                    name={`memberLastInitial${i}`}
-                    maxLength={1}
-                    size={2}
-                    className="block border px-2 py-1"
-                  />
+                  <div className="search mt-1">
+                    <input type="text" name={`memberLastInitial${i}`} maxLength={1} size={2} />
+                  </div>
                 </label>
               </div>
             ))}
           </div>
         </div>
 
-        <button type="submit" className="border px-3 py-1">
+        <button type="submit" className="btn primary">
           Create club
         </button>
       </form>

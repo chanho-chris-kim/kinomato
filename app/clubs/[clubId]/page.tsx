@@ -31,11 +31,21 @@ import {
   setRsvp,
   submitRating,
 } from "./actions";
-import { ClubNav } from "./ClubNav";
+import { AppShell } from "./AppShell";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 import { NON_TERMINAL_STATES } from "./nightState";
+
+// "Priya S." -> "PS" — decorative only (the rail's compact member
+// list), never used as an identity key or display name anywhere.
+function initials(displayName: string): string {
+  return displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
 
 export default async function ClubPage({
   params,
@@ -70,21 +80,20 @@ export default async function ClubPage({
   // No auth in v0 — a name picker is the whole identity flow.
   if (!currentMembership) {
     return (
-      <main className="p-4">
-        <ClubNav clubId={clubId} clubName={club.name} current="club" />
-        <p className="mt-2">Who are you?</p>
-        <ul className="mt-2 space-y-2">
+      <AppShell clubId={clubId} clubName={club.name} current="club">
+        <p className="small muted mt14">Who are you?</p>
+        <ul className="stack gap8 mt14">
           {activeMemberships.map((m) => (
             <li key={m.id}>
               <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="border px-3 py-1">
+                <button type="submit" className="btn">
                   {m.displayName}
                 </button>
               </form>
             </li>
           ))}
         </ul>
-      </main>
+      </AppShell>
     );
   }
 
@@ -283,6 +292,41 @@ export default async function ClubPage({
     confirmableFilmTitle = film?.title ?? null;
   }
 
+  // Locked-in display (docs/prototype.html's lockedView — "keep the
+  // runtime math" per the styling brief): the window between lock and
+  // the confirmAt threshold used to render nothing at all. Pure display
+  // over data already on hand — films.runtime, nights.scheduledAt — no
+  // new queries beyond the winning film's runtime alongside its title,
+  // no new writes, no new user action. Never both this and
+  // confirmableNight at once: "one night in flight" means at most one
+  // non-terminal night exists, so as soon as it's confirmable this
+  // section stops matching and the prompt below takes over.
+  const lockedNight = confirmableNight
+    ? null
+    : (clubNights.find((n) => n.state === "locked" && n.winningFilmId !== null) ?? null);
+
+  let lockedFilm: { title: string; year: number; runtime: number | null } | null = null;
+  let lockedStartsLabel: string | null = null;
+  let lockedOutByLabel: string | null = null;
+  if (lockedNight?.winningFilmId) {
+    const [film] = await db
+      .select({ title: films.title, year: films.year, runtime: films.runtime })
+      .from(films)
+      .where(eq(films.id, lockedNight.winningFilmId));
+    lockedFilm = film ?? null;
+
+    const timeFormat = new Intl.DateTimeFormat("en-US", {
+      timeZone: club.timezone,
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    lockedStartsLabel = timeFormat.format(lockedNight.scheduledAt);
+    if (lockedFilm?.runtime) {
+      const endsAt = new Date(lockedNight.scheduledAt.getTime() + lockedFilm.runtime * 60_000);
+      lockedOutByLabel = timeFormat.format(endsAt);
+    }
+  }
+
   // Rating (analysis-v1.md §1.1 stage 10, "then ratings and one-line
   // takes") — the club's most recently watched night, so this only ever
   // surfaces the one confirmation just produced, not a backlog of every
@@ -395,39 +439,57 @@ export default async function ClubPage({
   }
 
   return (
-    <main className="p-4">
-      <ClubNav clubId={clubId} clubName={club.name} current="club" />
-      <div className="mt-1">
+    <AppShell
+      clubId={clubId}
+      clubName={club.name}
+      current="club"
+      rail={
+        <>
+          <h2 className="sec">Members</h2>
+          <div className="stack gap8">
+            {activeMemberships.map((m) => (
+              <div key={m.id} className="row">
+                <span className={`avatar ${m.id === currentMembership.id ? "me" : ""}`}>
+                  {initials(m.displayName)}
+                </span>
+                <span className="small">{m.displayName}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      }
+    >
+      <div className="small mt14">
         You are: {currentMembership.displayName}{" "}
-        <form
-          action={clearIdentity.bind(null, clubId)}
-          className="inline"
-        >
+        <form action={clearIdentity.bind(null, clubId)} className="inline">
           <button type="submit" className="underline">
             (switch)
           </button>
         </form>
       </div>
 
-      <p className="mt-1">
+      <p className="small muted mt-1">
         Invite link:{" "}
         <Link href={`/clubs/${clubId}/join`} className="underline">
           /clubs/{clubId}/join
         </Link>
       </p>
 
-      <h2 className="mt-4 font-semibold">Members</h2>
-      <p className="mt-1">{activeMemberships.map((m) => m.displayName).join(", ")}</p>
+      <h2 className="sec mt20">Members</h2>
+      <p className="small">{activeMemberships.map((m) => m.displayName).join(", ")}</p>
 
-      <h2 className="mt-4 font-semibold">Whose turn</h2>
-      <p>{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>
+      <h2 className="sec mt20">Whose turn</h2>
+      <p className="small">{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>
 
       {draftNight &&
         (draftNight.pickerMembershipId === currentMembership.id ? (
           <>
-            <h2 className="mt-4 font-semibold">Your turn to nominate</h2>
+            <p className="eyebrow mt20">Your turn this week</p>
+            <h2 className="h-display" style={{ fontSize: 22 }}>
+              Your turn to nominate
+            </h2>
             {myWatchlistFilms.length === 0 ? (
-              <p className="mt-1">
+              <p className="small muted mt14">
                 Your watchlist is empty.{" "}
                 <Link href={`/clubs/${clubId}/list`} className="underline">
                   Add films to it
@@ -435,17 +497,18 @@ export default async function ClubPage({
                 before you can nominate.
               </p>
             ) : (
-              <form action={openVoting.bind(null, clubId, draftNight.id)}>
+              <form action={openVoting.bind(null, clubId, draftNight.id)} className="mt14">
                 <NominationSelector films={myWatchlistFilms} cap={nomineesPerTurn} />
               </form>
             )}
           </>
         ) : (
-          <p className="mt-4">Waiting on {draftPickerName} to nominate.</p>
+          <p className="small muted mt20">Waiting on {draftPickerName} to nominate.</p>
         ))}
 
       {!openNight &&
         !draftNight &&
+        !lockedNight &&
         !confirmableNight &&
         !ratingSection &&
         (adHocNeedsManualNight ? (
@@ -456,8 +519,10 @@ export default async function ClubPage({
           // of an ad_hoc club rather than a bug — there's no UI yet to
           // schedule one manually either (a real gap, not solved here).
           <>
-            <h2 className="mt-4 font-semibold">No night scheduled</h2>
-            <p className="mt-1">
+            <h2 className="h-display mt20" style={{ fontSize: 20 }}>
+              No night scheduled
+            </h2>
+            <p className="small muted mt-1">
               This club is ad hoc — nights aren&apos;t scheduled
               automatically. There&apos;s no way to schedule one manually
               yet either.
@@ -470,42 +535,36 @@ export default async function ClubPage({
           // left). The actual first impression for a normal new club is
           // the draft night created above, same request, not this.
           <>
-            <h2 className="mt-4 font-semibold">No night scheduled yet</h2>
-            <p className="mt-1">
+            <h2 className="h-display mt20" style={{ fontSize: 20 }}>
+              No night scheduled yet
+            </h2>
+            <p className="small muted mt-1">
               This club hasn&apos;t had a movie night. Share the invite link
               above with the rest of your group.
             </p>
           </>
         ) : (
-          <p className="mt-4">No open vote right now.</p>
+          <p className="small muted mt20">No open vote right now.</p>
         ))}
 
       {rsvpableNight && (
         <>
           {openNight && (
-            <h2 className="mt-4 font-semibold">
+            <h2 className="h-display mt20" style={{ fontSize: 22 }}>
               This week&apos;s pick, nominated by {pickerName}
             </h2>
           )}
 
-          <h3 className="mt-4 font-semibold">RSVP</h3>
-          <p className="mt-1">
-            Current answer: {myRsvpStatus ?? "no answer yet"}
-          </p>
-          <div className="mt-1 flex gap-2">
-            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "yes")}>
-              <button
-                type="submit"
-                className={`border px-3 py-1 ${myRsvpStatus === "yes" ? "bg-gray-200" : ""}`}
-              >
+          <h3 className="sec mt20">RSVP</h3>
+          <p className="small muted">Current answer: {myRsvpStatus ?? "no answer yet"}</p>
+          <div className="row gap8 mt14">
+            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "yes")} style={{ flex: 1 }}>
+              <button type="submit" className={`btn ${myRsvpStatus === "yes" ? "primary" : ""}`}>
                 Going
               </button>
             </form>
-            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "no")}>
-              <button
-                type="submit"
-                className={`border px-3 py-1 ${myRsvpStatus === "no" ? "bg-gray-200" : ""}`}
-              >
+            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "no")} style={{ flex: 1 }}>
+              <button type="submit" className={`btn ${myRsvpStatus === "no" ? "primary" : ""}`}>
                 Not going
               </button>
             </form>
@@ -515,17 +574,17 @@ export default async function ClubPage({
 
       {openNight && (
         <>
-          <h3 className="mt-4 font-semibold">Nominees</h3>
-          <ul className="mt-1 space-y-2">
+          <h3 className="sec mt20">Nominees</h3>
+          <ul className="stack gap8 mt14">
             {nomineeRows.map((n) => (
-              <li key={n.nominationId} className="border p-2">
-                <div>
+              <li key={n.nominationId} className="nominee">
+                <div className="small">
                   {n.filmTitle} ({n.filmYear}) — {n.voteCount}{" "}
                   {n.voteCount === 1 ? "vote" : "votes"}
                   {n.votedByMe && " — your vote"}
                 </div>
-                <form action={castVote.bind(null, clubId, n.nominationId)}>
-                  <button type="submit" className="mt-1 border px-3 py-1">
+                <form action={castVote.bind(null, clubId, n.nominationId)} className="mt14">
+                  <button type="submit" className="btn">
                     {n.votedByMe ? "Voted" : "Vote"}
                   </button>
                 </form>
@@ -534,35 +593,76 @@ export default async function ClubPage({
           </ul>
 
           {(currentMembership.role === "owner" || currentMembership.role === "admin") && (
-            <div className="mt-4">
+            <div className="mt20">
               <form action={lockNight.bind(null, clubId, openNight.id)}>
-                <button type="submit" className="border px-3 py-1">
+                <button type="submit" className="btn primary">
                   Close voting and set the pick
                 </button>
               </form>
-              <p className="text-sm mt-1">
-                The pick can&apos;t be changed after this.
-              </p>
+              <p className="tiny dim mt-1">The pick can&apos;t be changed after this.</p>
             </div>
           )}
         </>
       )}
 
+      {lockedNight && lockedFilm && (
+        <>
+          <div className="between mt20" style={{ alignItems: "center" }}>
+            <span className="pill">Locked in</span>
+          </div>
+          <h2 className="h-display mt14" style={{ fontSize: 26 }}>
+            {lockedFilm.title}
+          </h2>
+          <p className="small muted mt-1">{lockedFilm.year}</p>
+          <div
+            className="row between"
+            style={{
+              borderTop: "1px solid var(--line)",
+              borderBottom: "1px solid var(--line)",
+              padding: "13px 0",
+              margin: "18px 0",
+            }}
+          >
+            <div>
+              <div className="tiny dim">starts</div>
+              <div style={{ fontSize: 17 }}>{lockedStartsLabel}</div>
+            </div>
+            <div>
+              <div className="tiny dim">runs</div>
+              <div style={{ fontSize: 17 }}>
+                {lockedFilm.runtime !== null ? `${lockedFilm.runtime}m` : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="tiny dim">out by</div>
+              <div style={{ fontSize: 17, color: "var(--accent)" }}>
+                {lockedOutByLabel ?? "—"}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {confirmableNight && (
         <>
-          <h2 className="mt-4 font-semibold">
+          <p className="eyebrow mt20">Sunday morning</p>
+          <h2 className="h-display" style={{ fontSize: 22 }}>
             Did you watch {confirmableFilmTitle ?? "it"}?
           </h2>
-          <div className="mt-1 flex gap-2">
-            <form action={confirmNight.bind(null, clubId, confirmableNight.id, "watched")}>
-              <button type="submit" className="border px-3 py-1">
+          <div className="row gap8 mt14">
+            <form
+              action={confirmNight.bind(null, clubId, confirmableNight.id, "watched")}
+              style={{ flex: 1 }}
+            >
+              <button type="submit" className="btn primary">
                 Yes
               </button>
             </form>
             <form
               action={confirmNight.bind(null, clubId, confirmableNight.id, "cancelled")}
+              style={{ flex: 1 }}
             >
-              <button type="submit" className="border px-3 py-1">
+              <button type="submit" className="btn ghost">
                 We didn&apos;t meet
               </button>
             </form>
@@ -572,22 +672,26 @@ export default async function ClubPage({
 
       {ratingSection && (
         <>
-          <h2 className="mt-4 font-semibold">Rate {ratingSection.filmTitle}</h2>
+          <h2 className="h-display mt20" style={{ fontSize: 22 }}>
+            Rate {ratingSection.filmTitle}
+          </h2>
 
           {ratingSection.myRsvpYes && !ratingSection.myRating && (
             <form
               action={submitRating.bind(null, clubId, ratingSection.nightId)}
-              className="mt-1 space-y-2"
+              className="stack gap14 mt14"
             >
               <RatingSlider name="scoreQuality" label="Quality" />
               <RatingSlider name="scoreFun" label="Fun" />
               <div>
-                <label>
-                  One-line take (optional){" "}
-                  <input type="text" name="hotTake" maxLength={140} className="border" />
+                <label className="small muted">
+                  One-line take (optional)
+                  <div className="search mt-1">
+                    <input type="text" name="hotTake" maxLength={140} />
+                  </div>
                 </label>
               </div>
-              <button type="submit" className="border px-3 py-1">
+              <button type="submit" className="btn primary">
                 Submit rating
               </button>
             </form>
@@ -599,12 +703,12 @@ export default async function ClubPage({
             // section below the initial submit rather than more fields on
             // that form (CLAUDE.md: tags alongside the hot take, editable
             // and removable on a rating you've already submitted).
-            <div className="mt-2">
-              <h3 className="font-semibold">Your tags</h3>
+            <div className="mt20">
+              <h3 className="sec">Your tags</h3>
               {ratingSection.myTags.length > 0 && (
-                <ul className="mt-1 flex flex-wrap gap-2">
+                <ul className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
                   {ratingSection.myTags.map((t) => (
-                    <li key={t.tagId} className="border px-2 py-1 text-sm">
+                    <li key={t.tagId} className="chip">
                       {t.displayName}{" "}
                       <form
                         action={removeRatingTag.bind(
@@ -625,22 +729,23 @@ export default async function ClubPage({
               )}
               <form
                 action={addRatingTag.bind(null, clubId, ratingSection.nightId)}
-                className="mt-1"
+                className="row gap8 mt14"
               >
-                <input
-                  type="text"
-                  name="tag"
-                  list="club-tag-options"
-                  placeholder="Add a tag"
-                  maxLength={50}
-                  className="border"
-                />
+                <div className="search" style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    name="tag"
+                    list="club-tag-options"
+                    placeholder="Add a tag"
+                    maxLength={50}
+                  />
+                </div>
                 <datalist id="club-tag-options">
                   {ratingSection.clubTagOptions.map((name) => (
                     <option key={name} value={name} />
                   ))}
-                </datalist>{" "}
-                <button type="submit" className="border px-3 py-1">
+                </datalist>
+                <button type="submit" className="btn" style={{ width: "auto" }}>
                   Add tag
                 </button>
               </form>
@@ -648,27 +753,35 @@ export default async function ClubPage({
           )}
 
           {!ratingSection.revealed && ratingSection.attendingCount > 0 && (
-            <p className="mt-1">
+            <p className="tiny dim mt14">
               {ratingSection.ratedAttendingCount}/{ratingSection.attendingCount} ratings
               in — hidden until everyone who&apos;s coming has rated.
             </p>
           )}
 
           {ratingSection.revealed && (
-            <ul className="mt-1 space-y-2">
+            <ul className="stack gap8 mt14">
               {ratingSection.revealedRatings.map((r, i) => (
-                <li key={i} className="border p-2">
-                  <div>
-                    {r.displayName} — quality {r.scoreQuality}, fun {r.scoreFun}
+                <li key={i} className="card">
+                  <div className="between">
+                    <span className="small">{r.displayName}</span>
+                    <span className="tiny">
+                      <span className="muted">quality {r.scoreQuality}</span>,{" "}
+                      <span style={{ color: "var(--accent)" }}>fun {r.scoreFun}</span>
+                    </span>
                   </div>
-                  {r.hotTake && <div>&quot;{r.hotTake}&quot;</div>}
+                  {r.hotTake && (
+                    <p className="small muted mt-1" style={{ fontStyle: "italic" }}>
+                      &quot;{r.hotTake}&quot;
+                    </p>
+                  )}
                   {r.tags.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-2 text-sm">
+                    <div className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
                       {r.tags.map((t) => (
                         <Link
                           key={t.name}
                           href={`/clubs/${clubId}/tags/${encodeURIComponent(t.name)}`}
-                          className="underline"
+                          className="chip"
                         >
                           {t.displayName}
                         </Link>
@@ -681,6 +794,6 @@ export default async function ClubPage({
           )}
         </>
       )}
-    </main>
+    </AppShell>
   );
 }

@@ -79,10 +79,10 @@ test.describe("watchlist", () => {
 
   test("removing takes it off the list", async ({ page }) => {
     await pickIdentity(page, "Dana");
-    const arrivalTile = page.locator("div.w-24", { hasText: "Arrival" });
+    const arrivalTile = page.locator(".watchlist-item", { hasText: "Arrival" });
     await expect(arrivalTile).toBeVisible();
     await arrivalTile.getByRole("button", { name: "Remove" }).click();
-    await expect(page.locator("div.w-24", { hasText: "Arrival" })).toHaveCount(0);
+    await expect(page.locator(".watchlist-item", { hasText: "Arrival" })).toHaveCount(0);
   });
 
   test("the header runtime total is correct", async ({ page }) => {

@@ -43,31 +43,35 @@ export default async function JoinPage({
     null;
 
   return (
-    <main className="p-4">
-      <h1 className="text-xl font-bold">{club.name}</h1>
-      <p className="mt-1">
+    <main className="p-4" style={{ maxWidth: 480, margin: "0 auto" }}>
+      <h1 className="h-display" style={{ fontSize: 26 }}>
+        {club.name}
+      </h1>
+      <p className="small muted mt-1">
         {club.cadence.replace("_", " ")} · {club.mode === "in_person" ? "In person" : "Remote"}
       </p>
-      <p className="mt-1">
+      <p className="small muted mt-1">
         {upcomingNight
           ? `Next night: ${upcomingNight.scheduledAt.toLocaleString()}`
           : "No night scheduled yet."}
       </p>
 
-      {error && <p className="mt-2 text-red-700">{error}</p>}
+      {error && (
+        <p className="small mt14" style={{ color: "var(--warn)" }}>
+          {error}
+        </p>
+      )}
 
-      <h2 className="mt-4 font-semibold">Who&apos;s in</h2>
-      <p className="mt-1">
-        {activeMemberships.map((m) => m.displayName).join(", ")}
-      </p>
+      <h2 className="sec mt20">Who&apos;s in</h2>
+      <p className="small">{activeMemberships.map((m) => m.displayName).join(", ")}</p>
 
-      <h2 className="mt-4 font-semibold">Who are you?</h2>
-      <p className="mt-1">Pick your name if it&apos;s already listed:</p>
-      <ul className="mt-1 space-y-2">
+      <h2 className="sec mt20">Who are you?</h2>
+      <p className="small muted">Pick your name if it&apos;s already listed:</p>
+      <ul className="stack gap8 mt14">
         {activeMemberships.map((m) => (
           <li key={m.id}>
             <form action={claimExistingName.bind(null, clubId, m.id)}>
-              <button type="submit" className="border px-3 py-1">
+              <button type="submit" className="btn">
                 {m.displayName}
               </button>
             </form>
@@ -75,30 +79,22 @@ export default async function JoinPage({
         ))}
       </ul>
 
-      <p className="mt-4">Not listed? Add yourself:</p>
-      <p className="text-sm">This is what the rest of the club sees you as.</p>
-      <form action={joinAsNewMember.bind(null, clubId)} className="mt-1 flex gap-2">
-        <label>
+      <p className="small muted mt20">Not listed? Add yourself:</p>
+      <p className="tiny dim">This is what the rest of the club sees you as.</p>
+      <form action={joinAsNewMember.bind(null, clubId)} className="row gap10 mt-1" style={{ alignItems: "flex-end" }}>
+        <label className="small muted" style={{ flex: 1 }}>
           First name
-          <input
-            type="text"
-            name="firstName"
-            required
-            className="block border px-2 py-1"
-          />
+          <div className="search mt-1">
+            <input type="text" name="firstName" required />
+          </div>
         </label>
-        <label>
+        <label className="small muted" style={{ width: 72 }}>
           Last initial
-          <input
-            type="text"
-            name="lastInitial"
-            required
-            maxLength={1}
-            size={2}
-            className="block border px-2 py-1"
-          />
+          <div className="search mt-1">
+            <input type="text" name="lastInitial" required maxLength={1} size={2} />
+          </div>
         </label>
-        <button type="submit" className="border px-3 py-1 self-end">
+        <button type="submit" className="btn" style={{ width: "auto" }}>
           Join
         </button>
       </form>

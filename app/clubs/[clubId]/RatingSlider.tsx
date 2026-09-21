@@ -27,7 +27,14 @@ export function RatingSlider({
 
   return (
     <div>
-      <label htmlFor={`${id}-range`}>{label}</label>{" "}
+      <div className="between">
+        <label htmlFor={`${id}-range`} className="small muted">
+          {label}
+        </label>
+        <span aria-hidden="true" style={{ color: "var(--accent)" }}>
+          {value}
+        </span>
+      </div>
       <input
         id={`${id}-range`}
         type="range"
@@ -36,8 +43,8 @@ export function RatingSlider({
         step={0.5}
         value={value}
         onChange={(e) => setFromInput(e.target.value)}
+        className="slider"
       />{" "}
-      <span aria-hidden="true">{value}</span>{" "}
       <input
         type="number"
         min={0}
@@ -46,7 +53,8 @@ export function RatingSlider({
         value={value}
         aria-label={`${label} (as a number)`}
         onChange={(e) => setFromInput(e.target.value)}
-        className="border w-16"
+        className="sel"
+        style={{ width: 64 }}
       />
       {/* The one input actually submitted — the range, the live number,
           and the number input are all just views onto the same state. */}
