@@ -82,7 +82,7 @@ another month over the thing that picks a film faster.
   the `kinomato.com` custom domain from the landing project to the Worker
   and delete the landing project. The holding page is scaffolding — it
   does not get promoted.
-- Auth: magic links via Resend (`lib/email.ts`, `RESEND_API_KEY`,
+- Auth: magic links via Brevo (`lib/email.ts`, `BREVO_API_KEY`,
   falls back to a console-logged link when unset — same shape as
   `TMDB_READ_TOKEN`). No passwords, no social login, no account
   settings page. See the identity/claim/invite-token rulings below —
@@ -500,7 +500,7 @@ Do not quietly change these — they encode decisions that took a while to reach
 - Don't add third-party tracking pixels anywhere near a film page (VPPA exposure).
 - Don't fetch streaming availability on browse. Nomination and lock only, 24h TTL.
   Film metadata caches indefinitely; availability does not.
-- Don't put the Resend key in a `NEXT_PUBLIC_` variable. Server-side only,
+- Don't put the Brevo key in a `NEXT_PUBLIC_` variable. Server-side only,
   same as the TMDB token.
 - Don't build a login-required wall anywhere, an account settings page,
   password reset, or social login. Auth is magic links and nothing else;

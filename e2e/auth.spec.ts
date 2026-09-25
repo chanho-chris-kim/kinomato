@@ -9,7 +9,7 @@ import { expect, test } from "./fixtures";
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
 const LIST_7_URL = `${CLUB_7_URL}/list`;
 
-// No RESEND_API_KEY in E2E (CLAUDE.md — same fixture-fallback shape as
+// No BREVO_API_KEY in E2E (CLAUDE.md — same fixture-fallback shape as
 // TMDB_READ_TOKEN), so no email is ever actually sent. Reading the
 // generated token straight out of magic_links via a direct DB
 // connection is the correct call instead of a dev-only "reveal the

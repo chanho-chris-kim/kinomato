@@ -53,6 +53,9 @@ export default defineConfig({
       // forces lib/tmdb.ts's fixture fallback, same as CI (which never
       // has a token at all).
       TMDB_READ_TOKEN: "",
+      // Same reasoning: without this, a local run would send real magic
+      // links through Brevo to the seeded @example.com addresses.
+      BREVO_API_KEY: "",
     },
   },
 });
