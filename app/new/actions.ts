@@ -138,6 +138,7 @@ export async function createClub(formData: FormData) {
   await db.batch([
     db.insert(clubs).values({
       id: clubId,
+      inviteToken: crypto.randomUUID(),
       name,
       cadence,
       defaultDay,

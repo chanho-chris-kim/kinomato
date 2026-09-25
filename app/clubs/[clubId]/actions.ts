@@ -3,6 +3,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import {
   clubs,
@@ -17,6 +18,7 @@ import {
   vetoes,
   watchlistItems,
 } from "@/db/schema";
+import { issueMagicLink } from "@/app/magicLink";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { normalizeTag } from "@/lib/tags";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
@@ -48,6 +50,34 @@ export async function clearIdentity(clubId: string) {
   cookieStore.delete({ name: identityCookieName(clubId), path: `/clubs/${clubId}` });
   revalidatePath(`/clubs/${clubId}`);
   revalidatePath(`/clubs/${clubId}/list`);
+}
+
+// The upgrade path (CLAUDE.md, analysis-v2.md §5.1) — bound to a
+// clubId, membership, and returnPath by ClaimPrompt, so this same
+// action serves the prompt regardless of which page it's rendered on.
+// Never trusts a client-supplied membership id: reads it back off
+// requireCurrentMembershipId, same as every other action here.
+// claimMembershipId on the resulting magic_links row is what makes
+// verifying it update this exact membership in place — see
+// app/verify/route.ts — rather than ever creating a new one.
+export async function requestClaim(clubId: string, returnPath: string, formData: FormData) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    redirect(`${returnPath}?claimError=${encodeURIComponent("Enter a valid email address.")}`);
+  }
+
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
+  // Already claimed (by this flow completing in another tab, say) —
+  // nothing left to do, so just return to the page rather than send a
+  // second, redundant link.
+  if (!membership || membership.clubId !== clubId || membership.userId !== null) {
+    redirect(returnPath);
+  }
+
+  await issueMagicLink(db, { email, claimMembershipId: membershipId, returnToClubId: clubId });
+  redirect(`${returnPath}?claimSent=${encodeURIComponent(email)}`);
 }
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has
@@ -375,6 +405,32 @@ export async function lockNight(clubId: string, nightId: string) {
   if (!night || night.clubId !== clubId) throw new Error("Night not found.");
 
   await lockNightCore(db, nightId);
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// Owner/admin only (CLAUDE.md) — same restriction shape as lockNight
+// above, not a coincidence: both are "this changes something every
+// member depends on" actions. Rotating overwrites clubs.invite_token
+// in place; any link holding the old value starts failing
+// requireValidInviteToken (app/clubs/[clubId]/join/actions.ts)
+// immediately, on its next use — nothing to expire or garbage-collect.
+export async function rotateInviteToken(clubId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+
+  const [membership] = await db
+    .select()
+    .from(memberships)
+    .where(eq(memberships.id, membershipId));
+  if (!membership || membership.clubId !== clubId) {
+    throw new Error("No identity set for this club — pick a name first.");
+  }
+  if (membership.role !== "owner" && membership.role !== "admin") {
+    throw new Error("Only the club owner or an admin can rotate the invite link.");
+  }
+
+  await db.update(clubs).set({ inviteToken: crypto.randomUUID() }).where(eq(clubs.id, clubId));
 
   revalidatePath(`/clubs/${clubId}`);
 }

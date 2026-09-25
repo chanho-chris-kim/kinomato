@@ -20,6 +20,7 @@ import * as schema from "./schema";
 import {
   clubs,
   films,
+  magicLinks,
   memberships,
   nights,
   nominations,
@@ -27,6 +28,7 @@ import {
   ratingTags,
   rsvps,
   seasons,
+  sessions,
   tags,
   users,
   vetoes,
@@ -39,6 +41,7 @@ import {
   CLUB_4_ID,
   CLUB_5_ID,
   CLUB_6_ID,
+  CLUB_7_ID,
   CLUB_ID,
   FILM,
   MEMBERSHIP,
@@ -47,6 +50,7 @@ import {
   MEMBERSHIP_4,
   MEMBERSHIP_5,
   MEMBERSHIP_6,
+  MEMBERSHIP_7,
   NIGHT_3_ID,
   NIGHT_4_ID,
   NIGHT_5_ID,
@@ -92,6 +96,8 @@ async function main() {
   await db.delete(nights);
   await db.delete(watchlistItems);
   await db.delete(films);
+  await db.delete(magicLinks);
+  await db.delete(sessions);
   await db.delete(memberships);
   await db.delete(seasons);
   await db.delete(tags);
@@ -110,6 +116,7 @@ async function main() {
   console.log("Seeding club...");
   await db.insert(clubs).values({
     id: CLUB_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Movie Night Crew",
     cadence: "weekly",
     defaultDay: 6, // Saturday
@@ -331,6 +338,7 @@ async function main() {
   console.log("Seeding a second club for the nomination flow...");
   await db.insert(clubs).values({
     id: CLUB_2_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Second Club",
     cadence: "weekly",
     defaultDay: 3,
@@ -394,6 +402,7 @@ async function main() {
   console.log("Seeding a third club for the confirmation/rating flow...");
   await db.insert(clubs).values({
     id: CLUB_3_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Third Club",
     cadence: "weekly",
     defaultDay: 5,
@@ -462,6 +471,7 @@ async function main() {
   console.log("Seeding a fourth club for the cancellation flow...");
   await db.insert(clubs).values({
     id: CLUB_4_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Fourth Club",
     cadence: "weekly",
     defaultDay: 0,
@@ -511,6 +521,7 @@ async function main() {
   console.log("Seeding a fifth club for the full lock loop...");
   await db.insert(clubs).values({
     id: CLUB_5_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Fifth Club",
     cadence: "weekly",
     defaultDay: 4,
@@ -575,6 +586,7 @@ async function main() {
   console.log("Seeding a sixth club for confirmAt, slider sync, and tag autocomplete...");
   await db.insert(clubs).values({
     id: CLUB_6_ID,
+    inviteToken: crypto.randomUUID(),
     name: "Sixth Club",
     cadence: "weekly",
     defaultDay: 5,
@@ -619,6 +631,52 @@ async function main() {
   await db.insert(rsvps).values([
     { nightId: NIGHT_6_ID, membershipId: MEMBERSHIP_6.nora, status: "yes" },
     { nightId: NIGHT_6_ID, membershipId: MEMBERSHIP_6.iris, status: "yes" },
+  ]);
+
+  // A seventh, separate club — see seed-fixtures.ts's comment on
+  // CLUB_7_ID. Both members start as unclaimed guests, same as every
+  // other seeded club; the auth E2E spec claims Uma and rotates Wes's
+  // invite token itself.
+  console.log("Seeding a seventh club for the auth flows...");
+  await db.insert(clubs).values({
+    id: CLUB_7_ID,
+    inviteToken: crypto.randomUUID(),
+    name: "Seventh Club",
+    cadence: "weekly",
+    defaultDay: 2,
+    defaultTime: "19:00",
+    timezone: "America/New_York",
+    mode: "remote",
+  });
+
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_7.wes,
+      clubId: CLUB_7_ID,
+      userId: null,
+      identityKey: "guest-cookie-wes-example",
+      displayName: "Wes",
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_7.uma,
+      clubId: CLUB_7_ID,
+      userId: null,
+      identityKey: "guest-cookie-uma-example",
+      displayName: "Uma",
+      role: "member",
+      joinedAt: day(2),
+    },
+  ]);
+
+  // 3 films — the claim-prompt threshold (CLAUDE.md) — so the E2E spec
+  // can go straight to the prompt instead of adding films through the
+  // UI first.
+  await db.insert(watchlistItems).values([
+    { membershipId: MEMBERSHIP_7.uma, filmId: babadookId },
+    { membershipId: MEMBERSHIP_7.uma, filmId: getOutId },
+    { membershipId: MEMBERSHIP_7.uma, filmId: arrivalId },
   ]);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);

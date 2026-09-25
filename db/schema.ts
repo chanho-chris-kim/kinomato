@@ -89,6 +89,14 @@ export const clubs = pgTable("clubs", {
   // Non-null = the club (and its rotation) is paused. Same shape as
   // memberships.postponed_at.
   pausedAt: timestamp("paused_at", { withTimezone: true }),
+  // Required on /join as a query param (CLAUDE.md) — a club id alone no
+  // longer admits a joiner. Minted with the same crypto.randomUUID()
+  // convention every other generated id in this app already uses, not
+  // a shorter/URL-friendlier format invented just for this. Rotating
+  // it (owner/admin only, same restriction precedent as lockNight)
+  // just overwrites this column — old links start failing immediately,
+  // nothing to expire or garbage-collect.
+  inviteToken: text("invite_token").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -98,10 +106,61 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   avatar: text("avatar"),
+  // Trusted tier (analysis-v2.md §5.1) — schema room only, no logic
+  // reads this yet. Non-null = trusted, same "nullable timestamp as a
+  // flag" shape as memberships.postponed_at/left_at, clubs.paused_at.
+  trustedAt: timestamp("trusted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+// A magic link is the entire auth mechanism (CLAUDE.md) — no passwords,
+// no session-independent "remember me": the users.email row is the
+// durable anchor, and requesting a fresh link is how identity survives
+// a cleared cookie or a new device, not some unclearable cookie.
+// claimMembershipId is what distinguishes the two flows this table
+// serves: null is a plain login/recovery link; set means verifying
+// this link updates that membership row in place (userId and
+// identityKey both set to the resulting users.id) rather than ever
+// creating a new one — CLAUDE.md's claim ruling, load-bearing for
+// rotation continuity.
+export const magicLinks = pgTable("magic_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull(),
+  token: text("token").notNull().unique(),
+  claimMembershipId: uuid("claim_membership_id").references(() => memberships.id),
+  // Where to land after verifying — a club id, so both a claim and a
+  // plain recovery login return to where the person actually was
+  // instead of a dead end. Null for a bare /login with no club context.
+  returnToClubId: uuid("return_to_club_id").references(() => clubs.id),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Site-wide, unlike every other identity mechanism in this app —
+// kinomato_identity_{clubId} stays per-club and unchanged (CLAUDE.md);
+// this is the one cookie that isn't scoped to a club, since "who is
+// this verified person" has to be answered before "which membership
+// row are they in this club" can be.
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
 
 export const memberships = pgTable(
   "memberships",

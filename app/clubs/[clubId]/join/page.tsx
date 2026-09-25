@@ -14,15 +14,35 @@ export default async function JoinPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; token?: string }>;
 }) {
   const { clubId } = await params;
-  const { error } = await searchParams;
+  const { error, token } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
   if (!club) {
     return <main className="p-4">This invite link doesn&apos;t match a club.</main>;
+  }
+
+  // A club id alone no longer admits a joiner (CLAUDE.md) — the token
+  // has to match, and rotating it (owner/admin only) is what makes an
+  // old copy of this link stop working immediately. A clear message
+  // here, not a generic 404: this is exactly the kind of thing a
+  // person needs to see and act on (ask the owner for a current link),
+  // same reasoning as the free-tier-cap refusal below.
+  if (!token || token !== club.inviteToken) {
+    return (
+      <main className="p-4" style={{ maxWidth: 480, margin: "0 auto" }}>
+        <h1 className="h-display" style={{ fontSize: 22 }}>
+          Invalid invite link
+        </h1>
+        <p className="small muted mt14">
+          This link is missing its token or has been rotated. Ask the club owner for a current
+          invite link.
+        </p>
+      </main>
+    );
   }
 
   // Already have an identity here — nothing left to join.
@@ -70,7 +90,7 @@ export default async function JoinPage({
       <ul className="stack gap8 mt14">
         {activeMemberships.map((m) => (
           <li key={m.id}>
-            <form action={claimExistingName.bind(null, clubId, m.id)}>
+            <form action={claimExistingName.bind(null, clubId, token, m.id)}>
               <button type="submit" className="btn">
                 {m.displayName}
               </button>
@@ -81,7 +101,11 @@ export default async function JoinPage({
 
       <p className="small muted mt20">Not listed? Add yourself:</p>
       <p className="tiny dim">This is what the rest of the club sees you as.</p>
-      <form action={joinAsNewMember.bind(null, clubId)} className="row gap10 mt-1" style={{ alignItems: "flex-end" }}>
+      <form
+        action={joinAsNewMember.bind(null, clubId, token)}
+        className="row gap10 mt-1"
+        style={{ alignItems: "flex-end" }}
+      >
         <label className="small muted" style={{ flex: 1 }}>
           First name
           <div className="search mt-1">

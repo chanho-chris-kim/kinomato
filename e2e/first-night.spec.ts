@@ -40,7 +40,11 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
     await expect(page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
     clubUrl = page.url();
-    joinUrl = `${clubUrl}/join`;
+    // Read the real invite link off the page rather than constructing
+    // it — it carries a token now (CLAUDE.md), which this test has no
+    // way to predict.
+    const inviteHref = await page.locator('a[href*="/join?token="]').getAttribute("href");
+    joinUrl = new URL(inviteHref!, clubUrl).toString();
     await expect(page.getByText("You are: Priya S.")).toBeVisible();
   });
 

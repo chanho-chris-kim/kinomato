@@ -28,10 +28,12 @@ import {
   openVoting,
   pickIdentity,
   removeRatingTag,
+  rotateInviteToken,
   setRsvp,
   submitRating,
 } from "./actions";
 import { AppShell } from "./AppShell";
+import { ClaimPrompt } from "./ClaimPrompt";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
@@ -49,10 +51,13 @@ function initials(displayName: string): string {
 
 export default async function ClubPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ claimError?: string; claimSent?: string }>;
 }) {
   const { clubId } = await params;
+  const { claimError, claimSent } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -470,10 +475,33 @@ export default async function ClubPage({
 
       <p className="small muted mt-1">
         Invite link:{" "}
-        <Link href={`/clubs/${clubId}/join`} className="underline">
-          /clubs/{clubId}/join
+        <Link href={`/clubs/${clubId}/join?token=${club.inviteToken}`} className="underline">
+          /clubs/{clubId}/join?token={club.inviteToken}
         </Link>
       </p>
+      {(currentMembership.role === "owner" || currentMembership.role === "admin") && (
+        <form action={rotateInviteToken.bind(null, clubId)} className="mt-1">
+          <button type="submit" className="tiny underline">
+            Rotate invite link
+          </button>
+        </form>
+      )}
+
+      {currentMembership.userId === null && currentMembership.role === "owner" && (
+        // Unclaimed owner, any watchlist size (CLAUDE.md) — a
+        // guest-owned club whose owner clears cookies permanently loses
+        // its only admin, its invite-token rotation, and its settings
+        // control. That's a real failure mode, not a preference, so
+        // this prompt doesn't wait for a watchlist threshold the way
+        // the list-page prompt does.
+        <ClaimPrompt
+          clubId={clubId}
+          returnPath={`/clubs/${clubId}`}
+          reason="owner"
+          claimError={claimError}
+          claimSent={claimSent}
+        />
+      )}
 
       <h2 className="sec mt20">Members</h2>
       <p className="small">{activeMemberships.map((m) => m.displayName).join(", ")}</p>

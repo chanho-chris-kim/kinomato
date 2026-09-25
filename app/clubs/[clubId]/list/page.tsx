@@ -6,9 +6,15 @@ import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { pickIdentity } from "../actions";
 import { AppShell } from "../AppShell";
+import { ClaimPrompt } from "../ClaimPrompt";
 import { getIdentityMembershipId } from "../identity";
 import { Poster } from "../Poster";
 import { addFilm, removeFilm } from "./actions";
+
+// A rating is one row — losing it costs little. A watchlist someone's
+// actually built is a bigger, slower-to-rebuild thing, which is why
+// the claim prompt gates on this instead (CLAUDE.md).
+const CLAIM_PROMPT_WATCHLIST_THRESHOLD = 3;
 
 interface SearchRow {
   tmdbId: number;
@@ -29,10 +35,10 @@ export default async function WatchlistPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; claimError?: string; claimSent?: string }>;
 }) {
   const { clubId } = await params;
-  const { q } = await searchParams;
+  const { q, claimError, claimSent } = await searchParams;
   const query = q?.trim() ?? "";
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
@@ -294,6 +300,17 @@ export default async function WatchlistPage({
       <p className="small muted mt20">
         {myItems.length} films · {formatRuntime(totalRuntime)}
       </p>
+
+      {currentMembership.userId === null &&
+        myItems.length >= CLAIM_PROMPT_WATCHLIST_THRESHOLD && (
+          <ClaimPrompt
+            clubId={clubId}
+            returnPath={`/clubs/${clubId}/list`}
+            reason="watchlist"
+            claimError={claimError}
+            claimSent={claimSent}
+          />
+        )}
 
       {smartShelves.map((shelf) => (
         <ShelfSection key={shelf.name} shelf={shelf} clubId={clubId} />

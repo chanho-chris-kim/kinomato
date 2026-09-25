@@ -50,6 +50,13 @@
       "when": 1789962004206,
       "tag": "0006_round_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790308991619,
+      "tag": "0007_fixed_purple_man",
+      "breakpoints": true
     }
   ]
 }

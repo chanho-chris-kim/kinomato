@@ -39,7 +39,13 @@ test.describe("club creation and invites", () => {
 
       await expect(ownerPage).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
       const clubUrl = ownerPage.url();
-      const joinUrl = `${clubUrl}/join`;
+      // Read the real invite link off the page rather than
+      // constructing it — it carries a token now (CLAUDE.md), which
+      // this test has no way to predict.
+      const inviteHref = await ownerPage
+        .locator('a[href*="/join?token="]')
+        .getAttribute("href");
+      const joinUrl = new URL(inviteHref!, clubUrl).toString();
 
       await expect(ownerPage.getByText("You are: Robin B.")).toBeVisible();
       await expect(ownerPage.locator('h2:has-text("Members") + p')).toHaveText("Robin B.");
@@ -94,8 +100,16 @@ test.describe("club creation and invites", () => {
 
       // Refused, not silently dropped: still on /join (never reached the
       // club), with the free-tier limit named in a visible message.
-      await expect(seventhPage).toHaveURL(new RegExp(`${joinUrl}\\?error=`));
+      // Waits on the visible text first (auto-waiting for the redirect
+      // to actually land) before reading page.url(), which — unlike
+      // toHaveURL — doesn't wait on its own. URL checked via parts, not
+      // a regex built from joinUrl directly — joinUrl now carries a
+      // token (CLAUDE.md) full of characters (:, /, ?) that would need
+      // escaping to use literally in a RegExp.
       await expect(seventhPage.getByText(/free-tier limit of 6 members/)).toBeVisible();
+      const seventhUrl = new URL(seventhPage.url());
+      expect(seventhUrl.pathname).toBe(new URL(joinUrl).pathname);
+      expect(seventhUrl.searchParams.get("error")).toBeTruthy();
       await expect(seventhPage.getByText("You are: Zed Q.")).not.toBeVisible();
 
       expect(seventhErrors, `Zed's console:\n\n${seventhErrors.join("\n\n")}`).toEqual([]);

@@ -82,8 +82,11 @@ another month over the thing that picks a film faster.
   the `kinomato.com` custom domain from the landing project to the Worker
   and delete the landing project. The holding page is scaffolding — it
   does not get promoted.
-- Auth: v0 has none — invite token in a cookie plus name selection.
-  Magic links via Resend come in v1. Do not add auth infrastructure early.
+- Auth: magic links via Resend (`lib/email.ts`, `RESEND_API_KEY`,
+  falls back to a console-logged link when unset — same shape as
+  `TMDB_READ_TOKEN`). No passwords, no social login, no account
+  settings page. See the identity/claim/invite-token rulings below —
+  this is v1, not v0 anymore.
 - Web Push (VAPID) with email fallback. No native app.
 
 ## Build order
@@ -423,6 +426,70 @@ Do not quietly change these — they encode decisions that took a while to reach
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
   candidate night for either section).
+- **Identity resolves in a fixed fallback order: per-club cookie, then
+  session, then nothing.** `getIdentityMembershipId`
+  (`app/clubs/[clubId]/identity.ts`) checks
+  `kinomato_identity_{clubId}` first — cheap, no DB read, and what
+  every guest always has, unchanged since v0. Only if that's missing
+  does it fall back to the site-wide `kinomato_session` cookie
+  (`app/session.ts`): session → `users.id` → look up the membership row
+  for `(clubId, userId)`. A guest with no session has no fallback and
+  is genuinely signed out, same as always. **Clearing cookies is
+  survivable for a verified member not because any cookie is
+  unclearable — clearing cookies clears the session cookie too — but
+  because `users.email` is a durable anchor.** Requesting a fresh magic
+  link re-finds the same `users` row by email every time, and every
+  membership whose `identity_key` is that `users.id` recognizes the
+  resulting new session immediately. This is also what makes a new
+  device work: it never had any cookie, guest or session, and doesn't
+  need one — verifying an email there is the entire recovery
+  mechanism. No signing library, no unclearable storage; a `sessions`
+  table (`app/session.ts`, `createSession`/`getSessionUserId`) plays
+  the role a cookie-signing dependency usually would, read straight
+  from Postgres like everything else in this app.
+- **Claiming updates the existing membership row in place — it never
+  creates a new one.** `app/verify/route.ts`'s claim branch sets
+  `userId` and `identity_key` (both to the new `users.id`) on the exact
+  membership row `magic_links.claim_membership_id` points at, gated on
+  that row still being unclaimed (`userId IS NULL`) so a narrow
+  double-click race can't steal a membership out from under a first
+  claim. This is what CLAUDE.md's rotation ruling already depends on:
+  `identity_key` is "the user's id where there is one, otherwise a
+  per-club token," and rotation carry-forward on rejoin matches
+  memberships by `identity_key` — a claim that inserted a fresh
+  membership instead would orphan the guest row's `last_picked_at` and
+  hand the claimer a clean rotation slate, silently jumping the queue.
+  Updating in place means the exact same row — same `last_picked_at`,
+  same `joined_at`, same rotation position — just gained a `userId`.
+  The prompt itself (`ClaimPrompt`, `app/clubs/[clubId]/ClaimPrompt.tsx`)
+  only ever fires at a moment of real loss aversion, never on arrival:
+  a guest's watchlist reaching 3+ films (a rating is one row and costs
+  little to lose; a built watchlist is slower to rebuild, so that's the
+  threshold, not a rating existing), or an unclaimed guest *owner* on
+  the club page regardless of watchlist size — a guest-owned club whose
+  only owner clears cookies permanently loses its invite-token
+  rotation and settings control, a real failure mode rather than a
+  preference. Never a wall either way: ignoring the prompt changes
+  nothing about what a guest can already do.
+- **Invite links carry a token; a club id alone no longer admits a
+  joiner.** `clubs.invite_token` (minted with the same
+  `crypto.randomUUID()` convention every other generated id in this app
+  uses) is required as `?token=` on `/clubs/[clubId]/join` — missing or
+  mismatched shows a clear "invalid or rotated" state, not a generic
+  404. A Server Action is callable directly, not just through whatever
+  page rendered its bound form, so `claimExistingName` and
+  `joinAsNewMember` (`app/clubs/[clubId]/join/actions.ts`) both
+  re-check the token server-side via `requireValidInviteToken` — the
+  join *page* gating its own UI on a valid token isn't a security
+  boundary by itself. Validation-error redirects
+  (`joinErrorUrl`) preserve the token in the query string; dropping it
+  would land a refused joiner back on the "invalid invite link" state
+  instead of the actual message (a taken name, the free-tier cap) they
+  need to see and act on. **Rotating is owner/admin only** — same
+  restriction shape as `lockNight`, both being "this changes something
+  every member depends on" actions — and just overwrites the column;
+  any link holding the old value fails immediately on its next use,
+  nothing to expire or garbage-collect.
 
 ## Things not to do
 
@@ -433,6 +500,12 @@ Do not quietly change these — they encode decisions that took a while to reach
 - Don't add third-party tracking pixels anywhere near a film page (VPPA exposure).
 - Don't fetch streaming availability on browse. Nomination and lock only, 24h TTL.
   Film metadata caches indefinitely; availability does not.
+- Don't put the Resend key in a `NEXT_PUBLIC_` variable. Server-side only,
+  same as the TMDB token.
+- Don't build a login-required wall anywhere, an account settings page,
+  password reset, or social login. Auth is magic links and nothing else;
+  a guest can fully participate forever without ever seeing a prompt
+  that blocks anything.
 
 ## Naming
 
@@ -505,6 +578,27 @@ Kinoma (former Marvell division) are the nearest existing marks.
 Things that aren't ruled on yet. Don't guess at these — ask, or flag them here
 and move on.
 
+- **Trusted tier is schema room only.** `users.trusted_at`
+  (analysis-v2.md §5.1) exists — non-null would mean trusted, same
+  "nullable timestamp as a flag" shape as `paused_at`/`left_at` — but
+  nothing sets it and nothing reads it. Trust signals (§5.2: invite
+  provenance, account age/cadence, rating variance, cross-club
+  presence, device/network clustering) and the weighted-public-ratings
+  behavior that would consume this tier are entirely undesigned.
+- **Multi-club membership has no UI.** A single `users` row can now
+  back memberships in several clubs (nothing stops it), but there's no
+  "my clubs" list anywhere to browse them — landing on a bare `/login`
+  or `/verify` with no `returnTo` goes to `/` (the dev club-listing
+  page, itself scaffolding per this file's Stack section), not
+  anywhere club-specific. A person recovering their identity on a new
+  device has to already have a specific club's URL in hand.
+- **Claim-race edge case is accepted, not handled.** If a membership
+  somehow gets claimed by someone else between a claim prompt being
+  shown and that link being clicked (two people racing the same
+  guest slot — narrow, not the common path), `/verify` silently skips
+  the membership update and just logs the clicker in as themselves,
+  rather than surfacing an error. Same posture as the free-tier cap's
+  accepted join race — a narrow gap, not a safety invariant.
 - **No theme picker, and only "late show" is built.** `docs/prototype.html`
   documents "rep house" and "video rental" as two more full palettes —
   the CSS structure (`[data-theme="..."]` blocks in `app/globals.css`)

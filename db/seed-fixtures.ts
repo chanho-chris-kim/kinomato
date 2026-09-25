@@ -160,3 +160,21 @@ export const DISPLAY_NAME_6: Record<keyof typeof MEMBERSHIP_6, string> = {
 };
 
 export const NIGHT_6_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4";
+
+// A seventh, separate club — for the auth flows (CLAUDE.md): claim,
+// session-fallback recovery, and invite-token rotation. Both members
+// start as unclaimed guests, same as every other seeded club. Wes owns
+// it (unclaimed-owner prompt, regardless of watchlist size); Uma gets a
+// 3-film watchlist seeded directly (the claim-prompt threshold), so the
+// E2E test doesn't have to add films through the UI just to reach it.
+export const CLUB_7_ID = "99999999-9999-9999-9999-999999999995";
+
+export const MEMBERSHIP_7 = {
+  wes: "aaaaaaaa-1111-1111-1111-000000000071", // owner, unclaimed
+  uma: "aaaaaaaa-1111-1111-1111-000000000072", // member, 3-film watchlist
+};
+
+export const DISPLAY_NAME_7: Record<keyof typeof MEMBERSHIP_7, string> = {
+  wes: "Wes",
+  uma: "Uma",
+};

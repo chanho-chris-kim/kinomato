@@ -26,6 +26,25 @@
   --display-w: 500;
 }
 
+/*
+ * Fluid type scale — unrelated to the theme tokens above (this isn't
+ * palette or spacing, and applies regardless of data-theme). The type
+ * scale read too small on desktop at a flat px size; these grow
+ * modestly between a 375px and 1440px viewport (a couple of points,
+ * not a jump) and hold steady outside that range. Tokens only — the
+ * per-instance inline font-size overrides already scattered across
+ * page.tsx headings (docs/prototype.html's per-screen h-display sizes)
+ * still win over .h-display's own default here, unchanged by this pass.
+ */
+:root {
+  --text-tiny: clamp(11px, 10.6px + 0.12vw, 12.5px);
+  --text-small: clamp(12px, 11.6px + 0.12vw, 13.5px);
+  --text-eyebrow: clamp(11px, 10.6px + 0.12vw, 12.5px);
+  --text-sec: clamp(14px, 13.5px + 0.15vw, 15.5px);
+  --text-body: clamp(15px, 14.5px + 0.18vw, 17px);
+  --text-display: clamp(20px, 18.5px + 1vw, 26px);
+}
+
 *,
 *::before,
 *::after {
@@ -37,7 +56,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-inter), system-ui, sans-serif;
-  font-size: 15px;
+  font-size: var(--text-body);
   line-height: 1.5;
 }
 
@@ -179,19 +198,20 @@ button {
 
 /* ---------- shared components ---------- */
 .eyebrow {
-  font-size: 11px;
+  font-size: var(--text-eyebrow);
   color: var(--dim);
   margin: 0 0 8px;
 }
 .h-display {
   font-family: var(--display);
   font-weight: var(--display-w);
+  font-size: var(--text-display);
   letter-spacing: var(--display-tr);
   line-height: 1.08;
   margin: 0;
 }
 .sec {
-  font-size: 14px;
+  font-size: var(--text-sec);
   font-weight: 500;
   margin: 0 0 10px;
   color: var(--fg);
@@ -209,10 +229,10 @@ button {
   color: var(--dim);
 }
 .small {
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .tiny {
-  font-size: 11px;
+  font-size: var(--text-tiny);
 }
 .row {
   display: flex;
