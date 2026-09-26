@@ -418,18 +418,18 @@ Phone: single column. ≥ 900px: the capped content column. No rail.
 ### 5.10 Inside a club — `/clubs/[id]`
 
 Three sections, reached by a tab row under the club header: **Tonight ·
-History · Club** (renamed **Members** under Proposal D, §5.11.2, which also
-places the tabs and the rail and drops the back chevron). The global
+History · Members** (Ruling D, §5.11.2, which also places the tabs and
+the rail and drops the back chevron). The global
 **Clubs** entry stays current inside a club. At ≥ 1120px the rail shows
 the club's real member list, as today.
 
 - **Tonight** — the existing night stages (nominate, vote, locked, confirm,
   rate), unchanged by this spec apart from identity. **First-run state**
   (a club with no nights and only its owner): "Add the people you watch
-  with," pointing at **Club → Add a person**. It replaces today's "copy the
+  with," pointing at **Members → Add a person**. It replaces today's "copy the
   invite link" first-run state.
 - **History** — unchanged.
-- **Club** —
+- **Members** —
   - **Members**: active members, with role, and "(you)".
   - **Invited**: pending invites (§7), each with its name, how long ago,
     and a status: *Not started* / *Started* (email submitted, not yet
@@ -466,9 +466,9 @@ every screen, signed in or out, including ones with no nav at all.
 The wordmark is text in the club's display face, not an image, so it follows
 the theme like everything else (CLAUDE.md theming ruling).
 
-#### 5.11.2 Proposal D — two levels of navigation
+#### 5.11.2 Ruling D — two levels of navigation
 
-> **PROPOSAL — not yet ruled.**
+> **Accepted.** Proposed in the previous revision of this spec; ruled as written, including the rename of the club-level tab to **Members**.
 
 **The problem.** There are two levels of place in this product, and the
 current shell flattens them into one bar:
@@ -513,7 +513,8 @@ navigation lives with the club.**
 3. **Context rail at ≥ 1120px, club pages only**, as today: real data,
    never fabricated (CLAUDE.md). It shows the member list on **Tonight** and
    **History**, and is **absent on Members**, where it would repeat the
-   main column. Clubs, Watchlist and Settings have no rail.
+   main column. It sticks below the top bar, so a long History page never
+   scrolls it out of view. Clubs, Watchlist and Settings have no rail.
 
 ```
 Phone (< 620)              Tablet (620–1119)                          Desktop (≥ 1120)
@@ -541,8 +542,8 @@ Tablet and desktop: top bar and club tabs both stick.
 | Clubs · Watchlist | Global bar | Both are about *you*, across clubs. The watchlist is global now (§6). |
 | Settings | Global bar, far right at ≥ 620 | Personal (name, email, notifications), not per club. |
 | Tonight · History · Members | Under the club header | They only mean anything inside one club. |
-| "How this club runs" (club settings) | Club → **Members** | It's the club's configuration, not yours. Keeping it out of global Settings avoids two things both called "settings." |
-| Your hard limits and preferences | Club → **Members** | Ruled per membership (§1.8), a fact about this room. |
+| "How this club runs" (club settings) | **Members** tab | It's the club's configuration, not yours. Keeping it out of global Settings avoids two things both called "settings." |
+| Your hard limits and preferences | **Members** tab | Ruled per membership (§1.8), a fact about this room. |
 | A tag page (`/clubs/[id]/tags/[tag]`) | Club level, **History** tab active | Tags come from ratings, which live in History. It's a view within History, not a fourth tab. |
 | Member list at ≥ 1120 | Rail, on Tonight and History | Real secondary content, and the one thing worth glancing at mid-vote. |
 
@@ -594,13 +595,12 @@ near-duplicate of a global label.
   phone (under the header) and desktop (side column). Keeping club tabs in
   one place at every width is easier to learn and to build.
 
-**What this changes elsewhere, if ruled:** CLAUDE.md's theming ruling
+**What this changes elsewhere:** CLAUDE.md's theming ruling
 describes `AppShell` as "bottom tab bar on phones → icon sidebar at 620px →
 labeled sidebar at 900px → optional context rail at 1120px". That becomes
 "bottom tab bar on phones → top bar at 620px → capped content column at
 900px → rail at 1120px on club pages". It gets rewritten with the rebuild,
-alongside the §8.4 list. `docs/prototype.html` would need the same
-change; it currently shows the sidebar model this proposal replaces.
+alongside the §8.4 list. `docs/prototype.html` already shows this model.
 
 ---
 
@@ -673,7 +673,7 @@ genuine secondary content (CLAUDE.md).
 
 ### 7.1 End to end
 
-1. **Owner (or admin) adds a person.** On Club → Add a person: first name +
+1. **Owner (or admin) adds a person.** On Members → Add a person: first name +
    last initial. Refused if the club's **active members + pending invites**
    already total 6. (Ruled: pending invites hold a seat,
    so "4 of 6" means what it says.)
@@ -888,7 +888,7 @@ Leave these as written until then. They describe the running code:
 - Open Questions: "Multi-club membership has no UI" (resolved by §5.7) and
   "Claim-race edge case" (moot).
 - "Theming is one attribute, not a rewrite": its `AppShell` breakpoint
-  description, if Proposal D (§5.11.2) is ruled.
+  description, per Ruling D (§5.11.2).
 
 ### 8.5 Build order
 

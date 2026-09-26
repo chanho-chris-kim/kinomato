@@ -61,11 +61,26 @@ button{font:inherit;cursor:pointer}
   --display:'Archivo Black',Impact,sans-serif;--display-tr:-.01em;--display-w:400;
 }
 
-/* ---------- app layout ---------- */
-.nav{
-  order:2;display:flex;border-top:1px solid var(--line);
-  background:var(--bg);flex:0 0 auto;
-}
+/* ---------- app layout (docs/onboarding-spec.md §5.11, Ruling D) ----------
+   Two levels of navigation. Global (Clubs, Watchlist, Settings): bottom tab
+   bar on phones, in the top bar from 620px, never a sidebar. Club level
+   (Tonight, History, Members): a tab row under the club header at every
+   width. .app is the size container; a container query can't restyle its
+   own container, so everything below targets descendants. */
+.shell{flex:1;min-height:0;display:flex;flex-direction:column}
+.body{flex:1;min-height:0;overflow-y:auto;position:relative}
+.topbar{height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg)}
+.wordmark{font-family:var(--display);font-weight:var(--display-w);letter-spacing:var(--display-tr);font-size:19px;color:var(--fg);background:none;border:0;padding:0;line-height:1}
+.topnav{display:none;flex:1;align-items:center;gap:2px}
+.topnav button{background:none;border:0;color:var(--mut);font-size:13px;padding:6px 10px;border-radius:7px}
+.topnav button[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+.topnav .end{margin-left:auto}
+.topbar .signin{margin-left:auto;background:none;border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:6px 12px;font-size:13px}
+.cols{display:flex}
+.main{flex:1;min-width:0;padding:18px 16px 28px}
+.rail{display:none}
+.ctabs{position:sticky;top:0;z-index:4;background:var(--bg);padding:8px 0}
+.nav{display:flex;border-top:1px solid var(--line);background:var(--bg);flex:0 0 auto}
 .nav button{
   flex:1;background:none;border:0;color:var(--dim);
   padding:9px 2px 11px;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -74,24 +89,21 @@ button{font:inherit;cursor:pointer}
 .nav button[aria-current="page"]{color:var(--accent)}
 .nav svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .navlabel{display:block}
-.body{order:1;flex:1;min-height:0;display:flex}
-.main{flex:1;min-width:0;overflow-y:auto;padding:18px 16px 28px}
-.rail{display:none}
 
 @container (min-width:620px){
-  .nav{order:0;flex-direction:column;border-top:0;border-right:1px solid var(--line);width:66px;padding-top:14px}
-  .nav button{flex:0 0 auto;padding:11px 4px}
-  .body{order:1}
+  .nav{display:none}
+  .topbar{height:52px;position:sticky;top:0;z-index:6;padding:0 22px;gap:22px}
+  .topnav{display:flex}
+  .ctabs{top:52px}
   .main{padding:22px 22px 30px}
 }
 @container (min-width:900px){
-  .nav{width:186px;align-items:stretch}
-  .nav button{flex-direction:row;gap:11px;justify-content:flex-start;padding:10px 16px;font-size:13px}
   .main{padding:26px 28px 34px;max-width:640px;margin:0 auto}
 }
 @container (min-width:1120px){
   .main{max-width:none;margin:0;flex:1.35}
-  .rail{display:block;flex:1;min-width:300px;max-width:390px;border-left:1px solid var(--line);overflow-y:auto;padding:26px 22px}
+  .rail{display:block;flex:1;min-width:300px;max-width:390px;border-left:1px solid var(--line);padding:26px 22px;
+    position:sticky;top:52px;align-self:flex-start;min-height:calc(100cqh - 52px)}
 }
 /* real dual-screen foldables */
 @media (horizontal-viewport-segments:2){
@@ -155,10 +167,6 @@ select.sel{background:var(--card);border:1px solid var(--line);color:var(--fg);b
 @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
 
 /* ---------- onboarding additions (docs/onboarding-spec.md) ---------- */
-/* .app is the size container, and a container query can't restyle its own
-   container, so the row/column switch lives on this inner wrapper. */
-.shell{flex:1;min-height:0;display:flex;flex-direction:column}
-@container (min-width:620px){.shell{flex-direction:row}}
 .btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .nav[hidden],.rail[hidden]{display:none !important}
 @container (min-width:1120px){.main.solo{flex:1;max-width:640px;margin:0 auto}}
@@ -180,7 +188,6 @@ label.lab{display:block;font-size:11px;color:var(--dim);margin:0 0 6px}
 .segc{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .segc button{flex:1;background:none;border:0;color:var(--mut);padding:8px 4px;font-size:13px}
 .segc button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
-@container (min-width:620px){.backbtn{display:none}}
 .linkbtn{background:none;border:0;color:var(--accent);padding:0;font-size:inherit;text-decoration:underline;text-underline-offset:2px}
 .err{color:var(--warn);font-size:12px;margin:8px 0 0}
 .btnrow{display:flex;gap:6px}
@@ -193,7 +200,7 @@ label.lab{display:block;font-size:11px;color:var(--dim);margin:0 0 6px}
 <div class="stage">
   <div class="stagehead">
     <h1>Kinomato</h1>
-    <p>Interactive prototype of docs/onboarding-spec.md. One responsive build that reflows by container width. Every person has an account; there is no guest tier and no name picker.</p>
+    <p>Interactive prototype of docs/onboarding-spec.md. One responsive build that reflows by container width: global nav in a bottom bar on phones and a top bar from 620px, club tabs under the club header at every width. Every person has an account; there is no guest tier and no name picker.</p>
   </div>
 
   <div class="ctrls">
@@ -237,11 +244,14 @@ label.lab{display:block;font-size:11px;color:var(--dim);margin:0 0 6px}
     <div class="frame" id="frame" data-device="phone">
       <div class="app" id="app" data-theme="late">
         <div class="shell">
-          <nav class="nav" id="nav" aria-label="Main"></nav>
-          <div class="body">
-            <main class="main" id="main"></main>
-            <aside class="rail" id="rail" aria-label="Club context"></aside>
+          <div class="body" id="body">
+            <header class="topbar" id="topbar"></header>
+            <div class="cols">
+              <main class="main" id="main"></main>
+              <aside class="rail" id="rail" aria-label="Club context"></aside>
+            </div>
           </div>
+          <nav class="nav" id="nav" aria-label="Main"></nav>
         </div>
         <div id="toast"></div>
       </div>
@@ -577,12 +587,11 @@ function newClubView(){
 /* ================= inside a club: Tonight · History · Club ================= */
 function clubShell(){
   const c = curClub();
-  const tabs = [['tonight','Tonight'],['history','History'],['club','Club']];
+  const tabs = [['tonight','Tonight'],['history','History'],['club','Members']];
   const body = S.clubTab==='tonight' ? tonight(c) : S.clubTab==='history' ? historyView(c) : clubView(c);
-  return `<div class="row gap8"><button class="iconbtn backbtn" data-act="back" aria-label="All clubs">${svg('back')}</button>
-      <h2 class="h-display" style="font-size:22px">${esc(c.name)}</h2></div>
-    <p class="small muted" style="margin:4px 0 12px">${c.sched}</p>
-    <nav class="segc" aria-label="${esc(c.name)}">${tabs.map(([k,l])=>`<button data-ctab="${k}" ${S.clubTab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
+  return `<h2 class="h-display" style="font-size:22px">${esc(c.name)}</h2>
+    <p class="small muted" style="margin:4px 0 4px">${c.sched}</p>
+    <div class="ctabs"><nav class="segc" aria-label="${esc(c.name)}">${tabs.map(([k,l])=>`<button data-ctab="${k}" ${S.clubTab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav></div>
     ${S.flash?`<div class="card mt14" style="border-color:var(--accent)"><p class="small" style="margin:0">${S.flash}</p></div>`:''}
     <div class="mt20">${body}</div>`;
 }
@@ -603,7 +612,7 @@ function nominateView(){
   if(!list.length) return `<p class="eyebrow">Your turn this week</p>
     <h2 class="h-display" style="font-size:26px">Your list is empty</h2>
     <p class="small muted" style="margin:8px 0 0">You nominate from your own list. Add a few films and come back.</p>
-    <button class="btn primary mt20" data-tab="watchlist">Go to your watchlist</button>`;
+    <button class="btn primary mt20" data-act="towatchlist">Go to your watchlist</button>`;
   const picks = S.picked.length;
   return `
   <p class="eyebrow">Your turn this week</p>
@@ -768,7 +777,7 @@ function clubView(c){
       <span class="avatar ${m.p===S.me?'me':''}">${p.i}</span>
       <span style="min-width:0"><span style="display:block;font-size:14px">${esc(p.n)}${m.p===S.me?' (you)':''}</span>
         <span class="tiny dim">${p.tier==='trusted'?'Trusted member':'Member'}</span></span>
-      <span style="margin-left:auto">${admin&&m.p!==S.me?`<select class="sel" aria-label="Role for ${esc(p.n)}">${['owner','admin','member'].map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select>`:`<span class="chip">${m.role}</span>`}</span>
+      <span style="margin-left:auto">${admin&&m.p!==S.me?`<select class="sel" style="max-width:none" aria-label="Role for ${esc(p.n)}">${['owner','admin','member'].map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select>`:`<span class="chip">${m.role}</span>`}</span>
     </div>`}).join('')}
   </div>
 
@@ -1013,14 +1022,24 @@ function render(){
   document.getElementById('frame').dataset.device = S.device;
   const nav = document.getElementById('nav'), main = document.getElementById('main'), railEl = document.getElementById('rail');
   const out = signedOutShell();
-  nav.hidden = out;
   const cur = S.view==='club'||S.view==='new' ? 'clubs' : S.view;
+  // Wordmark on every screen (§5.11.1). Global nav only with a session.
+  document.getElementById('topbar').innerHTML =
+    `<button class="wordmark" data-act="home" aria-label="Kinomato home">Kinomato</button>` +
+    (out ? (!S.me && S.pub==='landing' ? `<button class="signin" data-act="signin">Sign in</button>` : '')
+         : `<nav class="topnav" aria-label="Main">${TABS.map(([k,l])=>
+             `<button data-tab="${k}" class="${k==='settings'?'end':''}" ${cur===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>`);
+  nav.hidden = out;
   nav.innerHTML = out ? '' : TABS.map(([k,l,ic]) =>
     `<button data-tab="${k}" ${cur===k?'aria-current="page"':''}>${svg(ic)}<span class="navlabel">${l}</span></button>`).join('');
-  const inClub = !out && S.view==='club';
-  railEl.hidden = !inClub;
-  railEl.innerHTML = inClub ? rail(curClub()) : '';
-  main.className = 'main' + (out ? ' pub' : inClub ? '' : ' solo');
+  // Rail: club pages only, never on Members (it would repeat the main column).
+  const withRail = !out && S.view==='club' && S.clubTab!=='club';
+  railEl.hidden = !withRail;
+  railEl.innerHTML = withRail ? rail(curClub()) : '';
+  main.className = 'main' + (out ? ' pub' : withRail ? '' : ' solo');
+  // A new screen starts at the top; re-renders of the same screen keep their place.
+  const key = [S.me,S.needsName,S.view,S.clubId,S.clubTab,S.pub,S.inviteSeen].join('|');
+  if(key !== render.lastKey){ document.getElementById('body').scrollTop = 0; render.lastKey = key; }
   let html = mainHTML();
   if(S.sheet==='add') html += addSheet();
   if(S.sheet==='legal') html += legalSheet();
@@ -1161,7 +1180,11 @@ app.addEventListener('click',e=>{
       if(!name){ S.addErr='Give the club a name.'; break; }
       S.clubs.mine={id:'mine',name,sched:'Weekly, Fridays at 8. In person.',next:'Fri 8:00pm',members:[{p:S.me,role:'owner'}],invites:[]};
       S.addErr=''; openClub('mine'); break; }
-    case 'back': S.view='clubs'; S.flash=null; break;
+    case 'home':
+      if(!S.me){ S.pub='landing'; S.inviteCtx=false; S.loginErr=''; break; }
+      if(S.needsName) return;  // the name step runs once; / would bring you straight back to it
+      S.inviteSeen=true; S.view='clubs'; S.flash=null; S.sheet=null; S.share=null; break;
+    case 'towatchlist': S.seen=S.clubId; S.view='watchlist'; S.flash=null; break;
     case 'gomembers': S.clubTab='club'; break;
     case 'addperson': { const c=curClub(); const r=readName('[data-af]','[data-ai]'); if(r.err){ S.addErr=r.err; break; }
       const v={id:Date.now(),name:r.n,ago:'just now',status:'new',tok:token()}; c.invites.push(v); S.addErr=''; S.share=v.id; break; }
