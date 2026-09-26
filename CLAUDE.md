@@ -21,8 +21,17 @@ another month over the thing that picks a film faster.
   table in §1.3, which v2 doesn't restate.
 - `docs/watchlist-spec.md` — watchlist organisation, add/search flow, the lock
   screen, film metadata sourcing.
+- `docs/onboarding-spec.md` — **the next build.** No guest tier, email
+  code + link auth, per-person invites, global watchlists, the public/
+  signed-in route split. Supersedes analysis-v2.md §5.1's three tiers
+  and reverses analysis-v1.md §7.1's no-account invite loop. The
+  identity, claim, invite-token and "no account settings page" rulings
+  below still describe the running code and stay as written until that
+  code lands — the spec's §8.4 lists exactly which ones get rewritten
+  then.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
-  controls at the top switch screen size, theme, week stage and role. Faster than
+  controls at the top switch screen size, theme, week stage, who's viewing
+  (signed in, brand new, or signed out) and how they arrived. Faster than
   prose for answering layout and state questions.
   **Reference only — do not port this code.** Its state model is fake and it
   assumes a single synchronous client.
@@ -687,6 +696,28 @@ and move on.
   consent architecture built, not boilerplate. The privacy architecture
   has to be right before there's data to migrate — this can't be
   retrofitted later the way some other things can.
+  **Auth is deliberately self-hosted email sign-in** (magic link plus a
+  6-digit code per `docs/onboarding-spec.md` §4): no passwords, no
+  third-party identity provider — for privacy as much as simplicity. No
+  password hashes exist to breach, and no identity provider (Google,
+  Apple, Auth0, Clerk) sees who signs in to what. That is **not** the
+  same as having no processors: the privacy policy's data-flow section
+  must disclose **Brevo** (Sendinblue SAS, France — receives every
+  account's email address and every sign-in email; a sub-processor with
+  a cross-border transfer out of Canada), **Neon** (hosts the
+  database), and **Cloudflare** (hosts the app, sees every request).
+  Adding a managed auth provider later means adding a sub-processor
+  disclosure — weigh that against the convenience when the time comes.
+- **Session and magic-link tokens are stored in plaintext — a known
+  gap.** `sessions.token` and `magic_links.token` hold the raw values
+  the cookie and the email carry, so anyone who can read those tables
+  (a leaked backup, a mis-scoped DB credential) can act as any signed-in
+  user without touching a password. The fix is to store a hash (SHA-256
+  is enough for high-entropy random tokens; no slow KDF needed) and
+  compare hashes on lookup. `docs/onboarding-spec.md` builds its new
+  6-digit code hashed from the start; the existing two tokens still
+  need the change. Test data only today, so it's cheap now and
+  expensive after launch.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

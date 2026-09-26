@@ -79,7 +79,6 @@ button{font:inherit;cursor:pointer}
 .rail{display:none}
 
 @container (min-width:620px){
-  .app{flex-direction:row}
   .nav{order:0;flex-direction:column;border-top:0;border-right:1px solid var(--line);width:66px;padding-top:14px}
   .nav button{flex:0 0 auto;padding:11px 4px}
   .body{order:1}
@@ -154,13 +153,47 @@ select.sel{background:var(--card);border:1px solid var(--line);color:var(--fg);b
 .note{border-left:2px solid var(--accent);background:var(--card);padding:11px 13px;border-radius:0}
 .empty{border:1px dashed var(--line);border-radius:10px;padding:22px 16px;text-align:center;color:var(--dim);font-size:13px}
 @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+
+/* ---------- onboarding additions (docs/onboarding-spec.md) ---------- */
+/* .app is the size container, and a container query can't restyle its own
+   container, so the row/column switch lives on this inner wrapper. */
+.shell{flex:1;min-height:0;display:flex;flex-direction:column}
+@container (min-width:620px){.shell{flex-direction:row}}
+.btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.nav[hidden],.rail[hidden]{display:none !important}
+@container (min-width:1120px){.main.solo{flex:1;max-width:640px;margin:0 auto}}
+.main.pub{padding-top:30px}
+.pubcard{width:100%;max-width:420px;margin:0 auto}
+.landing{width:100%;max-width:980px;margin:0 auto}
+.hero{display:flex;flex-direction:column;gap:22px}
+.steps{display:grid;gap:8px}
+@container (min-width:620px){.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container (min-width:900px){.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center}}
+.field{display:block;width:100%;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:11px 12px;color:var(--fg);font:inherit;font-size:15px;min-width:0}
+.field:focus{outline:2px solid var(--accent);outline-offset:1px}
+label.lab{display:block;font-size:11px;color:var(--dim);margin:0 0 6px}
+.codeboxes{display:flex;gap:7px}
+.codeboxes input{flex:1;min-width:0;width:0;text-align:center;font-size:22px;padding:10px 0;background:var(--card);border:1px solid var(--line);border-radius:9px;color:var(--fg);font-family:inherit}
+.codeboxes input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;flex:0 0 auto}
+.clubcard{display:block;width:100%;text-align:left;color:var(--fg)}
+.segc{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.segc button{flex:1;background:none;border:0;color:var(--mut);padding:8px 4px;font-size:13px}
+.segc button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+@container (min-width:620px){.backbtn{display:none}}
+.linkbtn{background:none;border:0;color:var(--accent);padding:0;font-size:inherit;text-decoration:underline;text-underline-offset:2px}
+.err{color:var(--warn);font-size:12px;margin:8px 0 0}
+.btnrow{display:flex;gap:6px}
+.btnrow .btn{padding:7px 8px;font-size:12px}
+.toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);background:var(--fg);color:var(--bg);font-size:12px;padding:8px 12px;border-radius:8px;z-index:20;max-width:86%;text-align:center}
+.mt8{margin-top:8px}
 </style>
 </head>
 <body>
 <div class="stage">
   <div class="stagehead">
     <h1>Kinomato</h1>
-    <p>Interactive prototype. One responsive build — the layout reflows by container width, so the device buttons change the real breakpoints rather than swapping mockups.</p>
+    <p>Interactive prototype of docs/onboarding-spec.md. One responsive build that reflows by container width. Every person has an account; there is no guest tier and no name picker.</p>
   </div>
 
   <div class="ctrls">
@@ -182,21 +215,35 @@ select.sel{background:var(--card);border:1px solid var(--line);color:var(--fg);b
       <button data-v="locked" aria-pressed="false">Locked</button>
       <button data-v="after" aria-pressed="false">Morning after</button>
     </div></div>
-    <div class="ctrl"><span>Viewing as</span><div class="seg" id="segRole">
-      <button data-v="owner" aria-pressed="true">Owner</button>
-      <button data-v="member" aria-pressed="false">Member</button>
-      <button data-v="guest" aria-pressed="false">Guest</button>
+    <div class="ctrl"><span>Viewing as</span><div class="seg" id="segWho">
+      <button data-v="owner" aria-pressed="true">Chris, owner</button>
+      <button data-v="member" aria-pressed="false">Priya, admin</button>
+      <button data-v="new" aria-pressed="false">Brand-new account</button>
+      <button data-v="out" aria-pressed="false">Signed out</button>
+    </div></div>
+    <div class="ctrl"><span>Arrived via</span><div class="seg" id="segVia">
+      <button data-v="home" aria-pressed="true">kinomato.com</button>
+      <button data-v="invite" aria-pressed="false">Marco's invite link</button>
+    </div></div>
+    <div class="ctrl"><span>That invite is</span><div class="seg" id="segInv">
+      <button data-v="valid" aria-pressed="true">Valid</button>
+      <button data-v="revoked" aria-pressed="false">Revoked</button>
+      <button data-v="used" aria-pressed="false">Already used</button>
+      <button data-v="full" aria-pressed="false">Club full</button>
     </div></div>
   </div>
 
   <div class="framewrap">
     <div class="frame" id="frame" data-device="phone">
       <div class="app" id="app" data-theme="late">
-        <nav class="nav" id="nav" aria-label="Main"></nav>
-        <div class="body">
-          <main class="main" id="main"></main>
-          <aside class="rail" id="rail" aria-label="Club context"></aside>
+        <div class="shell">
+          <nav class="nav" id="nav" aria-label="Main"></nav>
+          <div class="body">
+            <main class="main" id="main"></main>
+            <aside class="rail" id="rail" aria-label="Club context"></aside>
+          </div>
         </div>
+        <div id="toast"></div>
       </div>
     </div>
   </div>
@@ -204,19 +251,19 @@ select.sel{background:var(--card);border:1px solid var(--line);color:var(--fg);b
 </div>
 <script>
 const ICON = {
-  tonight:'<path d="M4 5h16v12H4z"/><path d="M8 21h8M12 17v4"/>',
   list:'<path d="M4 4h6v8H4zM14 4h6v8h-6zM4 16h6v4H4zM14 16h6v4h-6z"/>',
   club:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 6.5a3 3 0 0 1 0 5.8M21 20c0-2.6-1.5-4.6-3.7-5.5"/>',
-  history:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
-  you:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  share:'<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
   x:'<path d="M6 6l12 12M18 6L6 18"/>',
   search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
-  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   play:'<path d="M7 5l12 7-12 7z"/>',
   food:'<path d="M5 3v8a3 3 0 0 0 6 0V3M8 11v10"/><path d="M17 3c-1.5 2-2 4-2 6h4c0-2-.5-4-2-6zM17 9v12"/>'
 };
 const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">'+ICON[k]+'</svg>';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 const CATALOG = [
   {id:1,t:'Thief',y:1981,d:'Michael Mann',c:'James Caan, Tuesday Weld',g:['Crime','Thriller'],r:123,s:'Criterion Channel',have:4,
@@ -250,74 +297,320 @@ const CATALOG = [
   {id:18,t:'Point Break',y:1991,d:'Kathryn Bigelow',c:'Keanu Reeves, Patrick Swayze',g:['Action','Crime'],r:122,s:'Prime Video',have:2,facts:[]}
 ];
 const film = id => CATALOG.find(f => f.id === id);
+// Overlap as seen from Horror Sundays — a different room, a different count.
+const HORROR_HAVE = {14:3, 8:2, 3:2};
 
-const MEMBERS = [
-  {id:'ck',n:'Chris',i:'CK',role:'owner',tier:'trusted',streak:11,me:true},
-  {id:'pr',n:'Priya',i:'PR',role:'admin',tier:'member',streak:9},
-  {id:'mc',n:'Marco',i:'MC',role:'member',tier:'member',streak:7},
-  {id:'dn',n:'Dana',i:'DN',role:'member',tier:'member',streak:4},
-  {id:'sm',n:'Sam',i:'SM',role:'member',tier:'member',streak:10},
-  {id:'jo',n:'Jo',i:'JO',role:'guest',tier:'guest',streak:2}
-];
+// People are accounts: a verified email and a display name. No guests.
+const BASE_PEOPLE = {
+  ck:{id:'ck',n:'Chris K.',i:'CK',email:'chris@example.com',tier:'trusted',streak:11},
+  pr:{id:'pr',n:'Priya S.',i:'PS',email:'priya@example.com',tier:'member',streak:9},
+  dn:{id:'dn',n:'Dana L.',i:'DL',email:'dana@example.com',tier:'member',streak:4},
+  sm:{id:'sm',n:'Sam W.',i:'SW',email:'sam@example.com',tier:'member',streak:10}
+};
+const first = p => p.n ? p.n.split(' ')[0] : '';
+
+const token = () => Array.from({length:22},()=>'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random()*32)]).join('');
+function freshClubs(){
+  return {
+    sat:{id:'sat',name:'Saturday Club',sched:'Weekly, Saturdays at 8. In person.',next:'Sat 8:00pm',
+      members:[{p:'ck',role:'owner'},{p:'pr',role:'admin'},{p:'dn',role:'member'},{p:'sm',role:'member'}],
+      invites:[{id:1,name:'Marco R.',ago:'2 days ago',status:'started',tok:token()},
+               {id:2,name:'Jo T.',ago:'5 hours ago',status:'new',tok:token()}]},
+    hor:{id:'hor',name:'Horror Sundays',sched:'Every other Sunday at 9. Remote.',next:'Sun 9:00pm',static:true,
+      members:[{p:'dn',role:'owner'},{p:'ck',role:'member'},{p:'sm',role:'member'}],invites:[]}
+  };
+}
 
 const HISTORY = [
-  {wk:13,film:18,picker:'mc',q:6.2,fun:9.1,take:'Keanu fires a gun into the sky and so did I.',by:'Priya'},
-  {wk:12,film:13,picker:'pr',q:9.4,fun:6.8,take:'Nobody said a word for twenty minutes afterwards.',by:'Marco'},
+  {wk:13,film:18,picker:'sm',q:6.2,fun:9.1,take:'Keanu fires a gun into the sky and so did I.',by:'Priya'},
+  {wk:12,film:13,picker:'pr',q:9.4,fun:6.8,take:'Nobody said a word for twenty minutes afterwards.',by:'Sam'},
   {wk:11,film:17,picker:'dn',q:8.8,fun:9.6,take:'Objectively perfect. No notes.',by:'Chris'},
   {wk:10,film:14,picker:'ck',q:8.9,fun:7.2,take:'Dana left during the defibrillator scene.',by:'Sam'},
-  {wk:9,film:15,picker:'jo',q:5.9,fun:8.4,take:'I still do not know what happened.',by:'Dana'},
+  {wk:9,film:15,picker:'dn',q:5.9,fun:8.4,take:'I still do not know what happened.',by:'Dana'},
   {wk:8,film:16,picker:'sm',q:8.1,fun:7.9,take:'Robert Forster deserved everything.',by:'Priya'},
-  {wk:6,film:9,picker:'mc',q:9.0,fun:8.2,take:'The diner scene is two guys being extremely normal.',by:'Chris'}
+  {wk:6,film:9,picker:'pr',q:9.0,fun:8.2,take:'The diner scene is two guys being extremely normal.',by:'Chris'}
 ];
 
 const S = {
-  device:'phone', theme:'late', stage:'vote', role:'owner',
-  tab:'tonight',
-  myList:[1,2,4,5,6,7,8,12,13,16,17,18],
-  nominees:[1,2,3],
-  votes:{1:['pr','mc','dn','sm'],2:['jo'],3:[]},
-  myVote:1,
-  rsvp:{ck:true,pr:true,mc:true,dn:false,sm:true,jo:true},
-  picked:[],
-  listView:'genre',
-  sheet:null, query:'',
+  device:'phone', theme:'late', stage:'vote', who:'owner', via:'home', inv:'valid',
+  people:null, clubs:null, me:'ck', needsName:false,
+  view:'clubs', clubId:null, clubTab:'tonight', seen:null,
+  pub:'landing', pubAfter:'home', inviteCtx:false, inviteSeen:false,
+  email:'', loginErr:'', code:['','','','','',''], tries:5, codeState:'ok', resendAt:0,
+  nameErr:'', nameFirst:'', nameInit:'',
+  lists:null,
+  nominees:[1,2,3], votes:null, rsvp:null, picked:[],
+  listView:'genre', sheet:null, share:null, query:'',
   guess:null, rated:false, q:7, fun:8, confirmed:false,
   cfg:{ deadline:3, lock:24, picking:'democratic', voteVis:'live', nomCount:3, vetoes:2, attendance:'off', confirmAt:'morning', preset:'standard' },
   limits:[{k:'hard',v:'Body horror'},{k:'soft',v:'Films over 150 minutes'}],
-  notify:'push'
+  notify:'push', mutes:{}, emailChange:null, addErr:'', flash:null, toast:null
 };
 
+function resetWorld(){
+  S.people = JSON.parse(JSON.stringify(BASE_PEOPLE));
+  S.clubs = freshClubs();
+  S.lists = {ck:[1,2,4,5,6,7,8,12,13,16,17,18], pr:[3,5,9,14,17]};
+  S.votes = {1:['pr','dn'],2:['sm'],3:[]};
+  S.rsvp = {ck:true,pr:true,dn:false,sm:true};
+  S.me = {owner:'ck', member:'pr', new:'ax', out:null}[S.who];
+  if(S.who==='new'){ S.people.ax = {id:'ax',n:'Alex R.',i:'AR',email:'alex@example.com',tier:'member',streak:0}; S.lists.ax = []; }
+  S.needsName = false; S.view = 'clubs'; S.clubId = null; S.clubTab = 'tonight'; S.seen = null;
+  S.pub = S.via==='invite' ? 'invite' : 'landing'; S.pubAfter = 'home';
+  S.inviteCtx = false; S.inviteSeen = false; S.flash = null; S.sheet = null; S.share = null;
+  S.email = ''; S.loginErr = ''; resetCode(); S.emailChange = null; S.addErr = ''; S.toast = null;
+}
+function resetCode(){ S.code=['','','','','','']; S.tries=5; S.codeState='ok'; }
+
+const me = () => S.people[S.me];
+const person = id => S.people[id];
+const myClubs = () => Object.values(S.clubs).filter(c => c.members.some(m => m.p===S.me));
+const curClub = () => S.clubs[S.clubId];
+const roleIn = c => (c.members.find(m => m.p===S.me)||{}).role;
+const isAdmin = c => ['owner','admin'].includes(roleIn(c));
 const VOTE_W = m => (S.cfg.picking === 'weighted' && m === 'sm') ? 2 : 1;
 const tally = id => (S.votes[id]||[]).reduce((a,m)=>a+VOTE_W(m),0);
 const totalVotes = () => S.nominees.reduce((a,id)=>a+tally(id),0) || 1;
-const going = () => MEMBERS.filter(m => S.rsvp[m.id]);
-const isAdmin = () => S.role === 'owner';
+const myVote = () => S.nominees.find(id => (S.votes[id]||[]).includes(S.me));
+const winner = () => S.nominees.slice().sort((a,b)=>tally(b)-tally(a))[0];
+const going = id => S.rsvp[id] !== false;
 const mins = n => Math.floor(n/60)+'h '+(n%60)+'m';
+const footer = () => `<p class="tiny dim mt26" style="text-align:center">This product uses the TMDB API but is not endorsed or certified by TMDB.<br>
+  <button class="linkbtn" data-act="legal">Privacy</button> &middot; <button class="linkbtn" data-act="legal">Terms</button></p>`;
 </script>
 <script>
-const TABS = [['tonight','Tonight'],['list','Your list'],['club','Club'],['history','History'],['you','You']];
-
-function renderNav(){
-  document.getElementById('nav').innerHTML = TABS.map(([k,l]) =>
-    `<button data-tab="${k}" ${S.tab===k?'aria-current="page"':''}>${svg(k)}<span class="navlabel">${l}</span></button>`).join('');
+/* ================= signed out: the two public content screens + sign-in flow ================= */
+function landing(){
+  return `<div class="landing">
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Kinomato</p>
+      <h1 class="h-display" style="font-size:42px">Whose turn is it?</h1>
+      <p class="muted" style="margin:12px 0 0;max-width:40ch">Your movie night has a system now. Take turns picking, vote on the shortlist, keep the history. It's still just movie night.</p>
+      <div class="stack gap8 mt20" style="max-width:320px">
+        <button class="btn primary" data-act="start">Start a club</button>
+        <button class="btn ghost" data-act="signin">Sign in</button>
+      </div>
+    </div>
+    <div class="card" aria-hidden="true" style="padding:16px">
+      <p class="eyebrow">Sam is picking</p>
+      <div class="h-display" style="font-size:22px">Saturday, 8:00pm</div>
+      <div class="stack gap8 mt14">
+        ${[[1,4],[2,1],[3,0]].map(([id,n])=>`<div class="nominee"><div class="between"><span>${film(id).t} <span class="dim tiny">${film(id).y}</span></span><span style="color:${n?'var(--accent)':'var(--dim)'}">${n}</span></div></div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="steps mt26">
+    ${[['Start a club','Four questions: a name, how often, which night, in person or remote.'],
+       ['Add your people','Each friend gets their own link that greets them by name.'],
+       ['Take turns','Whoever picked least recently goes next. The club votes, the history keeps.']]
+      .map(([h,p],i)=>`<div class="card"><p class="eyebrow">${i+1}</p><div style="font-size:15px">${h}</div><p class="small muted" style="margin:6px 0 0">${p}</p></div>`).join('')}
+  </div>
+  <div class="note mt26"><p class="small" style="margin:0">Every rating on Kinomato comes from a real person who watched the film with people they know.</p></div>
+  ${footer()}
+  </div>`;
 }
 
-/* ---------------- Tonight ---------------- */
-function tonight(){
+function inviteStateCard(signedIn){
+  const back = signedIn ? `<button class="btn mt14" data-act="invdone">Back to your clubs</button>` : '';
+  if(S.inv==='revoked') return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Saturday Club</p><h1 class="h-display" style="font-size:26px">This invite link was replaced</h1>
+    <p class="small muted" style="margin:8px 0 0">Ask Chris for a new one.</p>${back}</div></div>`;
+  if(S.inv==='used') return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Saturday Club</p><h1 class="h-display" style="font-size:26px">Marco's invite has already been used</h1>
+    <p class="small muted" style="margin:8px 0 0">If you're Marco, sign in and you'll land in the club.</p>
+    ${signedIn?back:`<button class="btn primary mt14" data-act="signin">Sign in</button>`}</div></div>`;
+  if(S.inv==='full') return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Saturday Club</p><h1 class="h-display" style="font-size:26px">Saturday Club is full right now</h1>
+    <p class="small muted" style="margin:8px 0 0">This link hasn't been used up. It will work again if a seat opens.</p>${back}</div></div>`;
+  return null;
+}
+
+function inviteOut(){
+  const other = inviteStateCard(false); if(other) return other;
+  return `<div class="pubcard">
+    <div class="card" style="padding:20px 18px">
+      <p class="eyebrow">You're invited</p>
+      <h1 class="h-display" style="font-size:32px">Hi Marco</h1>
+      <p class="muted" style="margin:8px 0 0">Chris invited you to <span style="color:var(--fg)">Saturday Club</span>.</p>
+      <div class="row between" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:11px 0;margin:16px 0">
+        <span class="small muted">Weekly, Saturdays at 8</span><span class="small">Next: Sat 8:00pm</span>
+      </div>
+      <label class="lab" for="em">Your email</label>
+      <input class="field" id="em" type="email" autocomplete="email" placeholder="you@example.com" data-email value="${esc(S.email)}">
+      ${S.loginErr?`<p class="err">${S.loginErr}</p>`:''}
+      <button class="btn primary mt14" data-act="sendcode" data-inv-ctx="1">Continue</button>
+      <p class="tiny dim" style="margin:10px 0 0">We'll email you a 6-digit code. No password, ever.</p>
+    </div>
+    <p class="tiny dim" style="text-align:center;margin-top:12px">Not Marco? Ask Chris for your own link.</p>
+  </div>`;
+}
+
+function loginView(){
+  return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">${S.inviteCtx?'Joining Saturday Club':'Kinomato'}</p>
+    <h1 class="h-display" style="font-size:28px">${S.pubAfter==='new'?'First, your email':'Sign in'}</h1>
+    <p class="small muted" style="margin:8px 0 16px">We'll send a 6-digit code. New here? Same thing: verifying your email is how an account starts.</p>
+    <label class="lab" for="em">Email</label>
+    <input class="field" id="em" type="email" autocomplete="email" placeholder="you@example.com" data-email value="${esc(S.email)}">
+    ${S.loginErr?`<p class="err">${S.loginErr}</p>`:''}
+    <button class="btn primary mt14" data-act="sendcode">Send code</button>
+    <button class="btn ghost mt8" data-act="tolanding">Back</button>
+  </div>
+  <p class="tiny dim" style="text-align:center;margin-top:12px">Prototype: chris@example.com signs in to an existing account. Any other address creates one.</p></div>`;
+}
+
+function codeView(){
+  const locked = S.codeState==='locked', expired = S.codeState==='expired';
+  const msg = locked ? "Too many tries. We'll send a fresh code."
+    : expired ? 'That code expired.'
+    : S.codeState==='wrong' ? `That code didn't match. ${S.tries} ${S.tries===1?'try':'tries'} left.` : '';
+  return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">${S.inviteCtx?'Joining Saturday Club':'Kinomato'}</p>
+    <h1 class="h-display" style="font-size:28px">Check your email</h1>
+    <p class="small muted" style="margin:8px 0 16px">We sent a code to <span style="color:var(--fg)">${esc(S.email)}</span>.</p>
+    ${locked||expired?'':`<div class="codeboxes" role="group" aria-label="6-digit code">
+      ${S.code.map((d,i)=>`<input data-ci="${i}" value="${d}" inputmode="numeric" pattern="[0-9]*" maxlength="6" ${i===0?'autocomplete="one-time-code"':'autocomplete="off"'} aria-label="Digit ${i+1}">`).join('')}
+    </div>`}
+    ${msg?`<p class="err">${msg}</p>`:''}
+    ${locked||expired?`<button class="btn primary mt14" data-act="resend" data-force="1">Send new code</button>`:
+      `<p class="tiny dim" style="margin:12px 0 0">Or tap the link in the same email. <button class="linkbtn" data-act="showverify">What the link opens</button></p>`}
+    <div class="btnrow mt14">
+      <button class="btn ghost" data-act="resend" id="resendbtn">Resend</button>
+      <button class="btn ghost" data-act="changeemail">Use a different email</button>
+    </div>
+  </div>
+  <p class="tiny dim" style="text-align:center;margin-top:12px">Prototype: any six digits signs in; 000000 is a wrong code.
+    Preview: <button class="linkbtn" data-codestate="expired">expired</button> &middot; <button class="linkbtn" data-codestate="locked">out of tries</button></p></div>`;
+}
+
+function verifyView(){
+  return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Kinomato</p>
+    <h1 class="h-display" style="font-size:26px">Sign in as ${esc(S.email)}</h1>
+    <p class="small muted" style="margin:8px 0 16px">Opening this page didn't sign anyone in. Only the button does, so an email scanner that pre-opens links can't use up your sign-in.</p>
+    <button class="btn primary" data-act="verifypost">Sign in</button>
+  </div></div>`;
+}
+
+function nameView(){
+  return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">One more thing</p>
+    <h1 class="h-display" style="font-size:28px">What should your club call you?</h1>
+    <p class="small muted" style="margin:8px 0 16px">First name and last initial. That's how you'll show up in every club.</p>
+    <div class="row gap8">
+      <div style="flex:3;min-width:0"><label class="lab" for="nf">First name</label><input class="field" id="nf" data-nf autocomplete="given-name" value="${esc(S.nameFirst)}"></div>
+      <div style="flex:1;min-width:0"><label class="lab" for="ni">Initial</label><input class="field" id="ni" data-ni maxlength="1" value="${esc(S.nameInit)}"></div>
+    </div>
+    ${S.nameErr?`<p class="err">${S.nameErr}</p>`:''}
+    <button class="btn primary mt14" data-act="savename">Continue</button>
+    ${S.inviteCtx?`<p class="tiny dim" style="margin:10px 0 0">Chris added you as Marco R. That's only the greeting; change it if it's not how you go.</p>`:''}
+  </div></div>`;
+}
+
+/* ================= signed in, arriving via an invite ================= */
+function inviteSignedIn(){
+  const other = inviteStateCard(true); if(other) return other;
+  const sat = S.clubs.sat;
+  if(sat.members.some(m => m.p===S.me)) return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Saturday Club</p><h1 class="h-display" style="font-size:26px">You're already in Saturday Club</h1>
+    <p class="small muted" style="margin:8px 0 0">This invite is Marco's, so opening it didn't use it up.</p>
+    <button class="btn primary mt14" data-act="invgo">Go to Saturday Club</button></div></div>`;
+  return `<div class="pubcard"><div class="card" style="padding:20px 18px">
+    <p class="eyebrow">Saturday Club</p>
+    <h1 class="h-display" style="font-size:28px">This invite is for Marco</h1>
+    <p class="small muted" style="margin:8px 0 16px">Signed in as <span style="color:var(--fg)">${esc(me().n)}</span></p>
+    <button class="btn primary" data-act="invswitch">Sign out and continue as Marco</button>
+    <button class="btn ghost mt8" data-act="invasme">Join Saturday Club as ${esc(me().n)} instead</button>
+    <p class="tiny dim" style="margin:8px 0 0">If you join as ${esc(first(me()))}, Marco will need a new link from Chris.</p>
+  </div></div>`;
+}
+
+/* ================= Clubs tab (signed-in /) ================= */
+function clubStatus(c){
+  if(c.static) return {text:'Dana picks next', act:0};
+  if(c.members.length===1) return {text:'Add the people you watch with', act:1};
+  const w = film(winner());
+  if(S.stage==='nominate') return {text:'<b style="font-weight:500">Your turn</b> — nominate by Thu', act:1};
+  if(S.stage==='vote') return myVote() ? {text:'Voting — Sam is picking', act:0} : {text:'Voting — <b style="font-weight:500">you haven\'t voted</b>', act:1};
+  if(S.stage==='locked') return {text:`<i>${w.t}</i>, locked in`, act:0};
+  if(!S.confirmed) return {text:`<b style="font-weight:500">Did you watch <i>${w.t}</i>?</b>`, act:1};
+  if(!S.rated) return {text:`<b style="font-weight:500">Rate <i>${w.t}</i></b>`, act:1};
+  return {text:'Priya picks next', act:0};
+}
+function clubsView(){
+  const cs = myClubs();
+  if(!cs.length) return `<h2 class="h-display" style="font-size:24px">Your clubs</h2>
+    <div class="empty mt20">
+      <p style="margin:0 0 4px;color:var(--fg);font-size:15px">You're not in a club yet</p>
+      <p style="margin:0 0 14px">Start one and add the people you watch with.</p>
+      <button class="btn primary" data-act="newclub">Start a club</button>
+    </div>
+    <p class="tiny dim mt14">Waiting to join a friend's club? Ask them for your own invite link. Each link is made for one person.</p>`;
+  const rows = cs.map(c=>({c,st:clubStatus(c)})).sort((a,b)=>b.st.act-a.st.act);
+  return `<div class="between"><h2 class="h-display" style="font-size:24px">Your clubs</h2></div>
+    <div class="stack gap8 mt20">
+    ${rows.map(({c,st})=>`<button class="card clubcard" data-club="${c.id}">
+      <div class="between"><span class="h-display" style="font-size:19px">${esc(c.name)}</span><span class="tiny dim">${c.members.length===1?'':c.next}</span></div>
+      <div class="row gap8" style="margin-top:7px">${st.act?'<span class="dot" aria-label="Needs you"></span>':''}<span class="small ${st.act?'':'muted'}">${st.text}</span></div>
+    </button>`).join('')}
+    </div>
+    <button class="btn mt14 row" data-act="newclub" style="justify-content:center;gap:8px">${svg('plus')}Start a club</button>`;
+}
+
+function newClubView(){
+  return `<h2 class="h-display" style="font-size:24px">Start a club</h2>
+  <p class="small muted" style="margin:6px 0 18px">Four questions. You can add people right after.</p>
+  <label class="lab" for="cn">Club name</label><input class="field" id="cn" data-cn placeholder="Friday Film Night">
+  <p class="lab mt14">How often</p>
+  <div class="row gap6" style="flex-wrap:wrap">${['Weekly','Every other week','Monthly','When we decide'].map((l,i)=>`<span class="chip ${i===0?'on':''}">${l}</span>`).join('')}</div>
+  <div class="row gap8 mt14">
+    <div style="flex:1;min-width:0"><label class="lab" for="cd">Day</label><select class="field" id="cd">${['Friday','Saturday','Sunday'].map(d=>`<option>${d}</option>`).join('')}</select></div>
+    <div style="flex:1;min-width:0"><label class="lab" for="ct">Time</label><input class="field" id="ct" type="time" value="20:00"></div>
+  </div>
+  <p class="lab mt14">Where</p>
+  <div class="row gap6"><span class="chip on">In person</span><span class="chip">Remote</span></div>
+  ${S.addErr?`<p class="err">${S.addErr}</p>`:''}
+  <button class="btn primary mt20" data-act="createclub">Create club</button>`;
+}
+
+/* ================= inside a club: Tonight · History · Club ================= */
+function clubShell(){
+  const c = curClub();
+  const tabs = [['tonight','Tonight'],['history','History'],['club','Club']];
+  const body = S.clubTab==='tonight' ? tonight(c) : S.clubTab==='history' ? historyView(c) : clubView(c);
+  return `<div class="row gap8"><button class="iconbtn backbtn" data-act="back" aria-label="All clubs">${svg('back')}</button>
+      <h2 class="h-display" style="font-size:22px">${esc(c.name)}</h2></div>
+    <p class="small muted" style="margin:4px 0 12px">${c.sched}</p>
+    <nav class="segc" aria-label="${esc(c.name)}">${tabs.map(([k,l])=>`<button data-ctab="${k}" ${S.clubTab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
+    ${S.flash?`<div class="card mt14" style="border-color:var(--accent)"><p class="small" style="margin:0">${S.flash}</p></div>`:''}
+    <div class="mt20">${body}</div>`;
+}
+
+function tonight(c){
+  if(c.members.length===1) return `<p class="eyebrow">First night</p>
+    <h2 class="h-display" style="font-size:26px">Add the people you watch with</h2>
+    <p class="small muted" style="margin:8px 0 0">Each person gets their own link that greets them by name. Once someone's in, the first night schedules itself.</p>
+    <button class="btn primary mt20" data-act="gomembers">Add a person</button>`;
   if(S.stage==='nominate') return nominateView();
   if(S.stage==='locked') return lockedView();
   if(S.stage==='after') return afterView();
-  return voteView();
+  return voteView(c);
 }
 
 function nominateView(){
+  const list = S.lists[S.me]||[];
+  if(!list.length) return `<p class="eyebrow">Your turn this week</p>
+    <h2 class="h-display" style="font-size:26px">Your list is empty</h2>
+    <p class="small muted" style="margin:8px 0 0">You nominate from your own list. Add a few films and come back.</p>
+    <button class="btn primary mt20" data-tab="watchlist">Go to your watchlist</button>`;
   const picks = S.picked.length;
   return `
   <p class="eyebrow">Your turn this week</p>
   <h2 class="h-display" style="font-size:26px">Put up ${S.cfg.nomCount} films</h2>
   <p class="small muted" style="margin:8px 0 0">From your own list. Everyone votes, you break ties. Nominations close in ${S.cfg.deadline} days.</p>
   <div class="grid3 mt20">
-    ${S.myList.slice(0,9).map(id=>{const f=film(id);const on=S.picked.includes(id);
+    ${list.slice(0,9).map(id=>{const f=film(id);const on=S.picked.includes(id);
       return `<button class="poster ${on?'want':''}" data-pick="${id}">
         ${on?'<span class="pill" style="align-self:flex-start;margin-bottom:auto">Nominated</span>':''}
         <span style="font-size:12px">${f.t}</span><span class="tiny dim">${f.y}, ${f.r}m</span></button>`}).join('')}
@@ -330,17 +623,16 @@ function nominateView(){
   </div>`;
 }
 
-function voteView(){
+function voteView(c){
   const hidden = S.cfg.voteVis==='hidden';
-  const out = MEMBERS.filter(m=>!S.rsvp[m.id]);
+  const mine = myVote();
   return `
   <p class="eyebrow">Sam is picking</p>
   <h2 class="h-display" style="font-size:26px">Saturday, 8:00pm</h2>
   <p class="small muted" style="margin:8px 0 0">At Priya's. The pick locks ${S.cfg.lock} hours before, then nothing changes.</p>
-
   <div class="stack gap8 mt20">
-    ${S.nominees.map(id=>{const f=film(id);const n=tally(id);const mine=S.myVote===id;
-      return `<button class="nominee" data-vote="${id}" aria-pressed="${mine}">
+    ${S.nominees.map(id=>{const f=film(id);const n=tally(id);
+      return `<button class="nominee" data-vote="${id}" aria-pressed="${mine===id}">
         <div class="between">
           <div style="min-width:0">
             <div style="font-size:16px">${f.t} <span class="dim" style="font-size:13px">${f.y}</span></div>
@@ -355,68 +647,53 @@ function voteView(){
         ${hidden?'':`<div class="bar"><i style="width:${Math.round(n/totalVotes()*100)}%"></i></div>`}
       </button>`}).join('')}
   </div>
-  <p class="tiny dim" style="margin:8px 0 0">Tap to move your vote.${S.cfg.picking==='weighted'?" Sam's vote counts double this week.":''} You have ${S.cfg.vetoes} vetoes left this season.</p>
-
+  <p class="tiny dim" style="margin:8px 0 0">${mine?'Tap to move your vote.':'Tap a film to vote.'}${S.cfg.picking==='weighted'?" Sam's vote counts double this week.":''} You have ${S.cfg.vetoes} vetoes left this season.</p>
   <div class="divide"></div>
   <h2 class="sec">Who's coming</h2>
   <div class="row" style="flex-wrap:wrap;gap:12px">
-    ${MEMBERS.map(m=>`<div style="text-align:center">
-      <div class="avatar ${m.me?'me':''}" style="${S.rsvp[m.id]?'':'opacity:.35'}">${m.i}</div>
-      <div class="tiny dim" style="margin-top:4px">${S.rsvp[m.id]?m.n:'out'}</div></div>`).join('')}
+    ${c.members.map(m=>{const p=person(m.p);return `<div style="text-align:center">
+      <div class="avatar ${m.p===S.me?'me':''}" style="${going(m.p)?'':'opacity:.35'}">${p.i}</div>
+      <div class="tiny dim" style="margin-top:4px">${going(m.p)?first(p):'out'}</div></div>`}).join('')}
   </div>
-  ${out.length?`<p class="tiny dim" style="margin:10px 0 0">${out.map(m=>m.n).join(' and ')} ${out.length>1?'are':'is'} out, so their limits don't apply this week.</p>`:''}
-  <button class="btn mt14" data-act="rsvp">${S.rsvp.ck?"I'm going":"Can't make it"}</button>`;
+  <button class="btn mt14" data-act="rsvp">${going(S.me)?"I'm going":"Can't make it"}</button>`;
 }
 
 function lockedView(){
-  const winner = S.nominees.includes(S.myVote) ? S.myVote : S.nominees[0];
-  const f = film(winner);
-  const runnerUp = S.nominees.find(i => i !== winner);
+  const f = film(winner());
+  const runnerUp = S.nominees.find(i => i !== f.id);
   const end = (()=>{let m=20*60+f.r;return ((Math.floor(m/60)-12)||12)+':'+String(m%60).padStart(2,'0')+'pm';})();
   const rel = CATALOG.find(x=>x.d===f.d && x.id!==f.id && HISTORY.some(h=>h.film===x.id));
   return `
-  <div class="between" style="align-items:center">
-    <span class="pill">Locked in</span>
-    <span class="small muted">2 days, 4 hours</span>
-  </div>
+  <div class="between" style="align-items:center"><span class="pill">Locked in</span><span class="small muted">2 days, 4 hours</span></div>
   <h2 class="h-display mt14" style="font-size:32px">${f.t}</h2>
   <p class="small muted" style="margin:6px 0 0">${f.y}, ${f.d}. Won ${tally(f.id)} to ${runnerUp?tally(runnerUp):0}.</p>
-
   <div class="row between" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:13px 0;margin:18px 0">
     <div><div class="tiny dim">starts</div><div style="font-size:17px">8:00pm</div></div>
     <div><div class="tiny dim">runs</div><div style="font-size:17px">${f.r}m</div></div>
     <div><div class="tiny dim">out by</div><div style="font-size:17px;color:var(--accent)">${end}</div></div>
   </div>
-
   ${rel?`<div class="note"><p class="tiny" style="margin:0 0 5px;color:var(--accent)">Your club has form</p>
     <p class="small" style="margin:0;line-height:1.5">You watched <span style="color:var(--accent)">${rel.t}</span> back in week ${HISTORY.find(h=>h.film===rel.id).wk}. Same director, ${Math.abs(f.y-rel.y)} years apart.</p></div>`:''}
-
   ${f.facts.length?`<div class="mt20"><h2 class="sec">Worth knowing</h2>
     <div class="stack gap8 small muted">${f.facts.map(x=>`<div>${x}</div>`).join('')}</div></div>`:''}
-
   <div class="stack gap8 mt20">
     <div class="card row"><span style="color:var(--accent);line-height:0">${svg('play')}</span>
-      <span class="small">${f.s||'Rent from $4.99'}</span>
-      <span class="tiny dim" style="margin-left:auto">${f.have} of you have it</span></div>
+      <span class="small">${f.s||'Rent from $4.99'}</span><span class="tiny dim" style="margin-left:auto">${f.have} of you have it</span></div>
     <div class="card row"><span style="color:var(--accent);line-height:0">${svg('food')}</span>
-      <span class="small">Order food by 7:10pm</span>
-      <span class="tiny dim" style="margin-left:auto">eat before credits</span></div>
+      <span class="small">Order food by 7:10pm</span><span class="tiny dim" style="margin-left:auto">eat before credits</span></div>
   </div>
-
   <div class="divide"></div>
   <h2 class="sec">Call it now</h2>
   <p class="tiny dim" style="margin:-6px 0 10px">What will the club's fun score be?</p>
-  <div class="row gap8">
-    ${['under 6','6 to 8','over 8'].map(g=>`<button class="btn ${S.guess===g?'primary':'ghost'}" data-guess="${g}">${g}</button>`).join('')}
-  </div>`;
+  <div class="row gap8">${['under 6','6 to 8','over 8'].map(g=>`<button class="btn ${S.guess===g?'primary':'ghost'}" data-guess="${g}">${g}</button>`).join('')}</div>`;
 }
 
 function afterView(){
-  const f = film(S.myVote||1);
+  const f = film(winner());
   if(S.confirmed && S.rated) return `
     <p class="eyebrow">Week 14 logged</p>
     <h2 class="h-display" style="font-size:26px">Thanks, that's in</h2>
-    <p class="small muted" style="margin:8px 0 0">You rated ${f.t} ${S.q} for quality and ${S.fun} for fun. Takes stay hidden until everyone has posted.</p>
+    <p class="small muted" style="margin:8px 0 0">You rated ${f.t} ${S.q} for quality and ${S.fun} for fun. Ratings stay hidden until everyone who came has rated.</p>
     <div class="card mt20"><div class="between"><span class="small">Up next</span><span class="pill">Priya</span></div>
       <p class="tiny dim" style="margin:8px 0 0">Nominations open Monday. Sam's turn is done.</p></div>`;
   if(S.confirmed) return `
@@ -424,12 +701,12 @@ function afterView(){
     <h2 class="h-display" style="font-size:26px">How was it?</h2>
     <div class="mt20">
       <div class="between"><span class="small muted">Actually good</span><span style="color:var(--accent)">${S.q}</span></div>
-      <input class="slider" type="range" min="1" max="10" step="0.1" value="${S.q}" data-rate="q">
+      <input class="slider" type="range" min="0" max="10" step="0.1" value="${S.q}" data-rate="q" aria-label="Quality">
       <div class="between mt14"><span class="small muted">Fun to watch together</span><span style="color:var(--accent)">${S.fun}</span></div>
-      <input class="slider" type="range" min="1" max="10" step="0.1" value="${S.fun}" data-rate="fun">
+      <input class="slider" type="range" min="0" max="10" step="0.1" value="${S.fun}" data-rate="fun" aria-label="Fun">
     </div>
     <p class="tiny dim mt14" style="margin-bottom:6px">One line, no pressure</p>
-    <div class="search"><input placeholder="Your take" data-take></div>
+    <div class="search"><input placeholder="Your take" aria-label="Your take"></div>
     <button class="btn primary mt14" data-act="rate">Post my take</button>`;
   return `
     <p class="eyebrow">Sunday morning</p>
@@ -440,57 +717,198 @@ function afterView(){
       <button class="btn ghost" data-act="skip">We didn't meet</button>
       <button class="btn ghost" data-act="skip">We watched something else</button>
     </div>
-    <p class="tiny dim mt14">If nobody answers, the week logs as unconfirmed after ${S.cfg.confirmAt==='morning'?'48 hours':'the window closes'} and Sam keeps his turn.</p>`;
+    <p class="tiny dim mt14">If nobody answers, the week logs as unconfirmed and Sam keeps the turn.</p>`;
 }
 
-/* ---------------- Your list ---------------- */
-function shelves(){
-  const items = S.myList.map(film);
+function historyView(c){
+  if(c.members.length===1 || c.id!=='sat') return `<div class="empty">No nights yet. Your first one shows up here once it's watched.</div>`;
+  const runtime = HISTORY.reduce((a,h)=>a+film(h.film).r,0);
+  const gap = HISTORY.slice().sort((a,b)=>(b.fun-b.q)-(a.fun-a.q))[0];
+  const best = HISTORY.slice().sort((a,b)=>(b.q+b.fun)-(a.q+a.fun))[0];
+  const worst = HISTORY.slice().sort((a,b)=>(a.q+a.fun)-(b.q+b.fun))[0];
+  const pt = h=>{const x=30+(h.q/10)*220, y=180-(h.fun/10)*150;
+    return `<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" opacity=".85"><title>${film(h.film).t}</title></circle>
+      <text x="${x}" y="${y-10}" font-size="9" fill="var(--mut)" text-anchor="middle">${film(h.film).t.split(' ')[0]}</text>`;};
+  return `
+  <h2 class="h-display" style="font-size:22px">Season one</h2>
+  <p class="small muted" style="margin:6px 0 0">${HISTORY.length} nights, ${mins(runtime)} of film, ${new Set(HISTORY.map(h=>h.picker)).size} different pickers.</p>
+  <h2 class="sec mt26">Good against fun</h2>
+  <div class="card" style="padding:10px">
+    <svg viewBox="0 0 280 200" style="width:100%;height:auto" role="img" aria-label="Scatter plot of each film's quality score against its fun score">
+      <line x1="30" y1="180" x2="270" y2="180" stroke="var(--line)"/><line x1="30" y1="30" x2="30" y2="180" stroke="var(--line)"/>
+      <text x="150" y="196" font-size="10" fill="var(--dim)" text-anchor="middle">actually good</text>
+      <text x="12" y="105" font-size="10" fill="var(--dim)" text-anchor="middle" transform="rotate(-90 12 105)">fun together</text>
+      ${HISTORY.map(pt).join('')}
+    </svg>
+  </div>
+  <p class="tiny dim" style="margin:8px 0 0">Top left is the good part. ${film(gap.film).t} scored ${gap.q} for quality and ${gap.fun} for fun.</p>
+  <h2 class="sec mt26">Awards so far</h2>
+  <div class="stack gap8">
+    ${[['Best night',film(best.film).t],['Hardest watch',film(worst.film).t],['Biggest gap',film(gap.film).t]].map(([a,b])=>
+      `<div class="card between"><span class="small muted">${a}</span><span class="small">${b}</span></div>`).join('')}
+  </div>
+  <h2 class="sec mt26">Every night</h2>
+  <div class="stack gap8">
+    ${HISTORY.map(h=>{const f=film(h.film);
+      return `<div class="card"><div class="between"><span class="small">${f.t}</span><span class="tiny dim">week ${h.wk}</span></div>
+      <div class="tiny dim" style="margin-top:3px">${first(person(h.picker))} picked, ${f.r} minutes</div>
+      <div class="row gap14" style="margin-top:8px"><span class="tiny muted">good ${h.q}</span><span class="tiny" style="color:var(--accent)">fun ${h.fun}</span></div>
+      <p class="tiny muted" style="margin:8px 0 0;font-style:italic">${h.take} — ${h.by}</p></div>`}).join('')}
+  </div>`;
+}
+
+function clubView(c){
+  const admin = isAdmin(c);
+  const seats = c.members.length + c.invites.length;
+  const full = seats >= 6;
+  return `
+  <h2 class="sec">Members</h2>
+  <div class="stack gap8">
+    ${c.members.map(m=>{const p=person(m.p);return `<div class="card row">
+      <span class="avatar ${m.p===S.me?'me':''}">${p.i}</span>
+      <span style="min-width:0"><span style="display:block;font-size:14px">${esc(p.n)}${m.p===S.me?' (you)':''}</span>
+        <span class="tiny dim">${p.tier==='trusted'?'Trusted member':'Member'}</span></span>
+      <span style="margin-left:auto">${admin&&m.p!==S.me?`<select class="sel" aria-label="Role for ${esc(p.n)}">${['owner','admin','member'].map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select>`:`<span class="chip">${m.role}</span>`}</span>
+    </div>`}).join('')}
+  </div>
+
+  ${c.invites.length?`<div class="between mt26" style="margin-bottom:10px"><h2 class="sec" style="margin:0">Invited</h2></div>
+  <div class="stack gap8">
+    ${c.invites.map(v=>`<div class="card">
+      <div class="between"><span style="font-size:14px">${esc(v.name)}</span><span class="tiny dim">${v.ago}</span></div>
+      <div class="tiny dim" style="margin-top:3px">${v.status==='started'?'Started: entered an email, hasn\'t entered the code yet':'Not started'}</div>
+      ${admin?`<div class="btnrow mt8">
+        <button class="btn" data-inv="${v.id}" data-op="share">Share</button>
+        <button class="btn ghost" data-inv="${v.id}" data-op="regen">Regenerate</button>
+        <button class="btn ghost" data-inv="${v.id}" data-op="revoke">Revoke</button></div>`:''}
+    </div>`).join('')}
+  </div>`:''}
+
+  <div class="between mt26" style="margin-bottom:10px"><h2 class="sec" style="margin:0">Add a person</h2><span class="tiny dim">${seats} of 6 seats</span></div>
+  ${!admin?`<p class="tiny dim" style="margin:0">Only owners and admins can invite people.</p>`:
+    full?`<div class="empty" style="padding:14px">${esc(c.name)} is full: ${c.members.length} members and ${c.invites.length} pending invite${c.invites.length===1?'':'s'}. Revoke an invite to free a seat.</div>`:
+    `<div class="row gap8">
+      <div style="flex:3;min-width:0"><label class="lab" for="af">First name</label><input class="field" id="af" data-af placeholder="Marco"></div>
+      <div style="flex:1;min-width:0"><label class="lab" for="ai">Initial</label><input class="field" id="ai" data-ai maxlength="1" placeholder="R"></div>
+    </div>
+    ${S.addErr?`<p class="err">${S.addErr}</p>`:''}
+    <button class="btn primary mt8" data-act="addperson">Create invite</button>
+    <p class="tiny dim" style="margin:8px 0 0">They'll get a link that greets them by name. Pending invites hold a seat.</p>`}
+
+  <h2 class="sec mt26">Your limits in this club</h2>
+  <div class="card" style="padding:2px 14px">
+    ${S.limits.map((l,i)=>`<div class="toggle"><span class="small">${l.v}</span>
+      <button class="chip ${l.k==='hard'?'on':''}" data-limit="${i}">${l.k==='hard'?'Hard limit':'Prefer not'}</button></div>`).join('')}
+  </div>
+  <p class="tiny dim" style="margin:10px 0 0">These apply in ${esc(c.name)} only. Two hard limits each. Hard limits are never voted on. Preferences show as a note and break ties.</p>
+  <div class="toggle mt8" style="border-bottom:0">
+    <span class="small" style="max-width:60%">Apply my limits even on weeks I'm out</span>
+    <button class="sw" data-act="absent" aria-pressed="false" aria-label="Apply limits when absent"></button>
+  </div>
+
+  <h2 class="sec mt26">How this club runs</h2>
+  ${!admin?'<p class="tiny dim" style="margin:-4px 0 10px">Only owners and admins can change these.</p>':''}
+  <div class="row gap6" style="flex-wrap:wrap;margin-bottom:6px">
+    ${[['chill','Chill'],['standard','Standard'],['serious','Serious']].map(([k,l])=>
+      `<button class="chip ${S.cfg.preset===k?'on':''}" data-preset="${k}" ${!admin?'disabled':''}>${l}</button>`).join('')}
+  </div>
+  <div class="card" style="padding:2px 14px">
+    ${cfgRow('Nominations close','deadline',[[1,'1 day before'],[3,'3 days before'],[5,'5 days before']],!admin)}
+    ${cfgRow('Pick locks','lock',[[6,'6 hours before'],[24,'24 hours before'],[48,'48 hours before']],!admin)}
+    ${cfgRow('Deciding','picking',[['democratic','Everyone equal'],['weighted','Picker counts double'],['choice',"Picker's choice"],['random','Random from nominees']],!admin)}
+    ${cfgRow('Vote counts','voteVis',[['live','Visible live'],['hidden','Hidden until lock']],!admin)}
+    ${cfgRow('Films per turn','nomCount',[[2,'2'],[3,'3'],[5,'5']],!admin)}
+    ${cfgRow('Vetoes per season','vetoes',[[0,'None'],[2,'2 each'],[4,'4 each']],!admin)}
+    ${cfgRow('Attendance display','attendance',[['off','Off'],['streaks','Streaks only'],['top','Top attendees']],!admin)}
+    ${cfgRow('Ask if it happened','confirmAt',[['morning','Morning after'],['night','Same night'],['manual','Only when asked']],!admin)}
+  </div>
+  <p class="tiny dim mt14">Presets set all eight at once. Most clubs never open this panel.</p>
+  <button class="btn ghost mt20" data-act="leave">Leave this club</button>`;
+}
+function cfgRow(label,key,opts,ro){
+  return `<div class="toggle"><span class="small">${label}</span>
+    ${ro?`<span class="tiny dim">${(opts.find(o=>String(o[0])===String(S.cfg[key]))||opts[0])[1]}</span>`:
+    `<select class="sel" data-cfg="${key}" aria-label="${label}">${opts.map(([v,l])=>`<option value="${v}" ${String(S.cfg[key])===String(v)?'selected':''}>${l}</option>`).join('')}</select>`}</div>`;
+}
+
+function shareSheet(){
+  const c = curClub(); const v = c.invites.find(x=>x.id===S.share); if(!v) return '';
+  return `<div class="sheet">
+    <header><h2 class="h-display" style="font-size:20px">Invite ${esc(v.name)}</h2>
+      <button class="iconbtn" data-act="closeshare" aria-label="Close">${svg('x')}</button></header>
+    <div class="scroll">
+      <p class="small muted" style="margin:0 0 12px">This link is just for ${esc(v.name.split(' ')[0])}. Whoever opens it first and enters an email gets the seat, so send it to them directly.</p>
+      <div class="card tiny muted" style="word-break:break-all">https://kinomato.com/invite/${v.tok}</div>
+      <button class="btn primary mt14 row" data-act="nativeshare" style="justify-content:center;gap:8px">${svg('share')}Share…</button>
+      <button class="btn mt8" data-act="copyinv">Copy link</button>
+      <p class="tiny dim" style="margin:12px 0 0">On phones, Share opens the system share sheet (Messages, WhatsApp, email). Browsers without one show only Copy link.</p>
+    </div></div>`;
+}
+
+/* ================= Watchlist tab: one list per person ================= */
+function seenClub(){ const cs = myClubs(); if(!cs.length) return null; return cs.find(c=>c.id===S.seen) || cs[0]; }
+function haveFor(f){ const c = seenClub(); if(!c) return 0; if(c.id==='hor') return HORROR_HAVE[f.id]||0; if(c.id==='sat') return f.have; return 0; }
+function group(items, key){
+  const m = new Map();
+  items.forEach(f => { const k = key(f); if(!m.has(k)) m.set(k,[]); m.get(k).push(f); });
+  return [...m.entries()].sort((a,b)=>b[1].length-a[1].length);
+}
+function shelves(list){
+  const items = list.map(film);
   if(S.listView==='runtime') return group(items, f => f.r<90?'Under 90 minutes':f.r<120?'90 to 120':f.r<150?'120 to 150':'The long ones');
   if(S.listView==='decade') return group(items, f => Math.floor(f.y/10)*10+'s');
   if(S.listView==='streaming') return group(items, f => f.s || 'Not streaming anywhere');
   if(S.listView==='added') return [['Recently added', items.slice().reverse()]];
   return group(items, f => f.g[0]);
 }
-function group(items, key){
-  const m = new Map();
-  items.forEach(f => { const k = key(f); if(!m.has(k)) m.set(k,[]); m.get(k).push(f); });
-  return [...m.entries()].sort((a,b)=>b[1].length-a[1].length);
-}
 function shelfHTML(name, films, note){
   return `<div class="mt20"><div class="between"><h2 class="sec" style="margin:0">${name}</h2><span class="tiny dim">${films.length}</span></div>
     ${note?`<p class="tiny dim" style="margin:2px 0 0">${note}</p>`:''}
-    <div class="grid3" style="margin-top:9px">${films.map(f=>`<div class="poster ${f.have>=3?'want':''}">
-      ${f.have>=3?`<span class="pill" style="align-self:flex-end;margin-bottom:auto">${f.have}</span>`:''}
-      <span style="font-size:12px">${f.t}</span><span class="tiny dim">${f.y}, ${f.r}m</span></div>`).join('')}</div></div>`;
+    <div class="grid3" style="margin-top:9px">${films.map(f=>{const h=haveFor(f);return `<div class="poster ${h>=3?'want':''}">
+      ${h>=3?`<span class="pill" style="align-self:flex-end;margin-bottom:auto">${h}</span>`:''}
+      <span style="font-size:12px">${f.t}</span><span class="tiny dim">${f.y}, ${f.r}m</span></div>`}).join('')}</div></div>`;
 }
 function listView(){
-  const total = S.myList.reduce((a,id)=>a+film(id).r,0);
-  const wanted = S.myList.map(film).filter(f=>f.have>=3);
+  const list = S.lists[S.me] || [];
+  const cs = myClubs();
+  if(!list.length) return `<h2 class="h-display" style="font-size:22px">Your list</h2>
+    <div class="empty mt20">
+      <p style="margin:0 0 4px;color:var(--fg);font-size:15px">Your list is empty</p>
+      <p style="margin:0 0 14px">Add films you'd like to watch with people. It's yours, and it comes with you into every club.</p>
+      <button class="btn primary" data-act="add">Add a film</button>
+    </div>
+    <p class="tiny dim mt14">Nobody can browse your list. A club only sees a film on it through overlap, like "3 of you want this."</p>`;
+  const total = list.reduce((a,id)=>a+film(id).r,0);
+  const sc = seenClub();
+  const wanted = sc ? list.map(film).filter(f=>haveFor(f)>=3) : [];
   const views = [['genre','Genre'],['runtime','Runtime'],['decade','Decade'],['streaming','Streaming'],['added','Added']];
   return `
   <div class="between"><h2 class="h-display" style="font-size:22px">Your list</h2>
-    <span class="small" style="color:var(--accent)">${S.myList.length} films, ${mins(total)}</span></div>
+    <span class="small" style="color:var(--accent)">${list.length} films, ${mins(total)}</span></div>
+  ${cs.length>=2?`<div class="row gap6 mt14" style="flex-wrap:wrap"><span class="tiny dim">Seen from</span>
+    ${cs.map(c=>`<button class="chip ${sc.id===c.id?'on':''}" data-seen="${c.id}">${esc(c.name)}</button>`).join('')}</div>`:''}
+  ${!cs.length?`<p class="tiny dim" style="margin:8px 0 0">Join or start a club to see which of these your friends want too.</p>`:''}
   <div class="row gap6 mt14" style="flex-wrap:wrap">
     ${views.map(([k,l])=>`<button class="chip ${S.listView===k?'on':''}" data-view="${k}">${l}</button>`).join('')}
   </div>
   <button class="btn mt14 row" data-act="add" style="justify-content:center;gap:8px">${svg('plus')}Add a film</button>
-  ${S.listView==='genre'&&wanted.length?shelfHTML('Everyone wants these', wanted, 'also on three or more club lists'):''}
-  ${shelves().map(([k,v])=>shelfHTML(k,v)).join('')}`;
+  ${S.listView==='genre'&&wanted.length>=2?shelfHTML('Everyone wants these', wanted, `also on three or more lists in ${esc(sc.name)}`):''}
+  ${shelves(list).map(([k,v])=>shelfHTML(k,v)).join('')}`;
 }
-
 function addSheet(){
   const q = S.query.trim().toLowerCase();
-  const res = q ? CATALOG.filter(f => !S.myList.includes(f.id) &&
+  const list = S.lists[S.me] || [];
+  const sc = seenClub();
+  const res = q ? CATALOG.filter(f => !list.includes(f.id) &&
     (f.t.toLowerCase().includes(q)||f.d.toLowerCase().includes(q)||f.c.toLowerCase().includes(q))) : [];
   return `<div class="sheet">
     <header><h2 class="h-display" style="font-size:20px">Add to your list</h2>
       <button class="iconbtn" data-act="close" aria-label="Close">${svg('x')}</button></header>
     <div class="search"><span style="color:var(--dim);line-height:0">${svg('search')}</span>
-      <input placeholder="Title, director or actor" value="${S.query}" data-q autofocus></div>
+      <input placeholder="Title, director or actor" value="${esc(S.query)}" data-q aria-label="Search films"></div>
     <p class="tiny dim" style="margin:8px 0 12px">${q? res.length+' results' : 'Try heat, or wong kar-wai'}</p>
     <div class="scroll stack gap8">
-      ${res.map(f=>{const watched=HISTORY.find(h=>h.film===f.id);
+      ${res.map(f=>{const watched=sc&&sc.id==='sat'&&HISTORY.find(h=>h.film===f.id);const h=haveFor(f);
         return `<button class="result" data-add="${f.id}" ${watched?'style="opacity:.6"':''}>
         <span class="thumb">${f.t}<br>${f.y}</span>
         <span style="min-width:0">
@@ -498,179 +916,181 @@ function addSheet(){
           <span class="tiny muted" style="display:block;margin-top:3px">${f.d}</span>
           <span class="tiny dim" style="display:block;margin-top:2px">${f.c}</span>
           <span class="row gap6" style="margin-top:7px;flex-wrap:wrap">${f.g.map(g=>`<span class="chip tiny">${g}</span>`).join('')}<span class="chip tiny">${f.r}m</span></span>
-          ${f.have>=3?`<span class="pill" style="margin-top:7px">${f.have} in your club want this</span>`:''}
+          ${h>=3?`<span class="pill" style="margin-top:7px">${h} in ${esc(sc.name)} want this</span>`:''}
           ${watched?`<span class="pill quiet" style="margin-top:7px">club watched this, week ${watched.wk}</span>`:''}
         </span></button>`}).join('')}
       ${q&&!res.length?'<div class="empty">Nothing matches. Try a director, or paste a link from the group chat.</div>':''}
     </div></div>`;
 }
 
-/* ---------------- Club ---------------- */
-function clubView(){
-  const ro = !isAdmin();
-  const seats = MEMBERS.length;
-  return `
-  <h2 class="h-display" style="font-size:22px">Saturday Club</h2>
-  <p class="small muted" style="margin:6px 0 0">Weekly, Saturdays at 8. In person, rotating hosts.</p>
-
-  <div class="card mt20">
-    <div class="between"><span class="small">Invite link</span><span class="tiny dim">${seats} of 6 free seats</span></div>
-    <p class="tiny dim" style="margin:8px 0 10px">They pick a name and they're in. No account needed to vote.</p>
-    <button class="btn" data-act="copy">Copy link</button>
+/* ================= Settings tab ================= */
+function settingsView(){
+  const p = me(); const [fn, li] = p.n.split(' ');
+  const ec = S.emailChange;
+  return `<h2 class="h-display" style="font-size:22px">Settings</h2>
+  <h2 class="sec mt20">Your name</h2>
+  <div class="row gap8">
+    <div style="flex:3;min-width:0"><label class="lab" for="sf">First name</label><input class="field" id="sf" data-sf value="${esc(fn)}"></div>
+    <div style="flex:1;min-width:0"><label class="lab" for="si">Initial</label><input class="field" id="si" data-si maxlength="1" value="${esc(li[0])}"></div>
   </div>
+  <button class="btn mt8" data-act="savesname">Save name</button>
 
-  <h2 class="sec mt26">Members</h2>
-  <div class="stack gap8">
-    ${MEMBERS.map(m=>`<div class="card row">
-      <span class="avatar ${m.me?'me':''}">${m.i}</span>
-      <span style="min-width:0"><span style="display:block;font-size:14px">${m.n}${m.me?' (you)':''}</span>
-        <span class="tiny dim">${m.tier==='guest'?'Guest, ratings stay in this club':m.tier==='trusted'?'Trusted member':'Verified member'}</span></span>
-      <span style="margin-left:auto">${ro?`<span class="chip">${m.role}</span>`:
-        `<select class="sel" data-role="${m.id}">${['owner','admin','member','guest'].map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select>`}</span>
-    </div>`).join('')}
-  </div>
-
-  <h2 class="sec mt26">How this club runs</h2>
-  ${ro?'<p class="tiny dim" style="margin:-4px 0 10px">Only owners and admins can change these.</p>':''}
-  <div class="row gap6" style="flex-wrap:wrap;margin-bottom:6px">
-    ${[['chill','Chill'],['standard','Standard'],['serious','Serious']].map(([k,l])=>
-      `<button class="chip ${S.cfg.preset===k?'on':''}" data-preset="${k}" ${ro?'disabled':''}>${l}</button>`).join('')}
-  </div>
-  <div class="card" style="padding:2px 14px">
-    ${cfgRow('Nominations close','deadline',[[1,'1 day before'],[3,'3 days before'],[5,'5 days before']],ro)}
-    ${cfgRow('Pick locks','lock',[[6,'6 hours before'],[24,'24 hours before'],[48,'48 hours before']],ro)}
-    ${cfgRow('Deciding','picking',[['democratic','Everyone equal'],['weighted','Picker counts double'],['choice',"Picker's choice"],['random','Random from nominees']],ro)}
-    ${cfgRow('Vote counts','voteVis',[['live','Visible live'],['hidden','Hidden until lock']],ro)}
-    ${cfgRow('Films per turn','nomCount',[[2,'2'],[3,'3'],[5,'5']],ro)}
-    ${cfgRow('Vetoes per season','vetoes',[[0,'None'],[2,'2 each'],[4,'4 each']],ro)}
-    ${cfgRow('Attendance display','attendance',[['off','Off'],['streaks','Streaks only'],['top','Top attendees']],ro)}
-    ${cfgRow('Ask if it happened','confirmAt',[['morning','Morning after'],['night','Same night'],['manual','Only when asked']],ro)}
-  </div>
-  <p class="tiny dim mt14">Presets set all eight at once. Most clubs never open this panel.</p>`;
-}
-function cfgRow(label,key,opts,ro){
-  return `<div class="toggle"><span class="small">${label}</span>
-    ${ro?`<span class="tiny dim">${(opts.find(o=>String(o[0])===String(S.cfg[key]))||opts[0])[1]}</span>`:
-    `<select class="sel" data-cfg="${key}">${opts.map(([v,l])=>`<option value="${v}" ${String(S.cfg[key])===String(v)?'selected':''}>${l}</option>`).join('')}</select>`}</div>`;
-}
-
-/* ---------------- History ---------------- */
-function historyView(){
-  const runtime = HISTORY.reduce((a,h)=>a+film(h.film).r,0);
-  const gap = HISTORY.slice().sort((a,b)=>(b.fun-b.q)-(a.fun-a.q))[0];
-  const best = HISTORY.slice().sort((a,b)=>(b.q+b.fun)-(a.q+a.fun))[0];
-  const worst = HISTORY.slice().sort((a,b)=>(a.q+a.fun)-(b.q+b.fun))[0];
-  const pt = (h,i)=>{const x=30+(h.q/10)*220, y=180-(h.fun/10)*150;
-    return `<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" opacity=".85"><title>${film(h.film).t}</title></circle>
-      <text x="${x}" y="${y-10}" font-size="9" fill="var(--mut)" text-anchor="middle">${film(h.film).t.split(' ')[0]}</text>`;};
-  return `
-  <h2 class="h-display" style="font-size:22px">Season one</h2>
-  <p class="small muted" style="margin:6px 0 0">${HISTORY.length} nights, ${mins(runtime)} of film, ${new Set(HISTORY.map(h=>h.picker)).size} different pickers.</p>
-
-  <h2 class="sec mt26">Good against fun</h2>
-  <div class="card" style="padding:10px">
-    <svg viewBox="0 0 280 200" style="width:100%;height:auto" role="img" aria-label="Scatter plot of each film's quality score against its fun score">
-      <line x1="30" y1="180" x2="270" y2="180" stroke="var(--line)"/>
-      <line x1="30" y1="30" x2="30" y2="180" stroke="var(--line)"/>
-      <text x="150" y="196" font-size="10" fill="var(--dim)" text-anchor="middle">actually good</text>
-      <text x="12" y="105" font-size="10" fill="var(--dim)" text-anchor="middle" transform="rotate(-90 12 105)">fun together</text>
-      ${HISTORY.map(pt).join('')}
-    </svg>
-  </div>
-  <p class="tiny dim" style="margin:8px 0 0">Top left is the good part. ${film(gap.film).t} scored ${gap.q} for quality and ${gap.fun} for fun.</p>
-
-  <h2 class="sec mt26">Awards so far</h2>
-  <div class="stack gap8">
-    ${[['Best night',film(best.film).t],['Hardest watch',film(worst.film).t],['Biggest gap',film(gap.film).t]].map(([a,b])=>
-      `<div class="card between"><span class="small muted">${a}</span><span class="small">${b}</span></div>`).join('')}
-  </div>
-
-  <h2 class="sec mt26">Every night</h2>
-  <div class="stack gap8">
-    ${HISTORY.map(h=>{const f=film(h.film);const m=MEMBERS.find(x=>x.id===h.picker);
-      return `<div class="card"><div class="between"><span class="small">${f.t}</span><span class="tiny dim">week ${h.wk}</span></div>
-      <div class="tiny dim" style="margin-top:3px">${m?m.n:'A guest'} picked, ${f.r} minutes</div>
-      <div class="row gap14" style="margin-top:8px"><span class="tiny muted">good ${h.q}</span><span class="tiny" style="color:var(--accent)">fun ${h.fun}</span></div>
-      <p class="tiny muted" style="margin:8px 0 0;font-style:italic">${h.take} — ${h.by}</p></div>`}).join('')}
-  </div>`;
-}
-
-/* ---------------- You ---------------- */
-function youView(){
-  const guest = S.role==='guest';
-  return `
-  <h2 class="h-display" style="font-size:22px">${guest?'Jo':'Chris'}</h2>
-  <p class="small muted" style="margin:6px 0 0">${guest?'Guest in Saturday Club':'Trusted member since March, 2 clubs'}</p>
-
-  <div class="card mt20" ${guest?'style="border-color:var(--accent)"':''}>
-    <div class="between"><span class="small">${guest?'You joined by link':'Verified account'}</span>
-      <span class="pill ${guest?'':'quiet'}">${guest?'Guest':'Trusted'}</span></div>
-    <p class="tiny dim" style="margin:8px 0 ${guest?'10px':'0'}">${guest
-      ?'You can vote, RSVP and rate. Your ratings stay inside this club and don\'t count toward public scores.'
-      :'Your ratings count toward public film scores. Only verified members can move a public number.'}</p>
-    ${guest?'<button class="btn primary" data-act="verify">Claim this account</button>':''}
-  </div>
-
-  <h2 class="sec mt26">What you'd rather not watch</h2>
-  <div class="card" style="padding:2px 14px">
-    ${S.limits.map((l,i)=>`<div class="toggle"><span class="small">${l.v}</span>
-      <button class="chip ${l.k==='hard'?'on':''}" data-limit="${i}">${l.k==='hard'?'Hard limit':'Prefer not'}</button></div>`).join('')}
-  </div>
-  <p class="tiny dim" style="margin:10px 0 0">Two hard limits each. Hard limits are never voted on. Preferences show as a note and break ties.</p>
-  <div class="toggle mt14" style="border-bottom:0">
-    <span class="small" style="max-width:60%">Apply my limits even on weeks I'm out</span>
-    <button class="sw" data-act="absent" aria-pressed="false" aria-label="Apply limits when absent"></button>
-  </div>
+  <h2 class="sec mt26">Email</h2>
+  <div class="card between" style="align-items:center"><span class="small">${esc(p.email)}</span>${ec?'':'<button class="linkbtn small" data-act="emailchange">Change</button>'}</div>
+  ${ec&&ec.step==='enter'?`<div class="mt8"><label class="lab" for="ne">New email</label><input class="field" id="ne" data-ne type="email" autocomplete="email">
+    <div class="btnrow mt8"><button class="btn primary" data-act="emailsend">Send code</button><button class="btn ghost" data-act="emailcancel">Cancel</button></div></div>`:''}
+  ${ec&&ec.step==='code'?`<div class="mt8"><p class="tiny dim" style="margin:0 0 6px">Enter the code we sent to ${esc(ec.val)}. Until you do, ${esc(p.email)} stays your address.</p>
+    <input class="field" data-ec inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" aria-label="Code">
+    <div class="btnrow mt8"><button class="btn primary" data-act="emailconfirm">Confirm</button><button class="btn ghost" data-act="emailcancel">Cancel</button></div></div>`:''}
 
   <h2 class="sec mt26">How we reach you</h2>
   <div class="row gap6" style="flex-wrap:wrap">
     ${[['push','Push'],['email','Email'],['both','Both'],['none','Nothing']].map(([k,l])=>
       `<button class="chip ${S.notify===k?'on':''}" data-notify="${k}">${l}</button>`).join('')}
   </div>
-  <p class="tiny dim" style="margin:10px 0 0">Two a week at most, plus one more on your picking week. Quiet between 10pm and 8am.</p>`;
+  <p class="tiny dim" style="margin:10px 0 0">Two a week at most across all your clubs, plus one more on your picking week. Quiet between 10pm and 8am.</p>
+  ${myClubs().length?`<div class="card mt14" style="padding:2px 14px">${myClubs().map(c=>`<div class="toggle"><span class="small">Mute ${esc(c.name)}</span>
+    <button class="sw" data-mute="${c.id}" aria-pressed="${!!S.mutes[c.id]}" aria-label="Mute ${esc(c.name)}"></button></div>`).join('')}</div>`:''}
+
+  <h2 class="sec mt26">Signed in</h2>
+  <button class="btn" data-act="signout">Sign out</button>
+  <button class="btn ghost mt8" data-act="signouteverywhere">Sign out everywhere</button>
+  <p class="tiny dim" style="margin:8px 0 0">Signs out every device, including this one.</p>
+  ${footer()}`;
 }
 
-/* ---------------- Rail ---------------- */
-function rail(){
-  const queue = ['sm','pr','mc','ck','dn'];
-  const leaving = CATALOG.filter(f=>S.myList.includes(f.id)&&f.s==='Netflix').slice(0,2);
-  return `
-  <h2 class="sec">Turn order</h2>
-  <div class="stack gap8">
-    ${queue.map((id,i)=>{const m=MEMBERS.find(x=>x.id===id);
-      return `<div class="row"><span class="avatar ${i===0?'now':m.me?'me':''}">${m.i}</span>
-      <span class="small">${m.n}</span><span class="tiny dim" style="margin-left:auto">${i===0?'this week':'week '+(14+i)}</span></div>`}).join('')}
-  </div>
-  <p class="tiny dim" style="margin:10px 0 0">Computed from who picked least recently, so skips sort themselves out.</p>
+function legalSheet(){
+  return `<div class="sheet">
+    <header><h2 class="h-display" style="font-size:20px">Privacy</h2>
+      <button class="iconbtn" data-act="close" aria-label="Close">${svg('x')}</button></header>
+    <div class="scroll small muted">
+      <p style="margin-top:0">Public page, readable before you sign up. Placeholder copy: the real text waits for legal review.</p>
+      <p>Who handles your data for us:</p>
+      <div class="stack gap8">
+        <div class="card"><span style="color:var(--fg)">Brevo</span> (France) sends sign-in emails and receives your email address.</div>
+        <div class="card"><span style="color:var(--fg)">Neon</span> hosts the database.</div>
+        <div class="card"><span style="color:var(--fg)">Cloudflare</span> hosts the app.</div>
+      </div>
+      <p>No passwords are stored. No Google, Apple or other sign-in provider is involved.</p>
+    </div></div>`;
+}
 
-  <h2 class="sec mt26">Leaving Netflix soon</h2>
+/* ================= rail (club pages only — real data, never fabricated) ================= */
+function rail(c){
+  return `<h2 class="sec">Members</h2>
   <div class="stack gap8">
-    ${leaving.map(f=>`<div class="card between"><span class="small">${f.t}</span><span class="tiny dim">${f.r}m</span></div>`).join('')}
+    ${c.members.map(m=>{const p=person(m.p);return `<div class="row"><span class="avatar ${m.p===S.me?'me':''}">${p.i}</span>
+      <span class="small">${esc(p.n)}</span><span class="tiny dim" style="margin-left:auto">${m.role}</span></div>`}).join('')}
   </div>
-
-  ${S.cfg.attendance!=='off'?`<h2 class="sec mt26">${S.cfg.attendance==='streaks'?'Your streak':'Most reliable'}</h2>
-  <div class="stack gap8">${(S.cfg.attendance==='streaks'?MEMBERS.filter(m=>m.me):MEMBERS.slice().sort((a,b)=>b.streak-a.streak).slice(0,3))
-    .map(m=>`<div class="card between"><span class="small">${m.n}</span><span class="tiny" style="color:var(--accent)">${m.streak} in a row</span></div>`).join('')}</div>
+  ${c.invites.length?`<p class="tiny dim" style="margin:10px 0 0">${c.invites.length} invite${c.invites.length===1?'':'s'} pending</p>`:''}
+  ${c.members.length>1?(S.cfg.attendance!=='off'?`<h2 class="sec mt26">${S.cfg.attendance==='streaks'?'Your streak':'Most reliable'}</h2>
+  <div class="stack gap8">${(S.cfg.attendance==='streaks'?[me()]:c.members.map(m=>person(m.p)).sort((a,b)=>b.streak-a.streak).slice(0,3))
+    .map(p=>`<div class="card between"><span class="small">${esc(first(p))}</span><span class="tiny" style="color:var(--accent)">${p.streak} in a row</span></div>`).join('')}</div>
   <p class="tiny dim" style="margin:10px 0 0">Top only. No full ranking, ever.</p>`:
-  `<div class="empty mt26">Attendance display is off for this club. Turn it on in club settings.</div>`}`;
+  `<div class="empty mt26">Attendance display is off for this club.</div>`):''}`;
 }
 
-/* ---------------- render + events ---------------- */
+/* ================= render ================= */
+const TABS = [['clubs','Clubs','club'],['watchlist','Watchlist','list'],['settings','Settings','gear']];
+function signedOutShell(){ return !S.me || S.needsName || (S.via==='invite' && !S.inviteSeen); }
+
+function mainHTML(){
+  if(!S.me){
+    return ({landing, invite:inviteOut, login:loginView, code:codeView, verify:verifyView})[S.pub]();
+  }
+  if(S.needsName) return nameView();
+  if(S.via==='invite' && !S.inviteSeen) return inviteSignedIn();
+  if(S.view==='club') return clubShell();
+  if(S.view==='new') return newClubView();
+  if(S.view==='watchlist') return listView();
+  if(S.view==='settings') return settingsView();
+  return clubsView();
+}
+
 function render(){
-  document.getElementById('app').dataset.theme = S.theme;
+  const app = document.getElementById('app');
+  app.dataset.theme = S.theme;
   document.getElementById('frame').dataset.device = S.device;
-  renderNav();
-  const views = {tonight,list:listView,club:clubView,history:historyView,you:youView};
-  let html = views[S.tab]();
-  if(S.role==='guest' && S.tab==='tonight')
-    html = '<div class="card" style="border-color:var(--accent);margin-bottom:16px"><p class="tiny" style="margin:0">You joined by invite link. Everything works — your ratings just stay in this club.</p></div>' + html;
-  document.getElementById('main').innerHTML = html + (S.sheet==='add'?addSheet():'');
-  document.getElementById('rail').innerHTML = rail();
+  const nav = document.getElementById('nav'), main = document.getElementById('main'), railEl = document.getElementById('rail');
+  const out = signedOutShell();
+  nav.hidden = out;
+  const cur = S.view==='club'||S.view==='new' ? 'clubs' : S.view;
+  nav.innerHTML = out ? '' : TABS.map(([k,l,ic]) =>
+    `<button data-tab="${k}" ${cur===k?'aria-current="page"':''}>${svg(ic)}<span class="navlabel">${l}</span></button>`).join('');
+  const inClub = !out && S.view==='club';
+  railEl.hidden = !inClub;
+  railEl.innerHTML = inClub ? rail(curClub()) : '';
+  main.className = 'main' + (out ? ' pub' : inClub ? '' : ' solo');
+  let html = mainHTML();
+  if(S.sheet==='add') html += addSheet();
+  if(S.sheet==='legal') html += legalSheet();
+  if(S.share) html += shareSheet();
+  main.innerHTML = html;
+  document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${S.toast}</div>` : '';
   const labels = {cover:'Foldable, closed — 344px',phone:'Phone — 390px',fold:'Foldable, open — 720px',tablet:'Tablet — 900px',desktop:'Desktop — 1240px'};
   document.getElementById('devlabel').textContent = labels[S.device];
   const q = document.querySelector('[data-q]'); if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}
+  const ci = document.querySelector('[data-ci]');
+  if(ci){ const firstEmpty = S.code.findIndex(d=>!d); document.querySelector(`[data-ci="${firstEmpty<0?5:firstEmpty}"]`).focus(); }
+  tickResend();
 }
 
+let toastTimer;
+function toast(msg){ S.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ S.toast=null; document.getElementById('toast').innerHTML=''; }, 2200); }
+function tickResend(){
+  const b = document.getElementById('resendbtn'); if(!b) return;
+  const left = Math.ceil((S.resendAt - Date.now())/1000);
+  b.disabled = left > 0; b.textContent = left > 0 ? `Resend in ${left}s` : 'Resend';
+}
+setInterval(tickResend, 1000);
+
+/* ================= flows ================= */
+function sendCode(){
+  const el = document.querySelector('[data-email]');
+  const v = (el ? el.value : S.email).trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ S.email = v; S.loginErr = 'That doesn\'t look like an email address.'; return; }
+  S.email = v; S.loginErr = ''; resetCode(); S.resendAt = Date.now()+30000; S.pub = 'code';
+}
+function verified(){
+  const known = Object.values(S.people).find(p => p.email === S.email.toLowerCase());
+  if(known){ S.me = known.id; S.needsName = false; return afterAuth(); }
+  const id = S.inviteCtx ? 'mc' : 'nw';
+  S.people[id] = {id, n:null, i:'', email:S.email.toLowerCase(), tier:'member', streak:0};
+  S.lists[id] = [];
+  S.me = id; S.needsName = true; S.nameErr = '';
+  S.nameFirst = S.inviteCtx ? 'Marco' : ''; S.nameInit = S.inviteCtx ? 'R' : '';
+}
+function afterAuth(){
+  const sat = S.clubs.sat;
+  if(S.inviteCtx){
+    S.inviteCtx = false;
+    // Already a member: show "already in" and leave Marco's invite unused.
+    if(sat.members.some(m=>m.p===S.me)){ S.inviteSeen = false; return; }
+    S.inviteSeen = true;
+    return redeem();
+  }
+  S.inviteSeen = true;
+  if(S.via==='invite' && S.inv==='used' && sat.members.some(m=>m.p===S.me)){ return openClub('sat'); }
+  S.view = S.pubAfter==='new' ? 'new' : 'clubs';
+}
+function redeem(){
+  const sat = S.clubs.sat;
+  if(!sat.members.some(m=>m.p===S.me)) sat.members.push({p:S.me, role:'member'});
+  sat.invites = sat.invites.filter(v=>v.id!==1);
+  S.rsvp[S.me] = true;
+  S.flash = `You're in, ${esc(first(me()))}. Your turn comes up in the rotation like everyone else's.`;
+  openClub('sat');
+}
+function openClub(id){ S.view='club'; S.clubId=id; S.clubTab='tonight'; S.sheet=null; S.share=null; }
+function readName(fSel, iSel){
+  const f = (document.querySelector(fSel)||{}).value?.trim() || '';
+  const i = ((document.querySelector(iSel)||{}).value || '').trim();
+  if(!f) return {err:'First name is required.'};
+  if(!/^[A-Za-z]$/.test(i)) return {err:'Last initial is one letter.'};
+  return {n:`${f} ${i.toUpperCase()}.`, i:(f[0]+i).toUpperCase(), f, init:i.toUpperCase()};
+}
+
+/* ================= controls ================= */
 function seg(id,key,after){
   document.getElementById(id).addEventListener('click',e=>{
     const b = e.target.closest('button'); if(!b) return;
@@ -680,8 +1100,12 @@ function seg(id,key,after){
     render();
   });
 }
-seg('segDevice','device'); seg('segTheme','theme'); seg('segRole','role');
-seg('segStage','stage',()=>{ S.confirmed=false; S.rated=false; if(S.stage==='nominate') S.picked=[]; S.tab='tonight'; });
+seg('segDevice','device'); seg('segTheme','theme');
+seg('segWho','who',resetWorld); seg('segVia','via',resetWorld); seg('segInv','inv',resetWorld);
+seg('segStage','stage',()=>{
+  S.confirmed=false; S.rated=false; if(S.stage==='nominate') S.picked=[];
+  if(S.me && !signedOutShell() && S.clubs.sat.members.some(m=>m.p===S.me)) openClub('sat');
+});
 
 const PRESETS = {
   chill:{deadline:5,lock:6,picking:'democratic',voteVis:'live',nomCount:3,vetoes:4,attendance:'off',confirmAt:'manual'},
@@ -689,49 +1113,120 @@ const PRESETS = {
   serious:{deadline:1,lock:48,picking:'weighted',voteVis:'hidden',nomCount:2,vetoes:0,attendance:'top',confirmAt:'night'}
 };
 
-document.getElementById('app').addEventListener('click',e=>{
-  const t = e.target.closest('[data-tab],[data-vote],[data-pick],[data-view],[data-act],[data-guess],[data-preset],[data-notify],[data-limit],[data-add]');
-  if(!t) return;
+const app = document.getElementById('app');
+app.addEventListener('click',e=>{
+  const t = e.target.closest('[data-tab],[data-club],[data-ctab],[data-vote],[data-pick],[data-view],[data-act],[data-guess],[data-preset],[data-notify],[data-limit],[data-add],[data-seen],[data-inv],[data-codestate],[data-mute]');
+  if(!t || t.disabled) return;
   const d = t.dataset;
-  if(d.tab){ S.tab=d.tab; S.sheet=null; }
+  if(d.tab){ S.view=d.tab; S.sheet=null; S.share=null; S.flash=null; }
+  else if(d.club){ const c=S.clubs[d.club]; if(c.static){ toast('Only Saturday Club is built out in this prototype.'); return render(); } openClub(d.club); }
+  else if(d.ctab){ S.clubTab=d.ctab; }
   else if(d.vote){ const id=+d.vote;
-    S.nominees.forEach(n=>S.votes[n]=(S.votes[n]||[]).filter(m=>m!=='ck'));
-    S.votes[id].push('ck'); S.myVote=id; }
+    S.nominees.forEach(n=>S.votes[n]=(S.votes[n]||[]).filter(m=>m!==S.me));
+    S.votes[id].push(S.me); S.flash=null; }
   else if(d.pick){ const id=+d.pick;
     S.picked = S.picked.includes(id) ? S.picked.filter(x=>x!==id)
       : S.picked.length < +S.cfg.nomCount ? [...S.picked,id] : S.picked; }
   else if(d.view) S.listView=d.view;
+  else if(d.seen) S.seen=d.seen;
   else if(d.guess) S.guess=d.guess;
   else if(d.preset){ S.cfg={...S.cfg,...PRESETS[d.preset],preset:d.preset}; }
   else if(d.notify) S.notify=d.notify;
+  else if(d.mute){ S.mutes[d.mute]=!S.mutes[d.mute]; }
   else if(d.limit!==undefined){ const l=S.limits[+d.limit]; l.k = l.k==='hard'?'soft':'hard'; }
-  else if(d.add){ S.myList.push(+d.add); S.sheet=null; S.query=''; }
-  else if(d.act==='add'){ S.sheet='add'; S.query=''; }
-  else if(d.act==='close'){ S.sheet=null; S.query=''; }
-  else if(d.act==='rsvp') S.rsvp.ck=!S.rsvp.ck;
-  else if(d.act==='openvote'){ S.nominees=S.picked.slice(); S.votes={}; S.picked.forEach(id=>S.votes[id]=[]); S.myVote=null; S.stage='vote';
-    [...document.getElementById('segStage').children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v==='vote')); }
-  else if(d.act==='confirm') S.confirmed=true;
-  else if(d.act==='skip'){ S.confirmed=true; S.rated=true; }
-  else if(d.act==='rate') S.rated=true;
-  else if(d.act==='absent'){ t.setAttribute('aria-pressed', t.getAttribute('aria-pressed')!=='true'); return; }
-  else if(d.act==='verify'){ S.role='member';
-    [...document.getElementById('segRole').children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v==='member')); }
-  else if(d.act==='copy'){ t.textContent='Link copied'; setTimeout(()=>{t.textContent='Copy link';},1400); return; }
+  else if(d.add){ S.lists[S.me].push(+d.add); S.sheet=null; S.query=''; }
+  else if(d.codestate){ S.codeState=d.codestate; }
+  else if(d.inv){ const c=curClub(); const v=c.invites.find(x=>x.id===+d.inv);
+    if(d.op==='share') S.share=v.id;
+    else if(d.op==='revoke'){ c.invites=c.invites.filter(x=>x!==v); toast(`${esc(v.name)}'s invite is revoked. The seat is free.`); }
+    else if(d.op==='regen'){ v.tok=token(); v.ago='just now'; v.status='new'; S.share=v.id; toast(`${esc(v.name.split(' ')[0])}'s old link no longer works.`); } }
+  else switch(d.act){
+    case 'start': S.pubAfter='new'; S.pub='login'; S.loginErr=''; break;
+    case 'signin': S.pubAfter='home'; S.pub='login'; S.loginErr=''; break;
+    case 'tolanding': S.pub = S.via==='invite' ? 'invite' : 'landing'; S.inviteCtx=false; break;
+    case 'sendcode': if(d.invCtx) S.inviteCtx=true; sendCode(); break;
+    case 'resend': if(d.force){ resetCode(); } S.resendAt=Date.now()+30000; S.code=['','','','','','']; toast('New code sent.'); break;
+    case 'changeemail': S.pub = S.inviteCtx ? 'invite' : 'login'; break;
+    case 'showverify': S.pub='verify'; break;
+    case 'verifypost': verified(); break;
+    case 'savename': { S.nameFirst=document.querySelector('[data-nf]').value; S.nameInit=document.querySelector('[data-ni]').value;
+      const r=readName('[data-nf]','[data-ni]'); if(r.err){ S.nameErr=r.err; break; }
+      Object.assign(me(), {n:r.n, i:r.i}); S.needsName=false; afterAuth(); break; }
+    case 'invdone': S.inviteSeen=true; S.view='clubs'; break;
+    case 'invgo': S.inviteSeen=true; openClub('sat'); break;
+    case 'invswitch': S.me=null; S.pub='invite'; S.email=''; S.inviteCtx=false; break;
+    case 'invasme': redeem(); S.inviteSeen=true; break;
+    case 'newclub': S.view='new'; S.addErr=''; break;
+    case 'createclub': { const name=(document.querySelector('[data-cn]').value||'').trim();
+      if(!name){ S.addErr='Give the club a name.'; break; }
+      S.clubs.mine={id:'mine',name,sched:'Weekly, Fridays at 8. In person.',next:'Fri 8:00pm',members:[{p:S.me,role:'owner'}],invites:[]};
+      S.addErr=''; openClub('mine'); break; }
+    case 'back': S.view='clubs'; S.flash=null; break;
+    case 'gomembers': S.clubTab='club'; break;
+    case 'addperson': { const c=curClub(); const r=readName('[data-af]','[data-ai]'); if(r.err){ S.addErr=r.err; break; }
+      const v={id:Date.now(),name:r.n,ago:'just now',status:'new',tok:token()}; c.invites.push(v); S.addErr=''; S.share=v.id; break; }
+    case 'closeshare': S.share=null; break;
+    case 'nativeshare': toast('Opens the system share sheet with "Hi — join '+esc(curClub().name)+' on Kinomato".'); break;
+    case 'copyinv': toast('Link copied.'); break;
+    case 'leave': toast('Leaving sets left_at. Your watchlist stays yours.'); break;
+    case 'add': S.sheet='add'; S.query=''; break;
+    case 'close': S.sheet=null; S.query=''; break;
+    case 'legal': S.sheet='legal'; break;
+    case 'rsvp': S.rsvp[S.me]=!going(S.me); break;
+    case 'openvote': S.nominees=S.picked.slice(); S.votes={}; S.picked.forEach(id=>S.votes[id]=[]); S.stage='vote';
+      [...document.getElementById('segStage').children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v==='vote')); break;
+    case 'confirm': S.confirmed=true; break;
+    case 'skip': S.confirmed=true; S.rated=true; break;
+    case 'rate': S.rated=true; break;
+    case 'absent': t.setAttribute('aria-pressed', t.getAttribute('aria-pressed')!=='true'); return;
+    case 'savesname': { const r=readName('[data-sf]','[data-si]'); if(r.err){ toast(r.err); break; } Object.assign(me(),{n:r.n,i:r.i}); toast('Saved.'); break; }
+    case 'emailchange': S.emailChange={step:'enter'}; break;
+    case 'emailcancel': S.emailChange=null; break;
+    case 'emailsend': { const v=(document.querySelector('[data-ne]').value||'').trim();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ toast('That doesn\'t look like an email address.'); break; }
+      S.emailChange={step:'code',val:v}; break; }
+    case 'emailconfirm': { const v=(document.querySelector('[data-ec]').value||'').trim();
+      if(!/^\d{6}$/.test(v)){ toast('Enter the 6-digit code.'); break; }
+      me().email=S.emailChange.val; S.emailChange=null; toast('Email changed.'); break; }
+    case 'signout': S.me=null; S.pub='landing'; S.via='home'; S.email='';
+      [...document.getElementById('segVia').children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v==='home'));
+      [...document.getElementById('segWho').children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v==='out')); S.who='out'; break;
+    case 'signouteverywhere': toast('Every session for this account is deleted.'); setTimeout(()=>{ app.querySelector('[data-act="signout"]')?.click(); }, 900); break;
+    default: return;
+  }
   render();
 });
 
-document.getElementById('app').addEventListener('input',e=>{
+app.addEventListener('input',e=>{
   const el = e.target;
   if(el.hasAttribute('data-q')){ S.query=el.value; render(); }
   else if(el.dataset.rate){ S[el.dataset.rate]=+el.value; render(); }
+  else if(el.dataset.ci!==undefined){
+    const i = +el.dataset.ci; const digits = el.value.replace(/\D/g,'');
+    if(digits.length > 1){ digits.slice(0,6-i).split('').forEach((d,k)=>S.code[i+k]=d); }
+    else S.code[i] = digits;
+    if(S.code.every(d=>d)){
+      if(S.code.join('')==='000000'){ S.tries--; S.code=['','','','','','']; S.codeState = S.tries<=0 ? 'locked' : 'wrong'; render(); }
+      else { verified(); render(); }
+      return;
+    }
+    document.querySelectorAll('[data-ci]').forEach((b,k)=>b.value=S.code[k]);
+    const next = document.querySelector(`[data-ci="${S.code.findIndex(d=>!d)}"]`); if(next) next.focus();
+  }
 });
-document.getElementById('app').addEventListener('change',e=>{
+app.addEventListener('keydown',e=>{
+  const el = e.target;
+  if(el.dataset && el.dataset.ci!==undefined && e.key==='Backspace' && !el.value){
+    const prev = document.querySelector(`[data-ci="${+el.dataset.ci-1}"]`); if(prev){ prev.focus(); S.code[+el.dataset.ci-1]=''; prev.value=''; e.preventDefault(); }
+  }
+  if(e.key==='Enter' && el.matches && el.matches('[data-email]')){ e.preventDefault(); if(!S.inviteCtx && S.pub==='invite') S.inviteCtx=true; sendCode(); render(); }
+});
+app.addEventListener('change',e=>{
   const el = e.target;
   if(el.dataset.cfg){ const v=el.value; S.cfg[el.dataset.cfg]= isNaN(v)?v:+v; S.cfg.preset=''; render(); }
-  else if(el.dataset.role){ const m=MEMBERS.find(x=>x.id===el.dataset.role); m.role=el.value; render(); }
 });
 
+resetWorld();
 render();
 </script>
 </body>

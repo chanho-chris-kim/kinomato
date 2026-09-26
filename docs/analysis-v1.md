@@ -253,6 +253,8 @@ Use these numbers carefully. They justify the *category*, not our product — a 
 
 ### 7.1 The one loop that matters
 
+*The no-account consequences below are superseded by `onboarding-spec.md` §0/§2. The loop itself, and the invite-preview point, still stand.*
+
 Every club creation is an invitation to five people. That is the entire growth engine, and its efficiency is set by one number: **what fraction of invited friends actually join.** Everything else is secondary.
 
 Consequences for the product:

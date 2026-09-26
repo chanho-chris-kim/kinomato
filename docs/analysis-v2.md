@@ -184,6 +184,8 @@ The insight: **Rotten Tomatoes and IMDb have an open-signup problem** — anyone
 
 ### 5.1 Three tiers
 
+*Superseded by `onboarding-spec.md`.*
+
 | Tier | How | Can do | Data counts publicly |
 |---|---|---|---|
 | **Guest** | Invite link, pick a name | Vote, RSVP, rate within the club | **No** |
@@ -263,6 +265,8 @@ Two things this segment requires that the private product doesn't:
 ---
 
 ## 9. Age and minors
+
+*The "Family clubs" bullet is superseded by `onboarding-spec.md` §0 — dead, not replaced. The rest of this section stands.*
 
 You're right to flag this, and it interacts badly with the ad model.
 
