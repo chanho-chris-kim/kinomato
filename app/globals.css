@@ -106,7 +106,11 @@ button {
   font-size: 10px;
   text-decoration: none;
 }
-.nav [aria-current="page"] {
+/* :is() takes its most specific argument, so this outranks the
+   `.nav span.navcurrent { color: var(--dim) }` rule above — the bare
+   `.nav [aria-current="page"]` it replaces never did, and the current
+   page was never highlighted. */
+.nav :is(a, span.navcurrent)[aria-current="page"] {
   color: var(--accent);
 }
 .nav svg {
