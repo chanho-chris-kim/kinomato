@@ -146,6 +146,12 @@ test.describe("auth — invite token rotation", () => {
     expect(oldHref).toBeTruthy();
 
     await page.getByRole("button", { name: "Rotate invite link" }).click();
+    // Wait for the rotation to land (the action revalidates the page, so
+    // the rendered link changes) before navigating away. Navigating
+    // straight after the click can abort the in-flight server action —
+    // it slipped through under next dev's slower responses and failed
+    // every time against a production build.
+    await expect(page.locator('a[href*="/join?token="]')).not.toHaveAttribute("href", oldHref!);
 
     await page.goto(oldHref!);
     await expect(page.getByRole("heading", { name: "Invalid invite link" })).toBeVisible();
