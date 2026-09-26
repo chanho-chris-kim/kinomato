@@ -212,11 +212,13 @@ plaintext.
 ## 5. Screens and states
 
 Breakpoints are the existing `.app` container queries (CLAUDE.md theming
-ruling): **< 620px** bottom tab bar, **620px** icon sidebar, **900px**
-labeled sidebar with a capped content column, **1120px** optional context
-rail. Signed-out screens have **no nav shell** at any width. They're a
-single themed card, centered, the way `/new` and `/join` render today. The
-marketing page is the one exception, with a wider two-column layout from 900px.
+ruling), and **navigation is specified in §5.11**, which replaces today's
+sidebar model: **< 620px** bottom tab bar, **620px** top bar, **900px**
+capped content column, **1120px** context rail on club pages. Every screen
+has the wordmark, top left (§5.11.1). Signed-out screens have **no global
+nav** at any width. They're the wordmark bar over a single themed card,
+centered, the way `/new` and `/join` render today. The marketing page is
+the one exception, with a wider two-column layout from 900px.
 
 **Empty states are most of what a new user sees**, so every screen below
 lists its empty state first. An empty state always says what to do next,
@@ -415,11 +417,11 @@ Phone: single column. ≥ 900px: the capped content column. No rail.
 
 ### 5.10 Inside a club — `/clubs/[id]`
 
-Three sections, reached by a segmented control at the top of the club
-screen: **Tonight · History · Club**. The global **Clubs** tab stays
-highlighted inside a club, and the club header has a back affordance to the
-list on phones. At ≥ 1120px the rail shows the club's real member list,
-as today.
+Three sections, reached by a tab row under the club header: **Tonight ·
+History · Club** (renamed **Members** under Proposal D, §5.11.2, which also
+places the tabs and the rail and drops the back chevron). The global
+**Clubs** entry stays current inside a club. At ≥ 1120px the rail shows
+the club's real member list, as today.
 
 - **Tonight** — the existing night stages (nominate, vote, locked, confirm,
   rate), unchanged by this spec apart from identity. **First-run state**
@@ -445,6 +447,160 @@ as today.
 Empty states: **Invited** hides when there are no pending invites. **Your
 limits** with none set shows "No limits set for this club" and an add
 button.
+
+### 5.11 Navigation
+
+#### 5.11.1 The wordmark (ruled)
+
+**Every screen carries the Kinomato wordmark, top left, linking to `/`.**
+Signed out, that's the marketing page. Signed in, it's the club list. That
+includes the invite landing, the sign-in flow, the name step, and the legal
+pages. The signed-out "single themed card" screens (§5) get a slim bar with
+the wordmark above the card; nothing else changes about them.
+
+In the running app the wordmark is missing everywhere, and it's the only
+way back out of a club. The rebuild makes it one of two ways out (the other
+is the global **Clubs** entry, §5.11.2), but it's the one that works on
+every screen, signed in or out, including ones with no nav at all.
+
+The wordmark is text in the club's display face, not an image, so it follows
+the theme like everything else (CLAUDE.md theming ruling).
+
+#### 5.11.2 Proposal D — two levels of navigation
+
+> **PROPOSAL — not yet ruled.**
+
+**The problem.** There are two levels of place in this product, and the
+current shell flattens them into one bar:
+
+- **Global**: where you are across the whole app. **Clubs, Watchlist,
+  Settings.** Always the same three, whatever you're looking at.
+- **Within a club**: where you are inside one club. **Tonight, History,
+  Club.** Only exists once you've picked a club, and its contents
+  change with which club.
+
+Today's `AppShell` puts **Club** and **Watchlist** side by side in one
+sidebar, scoped to a club (`/clubs/[id]/list`). That made sense when a
+watchlist belonged to a membership. Now watchlists are global (§6), and the
+bar mixes a global destination with a club-scoped one. It also runs a
+permanent 186px column at desktop for two links.
+
+**The proposal: global navigation lives at the edge of the screen; club
+navigation lives with the club.**
+
+1. **Global level: bottom tab bar on phones, top bar from 620px.**
+   - **< 620px:** a slim top bar holds only the wordmark. **Clubs ·
+     Watchlist · Settings** sit in a fixed bottom tab bar, where thumbs
+     reach and where installed-PWA users expect it.
+   - **≥ 620px:** one top bar: wordmark left, then **Clubs** and
+     **Watchlist**, then **Settings** at the far right, where web users
+     look for account things. Labels always, never icon-only. At 620px,
+     a wordmark and three labels fit with room to spare.
+   - **No left sidebar at any width.** Three destinations don't earn a
+     permanent column. The 620px icon-only state disappears entirely.
+     Unlabeled icons are guesswork, and it's the state most tablets
+     would have sat in.
+2. **Club level: tabs under the club's own header, at every width.**
+   Inside a club, the page starts with the club header (name, schedule),
+   and directly under it a tab row: **Tonight · History · Members**. It
+   looks the same on a phone and on a desktop; only the spacing changes.
+   It **sticks to the top of the viewport** (below the top bar at
+   ≥ 620px) when scrolling a long Tonight or History page.
+   Because it sits under the club's name rather than at the screen edge,
+   it reads as *this club's* sections, never as app-wide places. It's the
+   same pattern GitHub uses: site header at the top, a repo's own tabs
+   under the repo name.
+3. **Context rail at ≥ 1120px, club pages only**, as today: real data,
+   never fabricated (CLAUDE.md). It shows the member list on **Tonight** and
+   **History**, and is **absent on Members**, where it would repeat the
+   main column. Clubs, Watchlist and Settings have no rail.
+
+```
+Phone (< 620)              Tablet (620–1119)                          Desktop (≥ 1120)
+┌──────────────────────┐   ┌──────────────────────────────────────┐   ┌────────────────────────────────────────────────────────┐
+│ Kinomato             │   │ Kinomato  Clubs  Watchlist  Settings │   │ Kinomato  Clubs  Watchlist                  Settings   │
+├──────────────────────┤   ├──────────────────────────────────────┤   ├────────────────────────────────────┬───────────────────┤
+│ Saturday Club        │   │ Saturday Club                        │   │ Saturday Club                      │ Members           │
+│ Weekly, Sat at 8     │   │ Weekly, Saturdays at 8               │   │ Weekly, Saturdays at 8             │ CK Chris K.       │
+│ [Tonight|Hist.|Memb.]│   │ [Tonight | History | Members]        │   │ [Tonight | History | Members]      │ PS Priya S.       │
+│                      │   │                                      │   │                                    │ ...               │
+│ (Tonight content)    │   │ (content, capped column)             │   │ (content)                          │                   │
+│                      │   │                                      │   │                                    │                   │
+├──────────────────────┤   │                                      │   │                                    │                   │
+│ Clubs Watchlist Sett.│   │                                      │   │                                    │                   │
+└──────────────────────┘   └──────────────────────────────────────┘   └────────────────────────────────────┴───────────────────┘
+Phone: top bar scrolls away; club tabs stick to the top; bottom bar is fixed.
+Tablet and desktop: top bar and club tabs both stick.
+```
+
+**What goes where, and why:**
+
+| Thing | Where | Why |
+|---|---|---|
+| Wordmark | Top left, every screen | The universal way home (§5.11.1). |
+| Clubs · Watchlist | Global bar | Both are about *you*, across clubs. The watchlist is global now (§6). |
+| Settings | Global bar, far right at ≥ 620 | Personal (name, email, notifications), not per club. |
+| Tonight · History · Members | Under the club header | They only mean anything inside one club. |
+| "How this club runs" (club settings) | Club → **Members** | It's the club's configuration, not yours. Keeping it out of global Settings avoids two things both called "settings." |
+| Your hard limits and preferences | Club → **Members** | Ruled per membership (§1.8), a fact about this room. |
+| A tag page (`/clubs/[id]/tags/[tag]`) | Club level, **History** tab active | Tags come from ratings, which live in History. It's a view within History, not a fourth tab. |
+| Member list at ≥ 1120 | Rail, on Tonight and History | Real secondary content, and the one thing worth glancing at mid-vote. |
+
+**Details the proposal settles:**
+
+- **Active states.** Inside a club, global **Clubs** shows as current.
+  You're inside Clubs, one level down. Tapping it returns to the list
+  from anywhere, as re-tapping a tab bar does on iOS and Android.
+- **No back chevron in the club header.** The wordmark and **Clubs** both
+  already go to the list; a third control for the same thing is clutter.
+  (This replaces §5.10's "back affordance to the list on phones.")
+- **Crossing levels.** A link from inside a club to the watchlist (the
+  empty-list state on nominate, §5.10) goes to `/watchlist?seen={clubId}`.
+  **Watchlist** shows as current, the club tabs disappear because you've
+  left the club level, and **Seen from** is preset to the club you came
+  from (§6.4). The watchlist is global, but it remembers why you opened it.
+- **No club switcher inside a club.** The **Clubs** list is the switcher.
+  Most people are in one or two clubs; a dropdown on the club name would
+  be a second way to do what the list already does.
+- **Phone chrome budget.** Top bar ~44px (scrolls away), club header
+  (scrolls away), club tabs ~40px (sticky), bottom bar ~56px (fixed).
+  While scrolling a club page, the fixed chrome is ~96px, about the same as
+  the current bottom bar plus the old segmented control. The top bar is
+  sticky only from 620px, where vertical space is less scarce.
+- **Signed out.** The top bar shows the wordmark and, on the marketing page
+  only, **Sign in** at the right. There's no global nav: every destination
+  in it needs a session.
+
+**One rename inside this proposal: the club-level "Club" tab becomes
+"Members".** With a global **Clubs** in the bottom bar and a club-level
+**Club** in the tab row, a phone would show both words on one screen,
+meaning different things. "Members" names what most people open it for:
+who's in, pending invites, add a person. The owner-facing parts
+(how this club runs, leave) sit below that on the same tab. If "Members"
+undersells the settings, the fallback is "People". Either is better than a
+near-duplicate of a global label.
+
+**Why not the obvious alternatives:**
+
+- *Keep the sidebar, move Watchlist out of it.* That leaves a 186px column
+  for three global links at desktop, and still needs somewhere else for
+  the club tabs. It's two navigation systems competing for the left edge.
+- *Swap the phone bottom bar to club tabs when inside a club.* A tab bar
+  that changes its own contents is disorienting, and it's the pattern
+  platform guidelines warn against. The bottom bar should be the one thing
+  that never changes.
+- *Put the club tabs in the sidebar and the global links in the top bar at
+  desktop.* It works at 1120px, but then the club level moves between
+  phone (under the header) and desktop (side column). Keeping club tabs in
+  one place at every width is easier to learn and to build.
+
+**What this changes elsewhere, if ruled:** CLAUDE.md's theming ruling
+describes `AppShell` as "bottom tab bar on phones → icon sidebar at 620px →
+labeled sidebar at 900px → optional context rail at 1120px". That becomes
+"bottom tab bar on phones → top bar at 620px → capped content column at
+900px → rail at 1120px on club pages". It gets rewritten with the rebuild,
+alongside the §8.4 list. `docs/prototype.html` would need the same
+change; it currently shows the sidebar model this proposal replaces.
 
 ---
 
@@ -731,6 +887,8 @@ Leave these as written until then. They describe the running code:
   prompt that blocks anything" (reversed).
 - Open Questions: "Multi-club membership has no UI" (resolved by §5.7) and
   "Claim-race edge case" (moot).
+- "Theming is one attribute, not a rewrite": its `AppShell` breakpoint
+  description, if Proposal D (§5.11.2) is ruled.
 
 ### 8.5 Build order
 
@@ -739,8 +897,8 @@ Leave these as written until then. They describe the running code:
    hashed code, attempt limits. Tests first.
 3. Schema + seed rewrite (§8.2), then the E2E fixture (§8.3).
 4. Invites (§7) and the invite landing page (§5.3).
-5. Routing and shell: contextual `/`, three tabs, auth gating, 404 for
-   non-members (§5.1).
+5. Routing and shell: contextual `/`, the wordmark and the navigation
+   model (§5.11), auth gating, 404 for non-members (§5.1).
 6. Global watchlist and the overlap fix (§6).
 7. Settings (§5.9).
 
