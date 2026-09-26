@@ -121,6 +121,16 @@ test.describe("auth — claim and session recovery", () => {
       // generic home rather than a specific club.
       await expect(newPage).toHaveURL("/");
 
+      // Signed in, / lists exactly the session user's own clubs — Uma's
+      // one club, never anyone else's (it used to list every club in the
+      // database, to anyone).
+      await expect(newPage.locator('a[href^="/clubs/"]')).toHaveCount(1);
+      await expect(newPage.getByRole("link", { name: "Seventh Club" })).toHaveAttribute(
+        "href",
+        CLUB_7_URL,
+      );
+      await expect(newPage.getByText("Movie Night Crew")).toHaveCount(0);
+
       await newPage.goto(CLUB_7_URL);
       await expect(newPage.getByText(`You are: ${DISPLAY_NAME_7.uma}`)).toBeVisible();
     } finally {
