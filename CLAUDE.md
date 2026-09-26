@@ -561,7 +561,14 @@ Kinoma (former Marvell division) are the nearest existing marks.
     displayed picker is checked against `lib/rotation.ts`'s own
     `getNextPicker()` output for the same seeded data — not a hardcoded
     expectation, so it can't drift out of sync with the rotation logic.
-  - Runs against a **local** `next dev`, never `dev.kinomato.com` — a
+  - Runs against a **local** server, never `dev.kinomato.com`: `next dev`
+    on a developer's machine, `next build && next start` in CI
+    (`playwright.config.ts` switches on `CI`). CI tests a production
+    build because some bugs only show there — the invite-rotation test
+    raced its own server action, hidden by `next dev`'s slower responses
+    and exposed every time by a production build. Still not the Workers
+    runtime itself; the Workers Builds check covers the bundle building,
+    not its runtime behaviour. Either way, a
     dedicated `E2E_DATABASE_URL` Neon branch, wiped and reseeded fresh
     (`e2e/global-setup.ts`, reusing `db/seed.ts`) at the start of every
     run. Tests run serially (`workers: 1`) on purpose — they share and

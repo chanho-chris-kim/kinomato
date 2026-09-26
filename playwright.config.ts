@@ -32,13 +32,21 @@ export default defineConfig({
   ],
 
   webServer: {
-    // Calling next directly (not the "dev" npm script) so --port is
+    // CI tests a production build — what actually ships — because some
+    // bugs only surface there: the invite-rotation test navigated before
+    // its server action settled, which next dev's slower responses hid
+    // and a production build exposed every time. Local runs stay on
+    // next dev for fast iteration and React's dev-only warnings.
+    // Calling next directly (not the npm scripts) so --port is
     // unambiguous — next dev's handling of the PORT env var has been
     // inconsistent across versions.
-    command: `npx next dev --port ${PORT}`,
+    command: process.env.CI
+      ? `npx next build && npx next start --port ${PORT}`
+      : `npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    // The CI command includes a full build before the server listens.
+    timeout: process.env.CI ? 300_000 : 60_000,
     env: {
       // The app's own DATABASE_URL, deliberately overridden to the E2E
       // branch for the lifetime of this dev server — never

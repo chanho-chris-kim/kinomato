@@ -69,6 +69,17 @@ jobs:
       - name: Install Playwright (chromium)
         run: npx playwright install --with-deps chromium
 
+      # E2E runs against `next build && next start` in CI
+      # (playwright.config.ts). Reusing the build cache keeps the build
+      # step incremental between runs.
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'lib/**', 'db/**', 'next.config.ts') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
       - name: Run E2E tests
         run: npm run test:e2e
         env:
