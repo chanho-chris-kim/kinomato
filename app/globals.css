@@ -71,9 +71,15 @@ button {
 }
 
 /* ---------- app shell: nav / main / rail ---------- */
+/* .app is the size container; .shell is what actually lays out. A
+   container query can't restyle its own container, so the phone→sidebar
+   row switch below targets .shell — putting it on .app never applied at
+   any width, and the nav stacked above the content everywhere. */
 .app {
   container-type: inline-size;
   position: relative;
+}
+.shell {
   display: flex;
   flex-direction: column;
 }
@@ -132,7 +138,7 @@ button {
 }
 
 @container (min-width: 620px) {
-  .app {
+  .shell {
     flex-direction: row;
   }
   .nav {

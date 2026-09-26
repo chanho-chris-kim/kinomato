@@ -28,42 +28,44 @@ export function AppShell({
 }) {
   return (
     <div className="app">
-      <nav className="nav" aria-label="Main">
-        {current === "club" ? (
-          <span className="navcurrent" aria-current="page">
-            <NavIcon name="club" />
-            Club
-          </span>
-        ) : (
-          <Link href={`/clubs/${clubId}`}>
-            <NavIcon name="club" />
-            Club
-          </Link>
-        )}
-        {current === "watchlist" ? (
-          <span className="navcurrent" aria-current="page">
-            <NavIcon name="list" />
-            Watchlist
-          </span>
-        ) : (
-          <Link href={`/clubs/${clubId}/list`}>
-            <NavIcon name="list" />
-            Watchlist
-          </Link>
-        )}
-      </nav>
-      <div className="body">
-        <main className="main">
-          <h1 className="h-display" style={{ fontSize: 18 }}>
-            <Link href={`/clubs/${clubId}`}>{clubName}</Link>
-          </h1>
-          {children}
-        </main>
-        {rail && (
-          <aside className="rail" aria-label="Club context">
-            {rail}
-          </aside>
-        )}
+      <div className="shell">
+        <nav className="nav" aria-label="Main">
+          {current === "club" ? (
+            <span className="navcurrent" aria-current="page">
+              <NavIcon name="club" />
+              Club
+            </span>
+          ) : (
+            <Link href={`/clubs/${clubId}`}>
+              <NavIcon name="club" />
+              Club
+            </Link>
+          )}
+          {current === "watchlist" ? (
+            <span className="navcurrent" aria-current="page">
+              <NavIcon name="list" />
+              Watchlist
+            </span>
+          ) : (
+            <Link href={`/clubs/${clubId}/list`}>
+              <NavIcon name="list" />
+              Watchlist
+            </Link>
+          )}
+        </nav>
+        <div className="body">
+          <main className="main">
+            <h1 className="h-display" style={{ fontSize: 18 }}>
+              <Link href={`/clubs/${clubId}`}>{clubName}</Link>
+            </h1>
+            {children}
+          </main>
+          {rail && (
+            <aside className="rail" aria-label="Club context">
+              {rail}
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );
