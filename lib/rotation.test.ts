@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getNextPicker,
   getRotationOrder,
+  getWhoseTurn,
   type RotationMembership,
   type RotationNight,
 } from "./rotation";
@@ -295,5 +296,73 @@ describe("getNextPicker", () => {
     });
     expect(beforeConfirm?.id).toBe("b");
     expect(afterConfirm?.id).toBe("a");
+  });
+});
+
+// "Whose turn" answers "who is the club waiting on?" (CLAUDE.md ruling).
+// While a night is in flight that's whoever holds it; getNextPicker
+// answers a different question, "who picks next", and counts the in-
+// flight night as already picked.
+describe("getWhoseTurn", () => {
+  const a = membership("a", { joinedAt: new Date("2026-01-01") });
+  const b = membership("b", { joinedAt: new Date("2026-01-02") });
+  const c = membership("c", { joinedAt: new Date("2026-01-03") });
+
+  it.each(["draft", "open", "locked"] as const)(
+    "names the %s night's picker, not who picks after them",
+    (state) => {
+      const input = {
+        memberships: [a, b, c],
+        nights: [night("a", "2026-01-10"), night("b", "2026-01-17", state)],
+        clubPausedAt: null,
+      };
+      expect(getNextPicker(input)?.id).toBe("c");
+      expect(getWhoseTurn(input)?.id).toBe("b");
+    },
+  );
+
+  it.each(["watched", "cancelled", "unconfirmed"] as const)(
+    "a %s night isn't in flight, so it falls back to getNextPicker",
+    (state) => {
+      const input = {
+        memberships: [a, b, c],
+        nights: [night("a", "2026-01-10"), night("b", "2026-01-17", state)],
+        clubPausedAt: null,
+      };
+      expect(getWhoseTurn(input)?.id).toBe(getNextPicker(input)?.id);
+    },
+  );
+
+  it("with no nights at all, it's getNextPicker", () => {
+    const input = { memberships: [a, b, c], nights: [], clubPausedAt: null };
+    expect(getWhoseTurn(input)?.id).toBe("a");
+  });
+
+  it("with no night in flight, a paused club is waiting on nobody", () => {
+    const input = {
+      memberships: [a, b, c],
+      nights: [night("a", "2026-01-10")],
+      clubPausedAt: new Date("2026-01-12"),
+    };
+    expect(getWhoseTurn(input)).toBeNull();
+  });
+
+  it("an in-flight night's picker is still named in a paused club — the night is still waiting on them", () => {
+    const input = {
+      memberships: [a, b, c],
+      nights: [night("b", "2026-01-17", "open")],
+      clubPausedAt: new Date("2026-01-12"),
+    };
+    expect(getWhoseTurn(input)?.id).toBe("b");
+  });
+
+  it("names the in-flight picker even if they've since left the club", () => {
+    const gone = membership("b", { leftAt: new Date("2026-01-15") });
+    const input = {
+      memberships: [a, gone, c],
+      nights: [night("b", "2026-01-17", "open")],
+      clubPausedAt: null,
+    };
+    expect(getWhoseTurn(input)?.id).toBe("b");
   });
 });

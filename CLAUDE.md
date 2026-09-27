@@ -186,17 +186,27 @@ Do not quietly change these — they encode decisions that took a while to reach
   page load** — not a cron, not a button. If the club has no
   non-terminal night and `getNextPicker` resolves someone, that request
   inserts a `draft` night for them with `scheduledAt` from
-  `lib/schedule.ts`'s `getNextOccurrence`, computed once and never
-  recomputed for "Whose turn" on that same render (recomputing after the
-  insert would flip it to a different, more confusing answer than the
-  nomination section right below it — see the comment in
-  `app/clubs/[clubId]/page.tsx`). The "one night in flight" index turns
+  `lib/schedule.ts`'s `getNextOccurrence`. The "one night in flight" index turns
   a race between two simultaneous page loads into a rejected insert on
   the loser, caught and re-read rather than thrown — same shape as
   confirmNight and lockNight losing a race to each other. `ad_hoc`
   clubs can't lazy-create (no standing day/time to compute from) and get
   their own explicit "no night scheduled" state, not a broken-looking
   blank one — and there's no UI yet to schedule one for them manually.
+- **"Whose turn" names who the club is waiting on: the in-flight night's
+  picker.** When a club has a `draft`, `open` or `locked` night, the
+  heading shows that night's picker. Only with no night in flight does
+  it fall back to `getNextPicker`, which stays as it is, because "who
+  picks next" is a different and correct question: it counts the
+  in-flight night as already picked and names the member after its
+  picker. `lib/rotation.ts`'s `getWhoseTurn` implements this. The club
+  page computes it *after* any lazy draft insert, so the load that
+  creates a draft and every later load give the same answer. That
+  keeps the heading agreeing with "Waiting on Mika to nominate" one
+  line below, instead of contradicting it, which is what it used to do
+  on every load after the first. The in-flight picker is still named
+  if the club is paused or they've since left: the night is still
+  waiting on them until it resolves.
 - **`lib/schedule.ts`'s "monthly" means the Nth occurrence of a weekday,
   not a calendar day.** `clubs` only stores `default_day` (a weekday),
   not a day-of-month, so "the 2nd Saturday of the month" is the only
@@ -564,8 +574,8 @@ Kinoma (former Marvell division) are the nearest existing marks.
     since neon-http silently having no `db.transaction()` is exactly the
     kind of thing that fails quietly), two members in separate browser
     contexts both voting correctly, RSVP persists across reload, and the
-    displayed picker is checked against `lib/rotation.ts`'s own
-    `getNextPicker()` output for the same seeded data — not a hardcoded
+    displayed "Whose turn" is checked against `lib/rotation.ts`'s own
+    `getWhoseTurn()` output for the same seeded data — not a hardcoded
     expectation, so it can't drift out of sync with the rotation logic.
   - Runs against a **local** server, never `dev.kinomato.com`: `next dev`
     on a developer's machine, `next build && next start` in CI
@@ -649,19 +659,6 @@ and move on.
   display. Verified manually against a temporarily-nudged night during
   this session, not by an automated test — a club seeded specifically
   into the locked-but-not-yet-confirmable gap would close this.
-- **What "Whose turn" means while a night is in flight — and the same
-  state renders two ways today.** `getNextPicker` counts any non-cancelled
-  night (draft included) as already picked, so with a night in flight
-  "Whose turn" names the member *after* its picker. `e2e/confirm.spec.ts`
-  asserts exactly that for a locked night (club 4: Vik's night, "Whose
-  turn: Ana"). But `/clubs/[clubId]`'s lazy draft creation deliberately
-  shows the *draft's own picker* on the load that creates it (the comment
-  above `whoseTurnResult`), and every later load then flips to the next
-  member: club 3 shows "Whose turn: Theo" directly above "Waiting on Mika
-  to nominate." Needs a ruling: is "Whose turn" the in-flight night's
-  picker, or who picks next? Either way, one state should render one
-  answer. Found in step 1 of the rebuild, when the E2E suite stopped
-  racing the name picker.
 - **"We watched something else" confirmation.** What film gets recorded? Does
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through

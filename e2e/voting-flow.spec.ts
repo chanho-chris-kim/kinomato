@@ -8,7 +8,7 @@ import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 import {
-  getNextPicker,
+  getWhoseTurn,
   type RotationMembership,
   type RotationNight,
 } from "../lib/rotation";
@@ -142,7 +142,7 @@ test.describe("voting flow", () => {
     await expect(page.getByText("Current answer: no")).toBeVisible();
   });
 
-  test("the displayed picker matches lib/rotation.ts for the seeded data", async ({
+  test("the displayed 'Whose turn' matches lib/rotation.ts's getWhoseTurn for the seeded data", async ({
     page,
   }) => {
     const databaseUrl = process.env.E2E_DATABASE_URL!;
@@ -172,7 +172,10 @@ test.describe("voting flow", () => {
       state: n.state,
       scheduledAt: n.scheduledAt,
     }));
-    const expected = getNextPicker({
+    // getWhoseTurn, not getNextPicker: club 1 has an open night, and
+    // "Whose turn" names that night's picker (CLAUDE.md ruling) rather
+    // than whoever picks after them.
+    const expected = getWhoseTurn({
       memberships: rotationMemberships,
       nights: rotationNights,
       clubPausedAt: null,

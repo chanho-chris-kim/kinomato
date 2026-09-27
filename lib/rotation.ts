@@ -136,3 +136,21 @@ export function getNextPicker(
   if (input.clubPausedAt !== null) return null;
   return getRotationOrder(input)[0] ?? null;
 }
+
+const IN_FLIGHT_STATES: readonly NightState[] = ["draft", "open", "locked"];
+
+// "Whose turn" on the club page answers "who is the club waiting on?"
+// (CLAUDE.md ruling). While a draft, open or locked night exists, that's
+// its picker — even though getNextPicker, which answers "who picks next",
+// already counts that night as picked and names the member after them.
+// Only with no night in flight does it fall back to getNextPicker.
+//
+// The in-flight picker is named even in a paused club, or if they've
+// since left: the night is still waiting on them until it resolves.
+export function getWhoseTurn(input: GetNextPickerInput): RotationMembership | null {
+  const inFlight = input.nights.find((n) => IN_FLIGHT_STATES.includes(n.state));
+  if (inFlight) {
+    return input.memberships.find((m) => m.id === inFlight.pickerMembershipId) ?? null;
+  }
+  return getNextPicker(input);
+}

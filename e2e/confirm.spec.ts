@@ -59,17 +59,17 @@ test.describe("confirmation — watched path (club 3)", () => {
     ).not.toBeVisible();
   });
 
-  test("a watched night's picker has already handed off — the next member's draft night is waiting on them", async ({
+  test("a watched night's picker has already handed off — 'Whose turn' names the next member, whose draft is waiting on them", async ({
     page,
   }) => {
+    // A later load than the one that created Mika's draft (an earlier
+    // test's page load did that). "Whose turn" names the in-flight
+    // night's picker (CLAUDE.md ruling), so it agrees with the line
+    // under it instead of naming whoever picks after Mika.
     await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
-    // The handoff is the draft night now belonging to Mika. Deliberately
-    // not the "Whose turn" line: once that draft exists, "Whose turn"
-    // names the member after its picker on later loads, and whether it
-    // should is an open question (CLAUDE.md). This used to be a bare
-    // getByText("Mika"), which also matches the member list and the rail;
-    // it most likely passed only by running against the name picker
-    // before the page settled.
+    await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
+      DISPLAY_NAME_3.mika,
+    );
     await expect(page.getByText(`Waiting on ${DISPLAY_NAME_3.mika} to nominate.`)).toBeVisible();
   });
 
@@ -123,15 +123,15 @@ test.describe("confirmation — watched path (club 3)", () => {
 });
 
 test.describe("confirmation — cancellation path (club 4)", () => {
-  test("before confirmation, the picker's night already counts — whose turn shows Ana", async ({
+  test("before confirmation, the club is still waiting on the locked night's picker — whose turn shows Vik", async ({
     page,
   }) => {
     await signInTo(page, CLUB_4_URL, MEMBERSHIP_4.vik);
-    // Scoped to the "Whose turn" line: a bare getByText("Ana") also
-    // matches the member list and the rail, and most likely passed only
-    // by running against the name picker before the page settled.
+    // Vik's night is locked, not yet confirmed: still in flight, so
+    // "Whose turn" names Vik, not Ana who picks after him (CLAUDE.md
+    // ruling).
     await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
-      DISPLAY_NAME_4.ana,
+      DISPLAY_NAME_4.vik,
     );
   });
 

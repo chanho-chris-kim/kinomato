@@ -17,7 +17,12 @@ import {
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import { isConfirmable } from "@/lib/confirmTiming";
 import { areTakesRevealed } from "@/lib/ratingReveal";
-import { getNextPicker, type RotationMembership, type RotationNight } from "@/lib/rotation";
+import {
+  getNextPicker,
+  getWhoseTurn,
+  type RotationMembership,
+  type RotationNight,
+} from "@/lib/rotation";
 import { getNextOccurrence } from "@/lib/schedule";
 import {
   addRatingTag,
@@ -104,14 +109,9 @@ export default async function ClubPage({
 
   let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
 
-  // Computed once, from the state as of this request, and never
-  // recomputed after a lazy-create below — getNextPicker already treats
-  // any non-cancelled night (draft included) as "picked" (CLAUDE.md's
-  // lock ruling covers the same mechanic), so re-deriving this against
-  // clubNights *after* inserting today's draft night would flip "Whose
-  // turn" to a different, more-confusing answer than the "Your turn to
-  // nominate" section below it on the very same page load. Both read
-  // this one result.
+  // Who picks next — used only to decide whose draft night to create
+  // lazily below. Not what "Whose turn" displays: that's getWhoseTurn,
+  // computed after the insert (CLAUDE.md ruling).
   const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
     id: m.id,
     identityKey: m.identityKey,
@@ -130,9 +130,6 @@ export default async function ClubPage({
     nights: rotationNights,
     clubPausedAt: club.pausedAt,
   });
-  const whoseTurn = whoseTurnResult
-    ? clubMemberships.find((m) => m.id === whoseTurnResult.id)
-    : null;
 
   // A night's first draft row is created lazily, right here (CLAUDE.md's
   // load-bearing rulings) — whichever page load first finds the club
@@ -181,6 +178,24 @@ export default async function ClubPage({
       clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
     }
   }
+
+  // "Whose turn" is who the club is waiting on: the in-flight night's
+  // picker if there is one, else who picks next (CLAUDE.md ruling). Read
+  // from clubNights *after* any lazy-create above, so the load that
+  // creates a draft and every later load give the same answer, and it
+  // always agrees with "Waiting on X to nominate" below.
+  const whoseTurnMember = getWhoseTurn({
+    memberships: rotationMemberships,
+    nights: clubNights.map((n) => ({
+      pickerMembershipId: n.pickerMembershipId,
+      state: n.state,
+      scheduledAt: n.scheduledAt,
+    })),
+    clubPausedAt: club.pausedAt,
+  });
+  const whoseTurn = whoseTurnMember
+    ? clubMemberships.find((m) => m.id === whoseTurnMember.id)
+    : null;
 
   const openNight = clubNights.find((n) => n.state === "open") ?? null;
   // RSVP stays live through lock — "the RSVP-flip problem" (analysis-
