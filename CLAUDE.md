@@ -215,9 +215,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   creates a draft and every later load give the same answer. That
   keeps the heading agreeing with "Waiting on Mika to nominate" one
   line below, instead of contradicting it, which is what it used to do
-  on every load after the first. The in-flight picker is still named
-  if the club is paused or they've since left: the night is still
-  waiting on them until it resolves.
+  on every load after the first. Two edge cases, both ruled: **a paused
+  club still names the in-flight picker** — pausing stops the rotation
+  from moving on, it doesn't end the night someone is holding, so the
+  club is still waiting on them; and **a picker who has left mid-turn is
+  still named** — leaving isn't handing the turn off, and nothing else
+  resolves their night, so naming anyone else would claim a handoff that
+  never happened. In both cases the heading only moves once the night
+  itself resolves (watched, cancelled, or unconfirmed).
 - **`lib/schedule.ts`'s "monthly" means the Nth occurrence of a weekday,
   not a calendar day.** `clubs` only stores `default_day` (a weekday),
   not a day-of-month, so "the 2nd Saturday of the month" is the only
