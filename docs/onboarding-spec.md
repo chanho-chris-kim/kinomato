@@ -476,7 +476,7 @@ current shell flattens them into one bar:
 - **Global**: where you are across the whole app. **Clubs, Watchlist,
   Settings.** Always the same three, whatever you're looking at.
 - **Within a club**: where you are inside one club. **Tonight, History,
-  Club.** Only exists once you've picked a club, and its contents
+  Members.** Only exists once you've picked a club, and its contents
   change with which club.
 
 Today's `AppShell` puts **Club** and **Watchlist** side by side in one
@@ -485,7 +485,7 @@ watchlist belonged to a membership. Now watchlists are global (§6), and the
 bar mixes a global destination with a club-scoped one. It also runs a
 permanent 186px column at desktop for two links.
 
-**The proposal: global navigation lives at the edge of the screen; club
+**The ruling: global navigation lives at the edge of the screen; club
 navigation lives with the club.**
 
 1. **Global level: bottom tab bar on phones, top bar from 620px.**
@@ -547,7 +547,7 @@ Tablet and desktop: top bar and club tabs both stick.
 | A tag page (`/clubs/[id]/tags/[tag]`) | Club level, **History** tab active | Tags come from ratings, which live in History. It's a view within History, not a fourth tab. |
 | Member list at ≥ 1120 | Rail, on Tonight and History | Real secondary content, and the one thing worth glancing at mid-vote. |
 
-**Details the proposal settles:**
+**Details this settles:**
 
 - **Active states.** Inside a club, global **Clubs** shows as current.
   You're inside Clubs, one level down. Tapping it returns to the list
@@ -572,7 +572,7 @@ Tablet and desktop: top bar and club tabs both stick.
   only, **Sign in** at the right. There's no global nav: every destination
   in it needs a session.
 
-**One rename inside this proposal: the club-level "Club" tab becomes
+**One rename inside this ruling: the club-level "Club" tab becomes
 "Members".** With a global **Clubs** in the bottom bar and a club-level
 **Club** in the tab row, a phone would show both words on one screen,
 meaning different things. "Members" names what most people open it for:
@@ -853,12 +853,21 @@ member.
 
 - **E2E** leans on the name picker throughout: every scenario picks an
   identity by clicking a name. All of that is rewritten. **One** spec runs
-  the real flow end to end (invite → email → code read from the E2E
-  database, as `auth.spec.ts` already does with link tokens → name step →
-  club). Every other spec starts from a **test-only fixture that inserts a
+  the real flow end to end: invite → email → code → name step → club.
+  Every other spec starts from a **test-only fixture that inserts a
   `sessions` row straight into the E2E database** and sets the cookie. It's
-  a test helper, never an app route. There's no dev-only backdoor, the same
-  posture `auth.spec.ts` takes today.
+  a test helper, never an app route, and there's no dev-only backdoor.
+- **Reading the code in E2E.** The code is stored hashed (§4.3), so a test
+  can't read it back from the database the way `auth.spec.ts` reads link
+  tokens today. Instead, the test requests a code through the UI, then
+  **overwrites that `magic_links` row's `code_hash` with the hash of a
+  code the test chose** (using the app's own hashing function), and types
+  that code. Links work the same way: overwrite the token hash, then visit
+  `/verify` with the known token. It's the same kind of direct database
+  write as the session fixture, and it tests everything past the email
+  itself: the code form, the attempt counter, consumption, session
+  creation. What's left untested is only "the email contains the right
+  code", which is a unit test on the email-building function.
 - `e2e/first-night.spec.ts` stays the proof that a club reaches its first
   night with zero hand-seeding. It now starts at the marketing page instead
   of `/new`.
@@ -892,15 +901,115 @@ Leave these as written until then. They describe the running code:
 
 ### 8.5 Build order
 
-1. §8.1's `/` fix, alone, now.
-2. Code-primary auth (§4): code + link in one email, `POST`-only `/verify`,
-   hashed code, attempt limits. Tests first.
-3. Schema + seed rewrite (§8.2), then the E2E fixture (§8.3).
-4. Invites (§7) and the invite landing page (§5.3).
-5. Routing and shell: contextual `/`, the wordmark and the navigation
-   model (§5.11), auth gating, 404 for non-members (§5.1).
-6. Global watchlist and the overlap fix (§6).
-7. Settings (§5.9).
+**The rule: add the new thing next to the old, switch over, then delete the
+old.** Every session below ships on its own, and `main` stays deployable
+between them. The order that preceded this one (schema rewrite, then
+invites) would have left `dev.kinomato.com` with no way to join a club in
+between, and would have broken `main`'s CI on the shared E2E database.
+
+| # | Session | What it adds or removes | Schema |
+|---|---|---|---|
+| ✓ | **`/` leak fix** (§8.1) | Shipped. | — |
+| 1 | **Test groundwork** | A test-only helper that inserts a `sessions` row and sets the cookie (§8.3). The seed gives every member a `users` row, except the guests the claim tests need. 44 tests move off the name picker. E2E global setup becomes: reset the schema → `drizzle-kit push --force` → seed, so each run's database matches its own branch. Local E2E and CI get **separate Neon branches**, so a local run can't wipe a CI run's data mid-flight. No app change. | E2E databases only |
+| 2 | **Code-primary auth** (§4) | Code + link in one email; `/verify` signs in by button press (`POST`); code hashed; attempt limit and rate limits. The existing link and session tokens are hashed in the same session (the CLAUDE.md Open Question). The claim flow keeps working, now with a code. | Additive |
+| 3 | **Invites, added alongside the old model** (§7, §5.3, §5.6) | The `invites` table, `/invite/[token]` with all its states, Add a person, share/revoke/regenerate, `users.display_name`, and the `/welcome` name step. The old `/join` keeps working for links already sent. | Additive only |
+| 4 | **Cutover** (§8.2) | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
+| 5 | **Shell and navigation** (§5.11, §5.2, §5.7) | Wordmark, top and bottom bars, Tonight/History/Members tabs, rail, the marketing `/` and the Ruling A cards. Pure UI: auth gating already landed in 4a. | None |
+| 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |
+| 7 | **Settings** (§5.9) | | Additive |
+
+**The riskiest step is 4.** Every other step only adds. A half-done 4 is
+the dangerous state:
+- a guard removed before gating is in means code that assumes a session
+  gets requests without one;
+- a column dropped while deployed code still reads it means 500s for as
+  long as the gap lasts (deploys go out on merge, schema changes are a
+  manual push, and the two never happen at the same moment);
+- rotation carry-forward switched without its tests means someone who left
+  and rejoined silently jumps the queue.
+
+Hence the split: 4a deploys code that works with either schema, and 4b
+changes the schema only after 4a is live.
+
+**What happens to the E2E suite.** 60 of 61 tests start by clicking a name in
+the picker; only `home.spec` doesn't. Step 1 is what keeps the suite from
+falling off a cliff at step 4: identity already falls back to the session
+when there's no per-club cookie, so the session helper works against
+today's code.
+
+| Step | Tests |
+|---|---|
+| 1 | 44 move to the session helper (confirm 12, lock 7, voting-flow 6, watchlist 7, nominate 5, tags 4, nav 3), all still passing. 17 stay on the old paths on purpose (the auth claim, prompt and rotation tests, create-club, first-night, the fresh-login and home tests). |
+| 2 | ~5 edited (auth: code entry, button-press verify). New unit tests. |
+| 3 | None broken. New unit tests for invite state resolution; ~5 new E2E tests. |
+| 4 | **About 16 tests in 3 files:** the claim and prompt tests deleted (3), the rotation test replaced by per-invite revoke/regenerate (1), create-club rewritten (1), first-night rewritten around invites and code sign-in (10), voting-flow's rotation check updated (1). The other ~44 don't notice. |
+| 5 | ~10–15 selector or URL edits (nav ×3, plus anything that moves into the History or Members tabs). |
+| 6 | ~12–15 (watchlist ×7, parts of nominate and first-night, nav). |
+| 7 | New tests only. |
+
+**Keeping `main` green through all of it:**
+1. **Additions before removals.** Steps 2 and 3 only add schema. Only 4b
+   drops anything, and only after 4a is deployed.
+2. **Each E2E run brings its own schema** (step 1). A run resets the schema,
+   pushes its branch's `db/schema.ts`, then seeds, so a feature branch's
+   schema can't break `main`'s CI. Resetting also avoids `drizzle-kit`'s
+   interactive "was this column renamed?" prompt, which `--force` doesn't
+   answer (step 6's `membership_id` → `user_id` would trigger it).
+3. **`dev.kinomato.com`'s schema is pushed by hand at the right moment:**
+   additions before merging the code that uses them, the destructive push
+   only as §8.6 says.
+
+### 8.6 Cutover checklist (step 4)
+
+Follow this on the day; don't improvise it. **4b wipes all usage data on
+`dev.kinomato.com`.** It's test data by ruling, but it's also your friends'
+club: its history, its rotation, who's picked. "The dev database" below
+means the Neon branch behind the Worker's `DATABASE_URL` secret, the one
+`dev.kinomato.com` actually reads.
+
+**Before the day**
+1. Steps 2 and 3 are merged and live, and at least one real per-person
+   invite has worked end to end on `dev.kinomato.com`.
+2. 4a and 4b are separate PRs, both green in CI. CI already exercises
+   4b's schema, because each E2E run pushes its own.
+3. Pick a window between movie nights: no night `open` or `locked`, and
+   nothing waiting on confirmation. Tell the group it's happening and
+   that they'll get a new link.
+4. Write down each member's name and email, since you'll re-invite them.
+   Screenshot the History page if you want a keepsake.
+
+**On the day, in this order**
+1. **Back up the dev database.** In Neon, create a branch
+   `pre-cutover-YYYY-MM-DD` from the dev database's branch. It's instant,
+   and it's the only thing that makes step 5 reversible.
+2. **Merge 4a.** Wait for Workers Builds to finish deploying
+   `dev.kinomato.com`.
+3. **Check 4a live.** Signed out, `/clubs/<id>` redirects to `/login`. Sign
+   in with the code → your club loads. A guest browser (cookie, no
+   session) no longer gets in. That's expected from here on.
+   *Rollback up to this point: revert 4a on `main`. Nothing in the
+   database has changed.*
+4. **Merge 4b** and wait for its deploy. For the few minutes until step 5,
+   a new membership can't be inserted (the old schema still requires
+   `identity_key`); reads work. Nobody's joining during the window.
+5. **⚠ POINT OF NO RETURN: wipe the dev database and push 4b's schema.**
+   With `DATABASE_URL` pointed at the dev database, reset the `public`
+   schema, then run `npx drizzle-kit push --force`. Don't run the seed:
+   the dev database starts empty.
+   *After this, the old code can't run against the database. Rollback now
+   means restoring from the backup branch **and** reverting both 4a and
+   4b.*
+6. **Smoke test on `dev.kinomato.com`:** the marketing `/` renders; sign in
+   with your real email, the code arrives through Brevo and works; `/new`
+   creates a club; you land on its first-run state.
+7. **Re-invite.** Members → Add a person for each friend, then share each
+   link. Watch the Invited list turn *Started*, then disappear as they
+   join.
+8. **Update CLAUDE.md** if 4b didn't already carry the §8.4 rewrites.
+
+**After**
+- Keep the backup branch for a week, then delete it. It holds real email
+  addresses (§9).
 
 ---
 
@@ -920,12 +1029,16 @@ data-flow section of the privacy policy lists, at minimum:
 TMDB receives no personal data. Calls are server-side and carry no user
 information.
 
-Two known gaps this spec does not close (CLAUDE.md Open Questions):
-**session and magic-link tokens are stored in plaintext**. The fix is
-hashing, and this spec's new sign-in code is built hashed from the start.
-(Invite tokens are deliberately not hashed: §7.1 step 2.) And **adding any managed auth provider later means a new sub-processor
-disclosure**, which has to be weighed against the convenience when the time
-comes.
+Two known gaps this spec does not close on its own (CLAUDE.md Open
+Questions):
+
+- **Session and magic-link tokens are stored in plaintext.** The fix is
+  hashing. The new sign-in code is built hashed from the start, and §8.5
+  step 2 hashes the existing tokens too. (Invite tokens are deliberately
+  not hashed: §7.1 step 2.)
+- **Adding any managed auth provider later means a new sub-processor
+  disclosure**, which has to be weighed against the convenience when the
+  time comes.
 
 ---
 

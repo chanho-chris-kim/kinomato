@@ -119,6 +119,12 @@ v0 is feature-complete; what's left is the Open Questions below.
 
 The purpose of v0 is to find out which rulings below are wrong.
 
+**Next: the onboarding rebuild.** The build order is
+`docs/onboarding-spec.md` §8.5: seven sessions, each shippable on its own,
+with `main` deployable between them. Step 4 (the cutover) wipes
+`dev.kinomato.com`'s data and follows the written checklist in §8.6,
+not improvisation.
+
 ## Rulings that are load-bearing
 
 Do not quietly change these — they encode decisions that took a while to reach.
