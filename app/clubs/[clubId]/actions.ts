@@ -1,12 +1,13 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import {
   clubs,
+  invites,
   memberships,
   nights,
   nominations,
@@ -18,7 +19,10 @@ import {
   vetoes,
   watchlistItems,
 } from "@/db/schema";
+import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { issueSignIn } from "@/app/signIn";
+import { canCreateInvite, generateInviteToken } from "@/lib/invites";
+import { validateMemberName } from "@/lib/memberName";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { normalizeTag } from "@/lib/tags";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
@@ -475,4 +479,102 @@ export async function castVeto(clubId: string, nominationId: string) {
   });
 
   revalidatePath(`/clubs/${clubId}`);
+}
+
+// ---- Per-person invites (docs/onboarding-spec.md §7, rebuild step 3) ----
+// Owner/admin only, the same restriction as rotateInviteToken: all three
+// change who can get into the room. Validation errors the person should
+// see go back via ?inviteError= (CLAUDE.md's form-error convention).
+
+async function requireOwnerOrAdmin(clubId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
+  if (!membership || membership.clubId !== clubId) {
+    throw new Error("No identity set for this club — pick a name first.");
+  }
+  if (membership.role !== "owner" && membership.role !== "admin") {
+    throw new Error("Only the club owner or an admin can manage invites.");
+  }
+  return { db, membership };
+}
+
+function inviteError(clubId: string, message: string): never {
+  redirect(`/clubs/${clubId}?inviteError=${encodeURIComponent(message)}`);
+}
+
+async function insertInvite(
+  db: ReturnType<typeof getDb>,
+  clubId: string,
+  inviteeName: string,
+  invitedByMembershipId: string,
+) {
+  const [invite] = await db
+    .insert(invites)
+    .values({ clubId, token: generateInviteToken(), inviteeName, invitedByMembershipId })
+    .returning({ id: invites.id });
+  return invite.id;
+}
+
+// Pending invites hold a seat, so this is refused once active members plus
+// pending invites reach the cap. Lands back on the club page with the new
+// invite's share panel open (?invite=).
+export async function createInvite(clubId: string, formData: FormData) {
+  const { db, membership } = await requireOwnerOrAdmin(clubId);
+  const name = validateMemberName(
+    String(formData.get("firstName") ?? ""),
+    String(formData.get("lastInitial") ?? ""),
+  );
+  if ("error" in name) inviteError(clubId, name.error);
+
+  const [active, pending] = await Promise.all([
+    activeMemberCount(db, clubId),
+    pendingInviteCount(db, clubId),
+  ]);
+  if (!canCreateInvite(active, pending)) {
+    inviteError(clubId, "Every seat is taken or held by a pending invite. Revoke one to free a seat.");
+  }
+
+  const id = await insertInvite(db, clubId, name.displayName, membership.id);
+  redirect(`/clubs/${clubId}?invite=${id}`);
+}
+
+// Kills one person's link without touching anyone else's (Ruling C). Only
+// a pending invite: a redeemed one is history, and removing someone who
+// joined is member removal, not this.
+export async function revokeInvite(clubId: string, inviteId: string) {
+  const { db } = await requireOwnerOrAdmin(clubId);
+  await db
+    .update(invites)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(invites.id, inviteId),
+        eq(invites.clubId, clubId),
+        isNull(invites.redeemedAt),
+        isNull(invites.revokedAt),
+      ),
+    );
+  redirect(`/clubs/${clubId}`);
+}
+
+// Revoke + a fresh invite for the same name: "I sent it to the wrong chat."
+// The revoke frees the seat the new one takes, so it never trips the cap.
+export async function regenerateInvite(clubId: string, inviteId: string) {
+  const { db, membership } = await requireOwnerOrAdmin(clubId);
+  const [revoked] = await db
+    .update(invites)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(invites.id, inviteId),
+        eq(invites.clubId, clubId),
+        isNull(invites.redeemedAt),
+        isNull(invites.revokedAt),
+      ),
+    )
+    .returning();
+  if (!revoked) redirect(`/clubs/${clubId}`);
+  const id = await insertInvite(db, clubId, revoked.inviteeName, membership.id);
+  redirect(`/clubs/${clubId}?invite=${id}`);
 }

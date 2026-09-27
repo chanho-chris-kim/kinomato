@@ -386,6 +386,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   server action (`submitRating`) re-validates the 0–10 range
   independently; the client component's only job is display and the two
   inputs agreeing with each other.
+- **`ShareInvite` (`app/clubs/[clubId]/ShareInvite.tsx`) is the third
+  justified client component**, after `NominationSelector` and
+  `RatingSlider`: the OS share sheet (`navigator.share`) and the
+  clipboard only exist in the browser. The invite link is also always
+  shown in a read-only field, so nothing depends on either API.
 - **Tags on a rating are club-scoped, alongside the hot take, never
   replacing it.** `tags` (club_id, name, display_name) and `rating_tags`
   (rating_id, tag_id) — "cozy" is one tag per club, not six near-
@@ -507,6 +512,27 @@ Do not quietly change these — they encode decisions that took a while to reach
   rotation and settings control, a real failure mode rather than a
   preference. Never a wall either way: ignoring the prompt changes
   nothing about what a guest can already do.
+- **Per-person invites run alongside the club-wide link until the
+  cutover** (`docs/onboarding-spec.md` §7; rebuild step 3). An owner or
+  admin adds "First R." and gets a link for that one person
+  (`/invite/[token]`, token stored as-is so it can be re-shared), which
+  greets them by name, takes an email, and joins them after the code.
+  Pending invites hold a seat (`lib/invites.ts`'s `canCreateInvite`:
+  active + pending < cap); redemption re-checks active members only.
+  Opening the landing page records and redeems nothing (link previews
+  open every URL); `started_at` is set on the first email submitted.
+  Redemption (`app/invites.ts`'s `redeemInvite`) claims the invite with a
+  conditional update, then inserts the membership, un-claiming if the
+  insert fails — neon-http has no transactions. An active member opening
+  someone's invite is told they're in and it's left untouched; someone
+  signed in as a non-member gets Ruling B's two labelled buttons, never a
+  silent redeem. Revoke and regenerate touch one row each (Ruling C). The
+  old club-wide `/join` link keeps working for links already sent until
+  step 4 removes it. **Names now live on `users.display_name`:** an
+  account that already has a membership gets its name filled in from it
+  (`ensureDisplayName`, at sign-in and at redemption); only a brand-new
+  account sees the one-time name step, `/welcome`, prefilled from the
+  invite. Until step 4b, `memberships.display_name` is still written too.
 - **Invite links carry a token; a club id alone no longer admits a
   joiner.** `clubs.invite_token` (minted with the same
   `crypto.randomUUID()` convention every other generated id in this app

@@ -14,12 +14,14 @@
 //
 // Run with: npm run db:seed
 import "dotenv/config";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 import {
   clubs,
   films,
+  invites,
   magicLinks,
   memberships,
   nights,
@@ -42,7 +44,10 @@ import {
   CLUB_5_ID,
   CLUB_6_ID,
   CLUB_7_ID,
+  CLUB_8_ID,
   CLUB_ID,
+  DISPLAY_NAME_8,
+  FULL_CLUB_INVITE,
   FILM,
   MEMBERSHIP,
   MEMBERSHIP_2,
@@ -51,6 +56,7 @@ import {
   MEMBERSHIP_5,
   MEMBERSHIP_6,
   MEMBERSHIP_7,
+  MEMBERSHIP_8,
   MEMBER_USER,
   NIGHT_3_ID,
   NIGHT_4_ID,
@@ -98,6 +104,7 @@ async function main() {
   await db.delete(watchlistItems);
   await db.delete(films);
   await db.delete(magicLinks);
+  await db.delete(invites);
   await db.delete(sessions);
   await db.delete(memberships);
   await db.delete(seasons);
@@ -681,6 +688,56 @@ async function main() {
     { membershipId: MEMBERSHIP_7.uma, filmId: getOutId },
     { membershipId: MEMBERSHIP_7.uma, filmId: arrivalId },
   ]);
+
+  // An eighth club — see seed-fixtures.ts's comment on CLUB_8_ID.
+  console.log("Seeding an eighth club for per-person invites...");
+  await db.insert(clubs).values({
+    id: CLUB_8_ID,
+    inviteToken: crypto.randomUUID(),
+    name: "Eighth Club",
+    cadence: "weekly",
+    defaultDay: 5,
+    defaultTime: "20:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+  await db
+    .update(users)
+    .set({ displayName: DISPLAY_NAME_8.hana })
+    .where(eq(users.id, MEMBER_USER.hana));
+  await db
+    .update(users)
+    .set({ displayName: DISPLAY_NAME_8.ivo })
+    .where(eq(users.id, MEMBER_USER.ivo));
+  await db.insert(memberships).values([
+    {
+      id: MEMBERSHIP_8.hana,
+      clubId: CLUB_8_ID,
+      userId: MEMBER_USER.hana,
+      identityKey: MEMBER_USER.hana,
+      displayName: DISPLAY_NAME_8.hana,
+      role: "owner",
+      joinedAt: day(1),
+    },
+    {
+      id: MEMBERSHIP_8.ivo,
+      clubId: CLUB_8_ID,
+      userId: MEMBER_USER.ivo,
+      identityKey: MEMBER_USER.ivo,
+      displayName: DISPLAY_NAME_8.ivo,
+      role: "member",
+      joinedAt: day(2),
+    },
+  ]);
+
+  // Club 1 is already at six active members; see FULL_CLUB_INVITE.
+  await db.insert(invites).values({
+    id: FULL_CLUB_INVITE.id,
+    clubId: CLUB_ID,
+    token: FULL_CLUB_INVITE.token,
+    inviteeName: FULL_CLUB_INVITE.inviteeName,
+    invitedByMembershipId: MEMBERSHIP.chris,
+  });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

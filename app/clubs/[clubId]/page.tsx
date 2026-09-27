@@ -1,9 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { getDb } from "@/db";
 import {
   clubs,
   films,
+  invites,
   memberships,
   nights,
   nominations,
@@ -29,19 +30,26 @@ import {
   castVote,
   clearIdentity,
   confirmNight,
+  createInvite,
   lockNight,
   openVoting,
   pickIdentity,
+  regenerateInvite,
   removeRatingTag,
+  revokeInvite,
   rotateInviteToken,
   setRsvp,
   submitRating,
 } from "./actions";
+import { getBaseUrl } from "@/app/baseUrl";
+import { canCreateInvite } from "@/lib/invites";
+import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
 import { AppShell } from "./AppShell";
 import { ClaimPrompt } from "./ClaimPrompt";
 import { getIdentityMembershipId } from "./identity";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
+import { ShareInvite } from "./ShareInvite";
 import { NON_TERMINAL_STATES } from "./nightState";
 
 // "Priya S." -> "PS" — decorative only (the rail's compact member
@@ -59,10 +67,15 @@ export default async function ClubPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ claimError?: string }>;
+  searchParams: Promise<{
+    claimError?: string;
+    invite?: string;
+    inviteError?: string;
+    joined?: string;
+  }>;
 }) {
   const { clubId } = await params;
-  const { claimError } = await searchParams;
+  const { claimError, invite: newInviteId, inviteError, joined } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -106,6 +119,16 @@ export default async function ClubPage({
       </AppShell>
     );
   }
+
+  // Pending per-person invites: visible to every member (who's coming),
+  // with Share/Regenerate/Revoke only for owners and admins.
+  const isOwnerOrAdmin = currentMembership.role === "owner" || currentMembership.role === "admin";
+  const pendingInvites = await db
+    .select()
+    .from(invites)
+    .where(and(eq(invites.clubId, clubId), isNull(invites.redeemedAt), isNull(invites.revokedAt)))
+    .orderBy(asc(invites.createdAt));
+  const baseUrl = await getBaseUrl();
 
   let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
 
@@ -515,6 +538,93 @@ export default async function ClubPage({
           reason="owner"
           claimError={claimError}
         />
+      )}
+
+      {joined && (
+        <div className="note mt20">
+          <p className="small" style={{ margin: 0 }}>
+            You&apos;re in, {currentMembership.displayName.replace(/ [A-Za-z]\.$/, "")}.
+          </p>
+        </div>
+      )}
+
+      {/* Per-person invites (docs/onboarding-spec.md §7) — alongside the
+          club-wide link above until rebuild step 4 removes that. */}
+      <h2 className="sec mt20">Invite people</h2>
+      <p className="small muted">
+        {activeMemberships.length + pendingInvites.length} of {FREE_TIER_MEMBER_CAP} seats. Each
+        person gets their own link that greets them by name.
+      </p>
+      {inviteError && (
+        <p className="small mt-1" style={{ color: "var(--warn)" }}>
+          {inviteError}
+        </p>
+      )}
+      {isOwnerOrAdmin &&
+        (canCreateInvite(activeMemberships.length, pendingInvites.length) ? (
+          <form action={createInvite.bind(null, clubId)} className="row gap8 mt14" style={{ alignItems: "flex-end" }}>
+            <label className="small muted" style={{ flex: 3 }}>
+              First name
+              <div className="search mt-1">
+                <input name="firstName" required />
+              </div>
+            </label>
+            <label className="small muted" style={{ flex: 1 }}>
+              Last initial
+              <div className="search mt-1">
+                <input name="lastInitial" required maxLength={1} />
+              </div>
+            </label>
+            <button type="submit" className="btn" style={{ width: "auto" }}>
+              Create invite
+            </button>
+          </form>
+        ) : (
+          <p className="small mt14">
+            {club.name} is full: {activeMemberships.length} members and {pendingInvites.length}{" "}
+            pending {pendingInvites.length === 1 ? "invite" : "invites"}. Revoke an invite to free a
+            seat.
+          </p>
+        ))}
+      {pendingInvites.length > 0 && (
+        <div className="stack gap8 mt14">
+          {pendingInvites.map((invite) => (
+            <div key={invite.id} className="card" style={invite.id === newInviteId ? { borderColor: "var(--accent)" } : undefined}>
+              <div className="between">
+                <span>{invite.inviteeName}</span>
+                <span className="tiny dim">
+                  {invite.startedAt ? "Started: entered an email" : "Not started"}
+                </span>
+              </div>
+              {invite.id === newInviteId && (
+                <p className="tiny mt-1" style={{ color: "var(--accent)" }}>
+                  Invite ready. Send it to {invite.inviteeName} directly: whoever uses it first gets the seat.
+                </p>
+              )}
+              {isOwnerOrAdmin && (
+                <div className="stack gap8 mt14">
+                  <ShareInvite
+                    url={`${baseUrl}/invite/${invite.token}`}
+                    inviteeName={invite.inviteeName}
+                    clubName={club.name}
+                  />
+                  <div className="row gap8">
+                    <form action={regenerateInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
+                      <button type="submit" className="btn ghost">
+                        Regenerate
+                      </button>
+                    </form>
+                    <form action={revokeInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
+                      <button type="submit" className="btn ghost">
+                        Revoke
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       <h2 className="sec mt20">Members</h2>

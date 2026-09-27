@@ -203,6 +203,11 @@ test.describe("auth — sign-in codes and links", () => {
     expect((await latestSignInRow(email))!.consumedAt).toBeNull();
 
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    // A brand-new account names itself once (/welcome), then lands home.
+    await expect(page).toHaveURL(/\/welcome/);
+    await page.getByLabel("First name").fill("Link");
+    await page.getByLabel("Last initial").fill("u");
+    await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByText("You're not in any clubs yet.")).toBeVisible();
     expect((await latestSignInRow(email))!.consumedAt).not.toBeNull();
