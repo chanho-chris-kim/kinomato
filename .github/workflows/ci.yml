@@ -40,12 +40,14 @@ jobs:
   e2e:
     name: E2E
     runs-on: ubuntu-latest
-    # Every run wipes and reseeds the one dedicated E2E Neon branch
-    # (e2e/global-setup.ts). Queue rather than cancel-in-progress, so two
-    # pushes in quick succession can never have their globalSetup wipes
-    # overlap mid-run.
+    # Every run resets the schema of CI's own E2E Neon branch (the
+    # E2E_DATABASE_URL secret), pushes this commit's schema and reseeds it
+    # (e2e/global-setup.ts). All CI runs share that branch, so queue
+    # rather than cancel-in-progress: two pushes in quick succession must
+    # never have their resets overlap mid-run. Developers' local runs use
+    # their own branch (.env.example), which this group can't see.
     concurrency:
-      group: e2e-shared-neon-branch
+      group: e2e-ci-neon-branch
       cancel-in-progress: false
     steps:
       - name: Checkout

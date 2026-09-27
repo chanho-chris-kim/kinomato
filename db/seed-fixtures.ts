@@ -12,13 +12,34 @@ export const USER = {
   sam: "22222222-2222-2222-2222-222222222225",
 };
 
+// Accounts for every seeded member of clubs 1–6 who used to be a cookie-
+// only guest. The E2E suite signs in by session (e2e/session.ts, step 1
+// of docs/onboarding-spec.md §8.5), which needs a users row behind the
+// membership. Club 7's Wes and Uma stay guests: the claim-flow tests
+// need them unclaimed until step 4 removes claiming.
+export const MEMBER_USER = {
+  jo: "dddddddd-0000-0000-0000-000000000001",
+  nadia: "dddddddd-0000-0000-0000-000000000002",
+  omar: "dddddddd-0000-0000-0000-000000000003",
+  leo: "dddddddd-0000-0000-0000-000000000004",
+  mika: "dddddddd-0000-0000-0000-000000000005",
+  theo: "dddddddd-0000-0000-0000-000000000006",
+  vik: "dddddddd-0000-0000-0000-000000000007",
+  ana: "dddddddd-0000-0000-0000-000000000008",
+  zoe: "dddddddd-0000-0000-0000-000000000009",
+  yara: "dddddddd-0000-0000-0000-000000000010",
+  xavier: "dddddddd-0000-0000-0000-000000000011",
+  nora: "dddddddd-0000-0000-0000-000000000012",
+  iris: "dddddddd-0000-0000-0000-000000000013",
+} as const;
+
 export const MEMBERSHIP = {
   chris: "33333333-3333-3333-3333-333333333331",
   priya: "33333333-3333-3333-3333-333333333332",
   marco: "33333333-3333-3333-3333-333333333333",
   dana: "33333333-3333-3333-3333-333333333334",
   sam: "33333333-3333-3333-3333-333333333335",
-  jo: "33333333-3333-3333-3333-333333333336", // guest, no users row
+  jo: "33333333-3333-3333-3333-333333333336",
 };
 
 export const DISPLAY_NAME: Record<keyof typeof MEMBERSHIP, string> = {
@@ -163,7 +184,8 @@ export const NIGHT_6_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4";
 
 // A seventh, separate club — for the auth flows (CLAUDE.md): claim,
 // session-fallback recovery, and invite-token rotation. Both members
-// start as unclaimed guests, same as every other seeded club. Wes owns
+// start as unclaimed guests (every other seeded member has an account;
+// see MEMBER_USER). Wes owns
 // it (unclaimed-owner prompt, regardless of watchlist size); Uma gets a
 // 3-film watchlist seeded directly (the claim-prompt threshold), so the
 // E2E test doesn't have to add films through the UI just to reach it.

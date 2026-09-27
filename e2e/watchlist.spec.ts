@@ -1,12 +1,15 @@
 import type { Page } from "@playwright/test";
-import { CLUB_ID } from "../db/seed-fixtures";
+import { CLUB_ID, MEMBERSHIP } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 
 const LIST_URL = `/clubs/${CLUB_ID}/list`;
 
-async function pickIdentity(page: Page, name: string) {
+// Signs in as the membership's account (e2e/session.ts), then opens
+// LIST_URL.
+async function signInTo(page: Page, membershipId: string) {
+  await signInAs(page, membershipId);
   await page.goto(LIST_URL);
-  await page.getByRole("button", { name, exact: true }).click();
 }
 
 async function search(page: Page, query: string) {
@@ -27,7 +30,7 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("watchlist", () => {
   test("searching finds a film", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Whiplash");
     await expect(resultRow(page, "Whiplash")).toBeVisible();
   });
@@ -41,7 +44,7 @@ test.describe("watchlist", () => {
   test("a malformed search result doesn't break the page — the rest still renders", async ({
     page,
   }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     await search(page, "fleabag");
     await expect(resultRow(page, "National Theatre Live: Fleabag")).toBeVisible();
     // The malformed stub itself is silently skipped, not shown broken.
@@ -49,7 +52,7 @@ test.describe("watchlist", () => {
   });
 
   test("the overlap badge shows the right count against seeded data", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Hereditary");
     // Priya and Marco have it, Dana doesn't yet — "2 others", not 3.
     await expect(resultRow(page, "Hereditary")).toContainText(
@@ -58,7 +61,7 @@ test.describe("watchlist", () => {
   });
 
   test("adding it puts it on a genre shelf", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Hereditary");
     await resultRow(page, "Hereditary").getByRole("button", { name: "Add" }).click();
 
@@ -72,13 +75,13 @@ test.describe("watchlist", () => {
   });
 
   test("already-watched shows for a film in the club's history", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Thief");
     await expect(resultRow(page, "Thief")).toContainText("Club already watched this");
   });
 
   test("removing takes it off the list", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     const arrivalTile = page.locator(".watchlist-item", { hasText: "Arrival" });
     await expect(arrivalTile).toBeVisible();
     await arrivalTile.getByRole("button", { name: "Remove" }).click();
@@ -86,7 +89,7 @@ test.describe("watchlist", () => {
   });
 
   test("the header runtime total is correct", async ({ page }) => {
-    await pickIdentity(page, "Dana");
+    await signInTo(page, MEMBERSHIP.dana);
     // Final list after the tests above: Babadook (94) + Get Out (104) +
     // Hereditary (127, added) = 325 minutes = 5h 25m. Arrival (116) was
     // removed in the previous test, so it isn't part of this sum.

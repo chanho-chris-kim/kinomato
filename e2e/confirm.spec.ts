@@ -1,13 +1,15 @@
 import type { Page } from "@playwright/test";
-import { CLUB_3_ID, CLUB_4_ID, DISPLAY_NAME_3, DISPLAY_NAME_4 } from "../db/seed-fixtures";
+import { CLUB_3_ID, CLUB_4_ID, DISPLAY_NAME_3, DISPLAY_NAME_4, MEMBERSHIP_3, MEMBERSHIP_4 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 
 const CLUB_3_URL = `/clubs/${CLUB_3_ID}`;
 const CLUB_4_URL = `/clubs/${CLUB_4_ID}`;
 
-async function pickIdentity(page: Page, url: string, name: string) {
+// Signs in as the membership's account (e2e/session.ts), then opens url.
+async function signInTo(page: Page, url: string, membershipId: string) {
+  await signInAs(page, membershipId);
   await page.goto(url);
-  await page.getByRole("button", { name, exact: true }).click();
 }
 
 // RatingSlider (app/clubs/[clubId]/RatingSlider.tsx) is a client
@@ -33,17 +35,17 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("confirmation — watched path (club 3)", () => {
   test("the picker sees a past-due, unconfirmed night's prompt", async ({ page }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.leo);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
     await expect(page.getByRole("heading", { name: "Did you watch Get Out?" })).toBeVisible();
   });
 
   test("a non-picker sees the same prompt — anyone in the club can answer", async ({ page }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.mika);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.mika);
     await expect(page.getByRole("heading", { name: "Did you watch Get Out?" })).toBeVisible();
   });
 
   test("Mika answers yes, settling it", async ({ page }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.mika);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.mika);
     await page.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Did you watch Get Out?" }),
@@ -51,23 +53,31 @@ test.describe("confirmation — watched path (club 3)", () => {
   });
 
   test("first answer wins — Theo's later visit sees no prompt to answer", async ({ page }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.theo);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.theo);
     await expect(
       page.getByRole("heading", { name: "Did you watch Get Out?" }),
     ).not.toBeVisible();
   });
 
-  test("a watched night's picker has already handed off — whose turn shows the next member", async ({
+  test("a watched night's picker has already handed off — the next member's draft night is waiting on them", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.leo);
-    await expect(page.getByText(DISPLAY_NAME_3.mika)).toBeVisible();
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
+    // The handoff is the draft night now belonging to Mika. Deliberately
+    // not the "Whose turn" line: once that draft exists, "Whose turn"
+    // names the member after its picker on later loads, and whether it
+    // should is an open question (CLAUDE.md). This used to be a bare
+    // getByText("Mika"), which also matches the member list and the rail;
+    // it most likely passed only by running against the name picker
+    // before the page settled.
+    await expect(page.getByText(`Waiting on ${DISPLAY_NAME_3.mika} to nominate.`)).toBeVisible();
   });
+
 
   test("the picker (RSVP'd no) sees no rating form, but sees the hidden-count progress", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.leo);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
     await expect(page.getByRole("heading", { name: "Rate Get Out" })).toBeVisible();
     await expect(page.getByRole("slider", { name: "Quality" })).not.toBeVisible();
     await expect(page.getByText("0/2 ratings in")).toBeVisible();
@@ -76,7 +86,7 @@ test.describe("confirmation — watched path (club 3)", () => {
   test("Mika rates first — her take stays hidden, even from herself, until Theo also rates", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.mika);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.mika);
     await setSlider(page, "Quality", "8");
     await setSlider(page, "Fun", "7");
     await page.getByLabel("One-line take (optional)").fill("Amazing");
@@ -93,7 +103,7 @@ test.describe("confirmation — watched path (club 3)", () => {
   test("Theo rates second — the last rating lands and both takes reveal together", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.theo);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.theo);
     await expect(page.getByLabel("Quality", { exact: true })).toBeVisible();
     await setSlider(page, "Quality", "6");
     await setSlider(page, "Fun", "9");
@@ -107,7 +117,7 @@ test.describe("confirmation — watched path (club 3)", () => {
   test("the non-attending picker also sees the reveal once it lands — history is shared", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_3_URL, DISPLAY_NAME_3.leo);
+    await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
     await expect(page.getByText("Amazing")).toBeVisible();
   });
 });
@@ -116,12 +126,17 @@ test.describe("confirmation — cancellation path (club 4)", () => {
   test("before confirmation, the picker's night already counts — whose turn shows Ana", async ({
     page,
   }) => {
-    await pickIdentity(page, CLUB_4_URL, DISPLAY_NAME_4.vik);
-    await expect(page.getByText(DISPLAY_NAME_4.ana)).toBeVisible();
+    await signInTo(page, CLUB_4_URL, MEMBERSHIP_4.vik);
+    // Scoped to the "Whose turn" line: a bare getByText("Ana") also
+    // matches the member list and the rail, and most likely passed only
+    // by running against the name picker before the page settled.
+    await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
+      DISPLAY_NAME_4.ana,
+    );
   });
 
   test("Vik says the club didn't meet, cancelling the night", async ({ page }) => {
-    await pickIdentity(page, CLUB_4_URL, DISPLAY_NAME_4.vik);
+    await signInTo(page, CLUB_4_URL, MEMBERSHIP_4.vik);
     await page.getByRole("button", { name: "We didn't meet" }).click();
     await expect(
       page.getByRole("heading", { name: "Did you watch Arrival?" }),
@@ -129,7 +144,7 @@ test.describe("confirmation — cancellation path (club 4)", () => {
   });
 
   test("a cancelled night doesn't consume the turn — Vik is up next again", async ({ page }) => {
-    await pickIdentity(page, CLUB_4_URL, DISPLAY_NAME_4.ana);
+    await signInTo(page, CLUB_4_URL, MEMBERSHIP_4.ana);
     await expect(page.getByText("Whose turn")).toBeVisible();
     await expect(page.locator("main")).toContainText(DISPLAY_NAME_4.vik);
   });
