@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { sessions } from "@/db/schema";
+import { hashToken } from "@/lib/authCredentials";
 
 // Site-wide, unlike every per-club kinomato_identity_{clubId} cookie
 // (app/clubs/[clubId]/identity.ts) — a verified member's identity has
@@ -21,10 +22,12 @@ export async function createSession(
   db: ReturnType<typeof getDb>,
   userId: string,
 ): Promise<string> {
+  // The cookie carries the token; the table only ever sees its hash
+  // (lib/authCredentials.ts), so a leaked table hands out no sessions.
   const token = crypto.randomUUID();
   await db.insert(sessions).values({
     userId,
-    token,
+    tokenHash: hashToken(token),
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
   });
   return token;
@@ -50,6 +53,6 @@ export async function getSessionUserId(
   const [session] = await db
     .select()
     .from(sessions)
-    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, new Date())));
+    .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())));
   return session?.userId ?? null;
 }

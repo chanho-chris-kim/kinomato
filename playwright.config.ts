@@ -1,4 +1,11 @@
 import "dotenv/config";
+
+// Sign-in codes are HMAC-signed with AUTH_SECRET (lib/authCredentials.ts),
+// and CI's production build refuses to run without one. E2E brings its own
+// throwaway value unless one is already set; the server under test and
+// the test process (e2e/signIn.ts, which writes code hashes) must agree,
+// so it's set here, before either reads it.
+process.env.AUTH_SECRET ??= "e2e-only-auth-secret-not-a-real-one";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3100;

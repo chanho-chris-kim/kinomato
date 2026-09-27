@@ -18,7 +18,7 @@ import {
   vetoes,
   watchlistItems,
 } from "@/db/schema";
-import { issueMagicLink } from "@/app/magicLink";
+import { issueSignIn } from "@/app/signIn";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { normalizeTag } from "@/lib/tags";
 import { identityCookieName, requireCurrentMembershipId } from "./identity";
@@ -76,8 +76,16 @@ export async function requestClaim(clubId: string, returnPath: string, formData:
     redirect(returnPath);
   }
 
-  await issueMagicLink(db, { email, claimMembershipId: membershipId, returnToClubId: clubId });
-  redirect(`${returnPath}?claimSent=${encodeURIComponent(email)}`);
+  // Same code screen as a plain sign-in, sent or rate-limited, so the
+  // claim finishes by typing the code (docs/onboarding-spec.md §4.2).
+  const result = await issueSignIn(db, {
+    email,
+    claimMembershipId: membershipId,
+    returnToClubId: clubId,
+  });
+  const qs = new URLSearchParams({ email, returnTo: clubId });
+  if (!result.sent) qs.set("notice", "wait");
+  redirect(`/login/code?${qs.toString()}`);
 }
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has

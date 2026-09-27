@@ -35,10 +35,10 @@ export default async function WatchlistPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ q?: string; claimError?: string; claimSent?: string }>;
+  searchParams: Promise<{ q?: string; claimError?: string }>;
 }) {
   const { clubId } = await params;
-  const { q, claimError, claimSent } = await searchParams;
+  const { q, claimError } = await searchParams;
   const query = q?.trim() ?? "";
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
@@ -308,7 +308,6 @@ export default async function WatchlistPage({
             returnPath={`/clubs/${clubId}/list`}
             reason="watchlist"
             claimError={claimError}
-            claimSent={claimSent}
           />
         )}
 

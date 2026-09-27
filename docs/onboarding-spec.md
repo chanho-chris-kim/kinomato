@@ -177,9 +177,12 @@ only a person's tap signs anyone in.
 
 ### 4.3 Code rules
 
-- 6 digits, numeric, `autocomplete="one-time-code"` and
-  `inputmode="numeric"` so iOS and Android offer it straight from the
-  notification. Paste of a full code into the first box fills all six.
+- 6 digits, numeric, in **one field** with `autocomplete="one-time-code"`
+  and `inputmode="numeric"`, so iOS and Android offer it straight from the
+  notification. (Built as one field rather than six boxes in step 2:
+  one-time-code autofill is only reliable into a single input, and a
+  pasted code needs no script to land. Spaces are ignored.) The code
+  leads the email's subject so it shows in the notification itself.
 - Same expiry as today's link: **15 minutes.** Code and link share one
   `magic_links` row and expire together; using either consumes both.
 - **5 wrong attempts invalidates the code.** A new one has to be requested.
@@ -303,16 +306,19 @@ Saturday Club"). One email field, **Send code**.
 
 ### 5.5 Enter code — `/login/code`, and the link landing — `/verify`
 
-**`/login/code`:** "We sent a code to **marco@example.com**." Six boxes,
-autofocused. Below: "Or tap the link in the email." Then **Resend** (disabled
-for 30s, countdown shown) and **Use a different email**.
+**`/login/code`:** "We sent a code to **marco@example.com**." One code
+field, autofocused (§4.3). Below: "Or tap the link in the email." Then
+**Resend** and **Use a different email**. The 30-second cooldown is
+enforced server-side; a resend inside it shows "We just sent one." A
+visible countdown on the button needs a client component and lands with
+the step 5 UI.
 
 | State | Shows |
 |---|---|
-| Default | Code boxes, autofocus |
-| Wrong code | "That code didn't match. 4 tries left." Boxes cleared. |
-| Out of attempts | "Too many tries. We'll send a fresh code." **Send new code** |
-| Expired | "That code expired." **Send new code** |
+| Default | Code field, autofocus |
+| Wrong code | "That code didn't match. 4 tries left." Field cleared. |
+| Out of attempts | "Too many tries. Send a new code." **Send a new code** (a tap, not automatic, so it's inside the send limits) |
+| Expired | "That code expired. Send a new one." **Send a new code** |
 | Success | Redirect: name step if needed (§5.6), else invite activation (§7.1 step 6), else `returnTo`, else `/`. |
 
 **`/verify?token=`:** a card reading "Sign in as marco@example.com" with one
@@ -844,7 +850,8 @@ member.
 | **`memberships.user_id`** nullable | **`NOT NULL`**, plus the partial unique index from §7.1. |
 | **`memberships.display_name`** | **Dropped.** Name lives on `users.display_name` (nullable only until the name step). Reads join through. |
 | **`clubs.invite_token`** (club-wide, rotatable) | **Dropped.** Replaced by the `invites` table (§7.1). `requireValidInviteToken` and the rotate action go with it. |
-| **`magic_links`** | Loses `claim_membership_id`. Gains `code_hash`, `attempts`, and an optional `invite_id`. `returnToClubId` becomes a general same-origin `return_to` path. |
+| **`magic_links`** | Loses `claim_membership_id`, and the plaintext `token` column (unused since step 2, which added `token_hash`, `code_hash` and `attempts`). Gains an optional `invite_id`. `returnToClubId` becomes a general same-origin `return_to` path. |
+| **`sessions.token`** | **Dropped** — plaintext, unused since step 2 moved sessions to `token_hash`. |
 | **`watchlist_items.membership_id`** | Becomes **`user_id`**; unique on `(user_id, film_id)`. |
 | **`constraints.membership_id`** | **Unchanged**: ruled (§1.8). |
 | **`votes`, `vetoes`, `rsvps`, `ratings`, `nominations`** | Unchanged. Still keyed to membership, which is still the right unit: a vote is cast by a person *in a club*. |
@@ -968,7 +975,8 @@ means the Neon branch behind the Worker's `DATABASE_URL` secret, the one
 `dev.kinomato.com` actually reads.
 
 **Before the day**
-1. Steps 2 and 3 are merged and live, and at least one real per-person
+1. Steps 2 and 3 are merged and live (step 2 needs the Worker's
+   `AUTH_SECRET` secret set before it merges, or sign-in throws), and at least one real per-person
    invite has worked end to end on `dev.kinomato.com`.
 2. 4a and 4b are separate PRs, both green in CI. CI already exercises
    4b's schema, because each E2E run pushes its own.

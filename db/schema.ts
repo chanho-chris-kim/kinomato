@@ -128,7 +128,17 @@ export const users = pgTable("users", {
 export const magicLinks = pgTable("magic_links", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull(),
-  token: text("token").notNull().unique(),
+  // Plaintext, pre-hashing. Nothing writes or reads it any more; nullable
+  // so new rows can leave it empty, dropped in rebuild step 4b
+  // (docs/onboarding-spec.md §8.5).
+  token: text("token").unique(),
+  // One row, two ways in (docs/onboarding-spec.md §4): the link's token and
+  // the 6-digit code, both stored only as hashes (lib/authCredentials.ts).
+  // Using either consumes the row.
+  tokenHash: text("token_hash").unique(),
+  codeHash: text("code_hash"),
+  // Wrong code entries against this row; at CODE_MAX_ATTEMPTS it's dead.
+  attempts: integer("attempts").notNull().default(0),
   claimMembershipId: uuid("claim_membership_id").references(() => memberships.id),
   // Where to land after verifying — a club id, so both a claim and a
   // plain recovery login return to where the person actually was
@@ -153,7 +163,11 @@ export const sessions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    token: text("token").notNull().unique(),
+    // Plaintext, pre-hashing; unused, dropped in rebuild step 4b.
+    token: text("token").unique(),
+    // SHA-256 of the cookie's value (lib/authCredentials.ts). A leaked
+    // table no longer hands out working sessions.
+    tokenHash: text("token_hash").unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

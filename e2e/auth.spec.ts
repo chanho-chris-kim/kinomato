@@ -1,35 +1,28 @@
 import type { Page } from "@playwright/test";
-import { desc, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "../db/schema";
 import { CLUB_7_ID, DISPLAY_NAME_7 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { forgetRecentSends, latestSignInRow, setKnownSignIn } from "./signIn";
 
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
 const LIST_7_URL = `${CLUB_7_URL}/list`;
 
 // No BREVO_API_KEY in E2E (CLAUDE.md — same fixture-fallback shape as
-// TMDB_READ_TOKEN), so no email is ever actually sent. Reading the
-// generated token straight out of magic_links via a direct DB
-// connection is the correct call instead of a dev-only "reveal the
-// link" route — the same pattern voting-flow.spec.ts already uses for
-// E2E_DATABASE_URL.
-async function latestMagicLinkToken(email: string): Promise<string> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  const db = drizzle(client, { schema });
-  try {
-    const [link] = await db
-      .select()
-      .from(schema.magicLinks)
-      .where(eq(schema.magicLinks.email, email))
-      .orderBy(desc(schema.magicLinks.createdAt))
-      .limit(1);
-    if (!link) throw new Error(`No magic link found for ${email}`);
-    return link.token;
-  } finally {
-    await client.end();
-  }
+// TMDB_READ_TOKEN), so no email is ever actually sent. Codes and link
+// tokens are stored only as hashes, so tests set a known code on the
+// newest sign-in row instead of reading one (e2e/signIn.ts).
+async function enterKnownCode(page: Page, email: string) {
+  await expect(page).toHaveURL(/\/login\/code/);
+  await expect(page.getByText(email)).toBeVisible();
+  const { code } = await setKnownSignIn(email);
+  await page.getByLabel("6-digit code").fill(code);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
+
+async function requestCode(page: Page, email: string) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await expect(page).toHaveURL(/\/login\/code/);
 }
 
 async function pickIdentity(page: Page, url: string, name: string) {
@@ -60,11 +53,8 @@ test.describe("auth — claim and session recovery", () => {
     await pickIdentity(page, LIST_7_URL, DISPLAY_NAME_7.uma);
 
     await page.getByPlaceholder("you@example.com").fill("uma@example.com");
-    await page.getByRole("button", { name: "Verify email" }).click();
-    await expect(page.getByText("uma@example.com")).toBeVisible();
-
-    const token = await latestMagicLinkToken("uma@example.com");
-    await page.goto(`/verify?token=${token}`);
+    await page.getByRole("button", { name: "Send code" }).click();
+    await enterKnownCode(page, "uma@example.com");
     // returnToClubId lands on the club page, not back on the list page
     // the prompt itself was on.
     await expect(page).toHaveURL(CLUB_7_URL);
@@ -110,13 +100,11 @@ test.describe("auth — claim and session recovery", () => {
     try {
       // Genuinely fresh — no per-club cookie, no session cookie at all,
       // standing in for a new device.
-      await newPage.goto("/login");
-      await newPage.getByLabel("Email").fill("uma@example.com");
-      await newPage.getByRole("button", { name: "Send my link" }).click();
-      await expect(newPage.getByText("uma@example.com")).toBeVisible();
-
-      const token = await latestMagicLinkToken("uma@example.com");
-      await newPage.goto(`/verify?token=${token}`);
+      // The claim test above sent Uma a code seconds ago; without this
+      // the 30-second resend cooldown would (correctly) refuse a new one.
+      await forgetRecentSends("uma@example.com");
+      await requestCode(newPage, "uma@example.com");
+      await enterKnownCode(newPage, "uma@example.com");
       // No returnTo this time (a bare /login request) — lands on the
       // generic home rather than a specific club.
       await expect(newPage).toHaveURL("/");
@@ -175,5 +163,64 @@ test.describe("auth — invite token rotation", () => {
 
     await page.goto(newHref!);
     await expect(page.getByRole("heading", { name: "Seventh Club" })).toBeVisible();
+  });
+});
+
+// docs/onboarding-spec.md §4: one email, a code and a link, stored only as
+// hashes. Fresh addresses per test, so each starts with no sends.
+test.describe("auth — sign-in codes and links", () => {
+  test("wrong codes count down, then the code locks — even the right one stops working", async ({
+    page,
+  }) => {
+    const email = "wrong-code@example.com";
+    await requestCode(page, email);
+    await setKnownSignIn(email);
+    const wrong = "000000"; // not KNOWN_CODE
+
+    for (const left of ["4 tries", "3 tries", "2 tries", "1 try"]) {
+      await page.getByLabel("6-digit code").fill(wrong);
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(page.getByText(`That code didn't match. ${left} left.`)).toBeVisible();
+    }
+    await page.getByLabel("6-digit code").fill(wrong);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText("Too many tries. Send a new code.")).toBeVisible();
+    // The code form is gone; only "Send a new code" is left.
+    await expect(page.getByLabel("6-digit code")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Send a new code" })).toBeVisible();
+  });
+
+  test("opening the link doesn't sign in or use it up — only the button does, once", async ({
+    page,
+  }) => {
+    const email = "link-user@example.com";
+    await requestCode(page, email);
+    const { token } = await setKnownSignIn(email);
+
+    await page.goto(`/verify?token=${token}`);
+    await expect(page.getByRole("heading", { name: `Sign in as ${email}` })).toBeVisible();
+    // A scanner's prefetch is exactly this GET: nothing consumed.
+    expect((await latestSignInRow(email))!.consumedAt).toBeNull();
+
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL("/");
+    await expect(page.getByText("You're not in any clubs yet.")).toBeVisible();
+    expect((await latestSignInRow(email))!.consumedAt).not.toBeNull();
+
+    // Used once; the same link now dead-ends, and so does its code.
+    await page.goto(`/verify?token=${token}`);
+    await expect(page.getByRole("heading", { name: "This link has expired" })).toBeVisible();
+  });
+
+  test("asking again within 30 seconds doesn't send another code", async ({ page }) => {
+    const email = "impatient@example.com";
+    await requestCode(page, email);
+    const first = await latestSignInRow(email);
+
+    await page.getByRole("button", { name: "Resend" }).click();
+    await expect(
+      page.getByText("We just sent one. Check your inbox, or try again in a minute."),
+    ).toBeVisible();
+    expect((await latestSignInRow(email))!.id).toBe(first!.id);
   });
 });

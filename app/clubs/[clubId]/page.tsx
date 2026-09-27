@@ -59,10 +59,10 @@ export default async function ClubPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ claimError?: string; claimSent?: string }>;
+  searchParams: Promise<{ claimError?: string }>;
 }) {
   const { clubId } = await params;
-  const { claimError, claimSent } = await searchParams;
+  const { claimError } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -514,7 +514,6 @@ export default async function ClubPage({
           returnPath={`/clubs/${clubId}`}
           reason="owner"
           claimError={claimError}
-          claimSent={claimSent}
         />
       )}
 

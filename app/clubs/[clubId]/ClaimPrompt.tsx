@@ -11,25 +11,12 @@ export function ClaimPrompt({
   returnPath,
   reason,
   claimError,
-  claimSent,
 }: {
   clubId: string;
   returnPath: string;
   reason: "watchlist" | "owner";
   claimError?: string;
-  claimSent?: string;
 }) {
-  if (claimSent) {
-    return (
-      <div className="note mt20">
-        <p className="small" style={{ margin: 0 }}>
-          Check <strong>{claimSent}</strong> for a sign-in link. It works once and expires in
-          15 minutes.
-        </p>
-      </div>
-    );
-  }
-
   const copy =
     reason === "owner"
       ? "You're this club's only owner. If you clear your cookies or lose this device, nobody can rotate the invite link, change settings, or manage this club again."
@@ -53,7 +40,7 @@ export function ClaimPrompt({
           <input type="email" name="email" placeholder="you@example.com" required />
         </div>
         <button type="submit" className="btn" style={{ width: "auto" }}>
-          Verify email
+          Send code
         </button>
       </form>
       <p className="tiny dim mt14" style={{ margin: "14px 0 0" }}>

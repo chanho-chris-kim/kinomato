@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
+import { hashToken } from "../lib/authCredentials";
 
 // Must match SESSION_COOKIE_NAME in app/session.ts. Not imported from
 // there: that module pulls in next/headers, which has no business in the
@@ -13,8 +14,8 @@ const SESSION_COOKIE_NAME = "kinomato_session";
 // going through the UI: inserts a `sessions` row straight into the E2E
 // database and sets the session cookie on the page's browser context.
 // A test helper, never an app route (docs/onboarding-spec.md §8.3) — the
-// same kind of direct database write auth.spec.ts already does to read
-// magic-link tokens.
+// same kind of direct database write e2e/signIn.ts does for sign-in
+// codes.
 //
 // Works against today's identity resolution because it already falls back
 // from the per-club cookie to the session (app/clubs/[clubId]/identity.ts).
@@ -44,7 +45,7 @@ export async function signInAs(page: Page, membershipId: string): Promise<void> 
     const token = crypto.randomUUID();
     await db.insert(schema.sessions).values({
       userId: membership.userId,
-      token,
+      tokenHash: hashToken(token),
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     await page.context().addCookies([
