@@ -1,12 +1,15 @@
 import type { Page } from "@playwright/test";
-import { CLUB_6_ID, DISPLAY_NAME_6 } from "../db/seed-fixtures";
+import { CLUB_6_ID, MEMBERSHIP_6 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 
 const CLUB_6_URL = `/clubs/${CLUB_6_ID}`;
 
-async function pickIdentity(page: Page, name: string) {
+// Signs in as the membership's account (e2e/session.ts), then opens
+// CLUB_6_URL.
+async function signInTo(page: Page, membershipId: string) {
+  await signInAs(page, membershipId);
   await page.goto(CLUB_6_URL);
-  await page.getByRole("button", { name, exact: true }).click();
 }
 
 // Club 6 (Nora/Iris, db/seed.ts) seeds settings.confirmAt: "manual_only"
@@ -21,7 +24,7 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
   test("manual_only shows the confirmation prompt despite a future scheduledAt", async ({
     page,
   }) => {
-    await pickIdentity(page, DISPLAY_NAME_6.nora);
+    await signInTo(page, MEMBERSHIP_6.nora);
     await expect(
       page.getByRole("heading", { name: "Did you watch Hereditary?" }),
     ).toBeVisible();
@@ -34,7 +37,7 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
   test("the quality slider and its paired number input stay in sync, live", async ({
     page,
   }) => {
-    await pickIdentity(page, DISPLAY_NAME_6.nora);
+    await signInTo(page, MEMBERSHIP_6.nora);
     await expect(page.getByRole("heading", { name: "Rate Hereditary" })).toBeVisible();
 
     const slider = page.getByRole("slider", { name: "Quality" });
@@ -60,7 +63,7 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
   });
 
   test("Nora submits her rating and adds a tag", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME_6.nora);
+    await signInTo(page, MEMBERSHIP_6.nora);
     await page.getByLabel("Quality (as a number)").fill("9");
     await page.getByLabel("Fun (as a number)").fill("7");
     await page.getByLabel("One-line take (optional)").fill("Unbearable, in a good way.");
@@ -81,7 +84,7 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
   test("Iris rates second, and Nora's tag is already there as autocomplete", async ({
     page,
   }) => {
-    await pickIdentity(page, DISPLAY_NAME_6.iris);
+    await signInTo(page, MEMBERSHIP_6.iris);
     await expect(page.getByRole("heading", { name: "Rate Hereditary" })).toBeVisible();
 
     await page.getByLabel("Quality (as a number)").fill("6");

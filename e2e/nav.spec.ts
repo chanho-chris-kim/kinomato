@@ -1,5 +1,6 @@
-import { CLUB_ID, DISPLAY_NAME } from "../db/seed-fixtures";
+import { CLUB_ID, MEMBERSHIP } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 
 const CLUB_URL = `/clubs/${CLUB_ID}`;
 const LIST_URL = `${CLUB_URL}/list`;
@@ -12,8 +13,8 @@ test.describe("club nav", () => {
   test("the watchlist link on the club page goes to the watchlist, with it marked current there", async ({
     page,
   }) => {
+    await signInAs(page, MEMBERSHIP.chris);
     await page.goto(CLUB_URL);
-    await page.getByRole("button", { name: DISPLAY_NAME.chris, exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
     // "Club" is the current page — plain text, not a link.
@@ -30,8 +31,8 @@ test.describe("club nav", () => {
   test("the club link on the watchlist page goes back to the club page — the fix itself", async ({
     page,
   }) => {
+    await signInAs(page, MEMBERSHIP.chris);
     await page.goto(LIST_URL);
-    await page.getByRole("button", { name: DISPLAY_NAME.chris, exact: true }).click();
     await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
 
     await page.getByRole("link", { name: "Club", exact: true }).click();
@@ -40,8 +41,8 @@ test.describe("club nav", () => {
   });
 
   test("the club name itself also links home, from the watchlist", async ({ page }) => {
+    await signInAs(page, MEMBERSHIP.chris);
     await page.goto(LIST_URL);
-    await page.getByRole("button", { name: DISPLAY_NAME.chris, exact: true }).click();
 
     await page.getByRole("link", { name: "Movie Night Crew" }).click();
     await expect(page).toHaveURL(CLUB_URL);

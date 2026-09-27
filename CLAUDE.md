@@ -568,12 +568,26 @@ Kinoma (former Marvell division) are the nearest existing marks.
     raced its own server action, hidden by `next dev`'s slower responses
     and exposed every time by a production build. Still not the Workers
     runtime itself; the Workers Builds check covers the bundle building,
-    not its runtime behaviour. Either way, a
-    dedicated `E2E_DATABASE_URL` Neon branch, wiped and reseeded fresh
-    (`e2e/global-setup.ts`, reusing `db/seed.ts`) at the start of every
-    run. Tests run serially (`workers: 1`) on purpose — they share and
-    build on that one branch's mutable state within a run, so parallel
-    execution would race.
+    not its runtime behaviour.
+  - **Two E2E databases, never one.** `E2E_DATABASE_URL` points at CI's
+    own Neon branch in CI (repo secret) and at each developer's own
+    branch locally (`e2e-local` in `.env`). Every run starts by dropping
+    and recreating the `public` schema, pushing that branch's
+    `db/schema.ts` with `drizzle-kit push --force`, then seeding
+    (`e2e/global-setup.ts`). A local run and a CI run sharing one branch
+    wipe each other mid-run; that produced phantom failures before the
+    split. Pushing the schema per run is also why a branch that changes
+    the schema can't break another branch's CI. The setup refuses to run
+    if `E2E_DATABASE_URL` equals `DATABASE_URL`. `ci.yml`'s concurrency
+    group only serializes CI runs against each other.
+  - Tests run serially (`workers: 1`) on purpose — they share and
+    build on the run's database state, so parallel execution would race.
+  - **Sign-in in tests goes through `e2e/session.ts`'s `signInAs`**, which
+    inserts a `sessions` row for a seeded membership's account and sets
+    the cookie. It's a test helper, never an app route. Clicking a name in
+    the picker is only for the tests that are about the guest/claim flow
+    itself (club 7's Wes and Uma, create-club, first-night); every other
+    seeded member has an account (`seed-fixtures.ts`'s `MEMBER_USER`).
   - CI runs E2E as its own job (`e2e`, in `ci.yml`), separate from
     `check`, specifically so a flaky or slow E2E run never blocks a pure
     logic fix. Don't add `E2E` to `main`'s required status checks in
@@ -629,6 +643,19 @@ and move on.
   display. Verified manually against a temporarily-nudged night during
   this session, not by an automated test — a club seeded specifically
   into the locked-but-not-yet-confirmable gap would close this.
+- **What "Whose turn" means while a night is in flight — and the same
+  state renders two ways today.** `getNextPicker` counts any non-cancelled
+  night (draft included) as already picked, so with a night in flight
+  "Whose turn" names the member *after* its picker. `e2e/confirm.spec.ts`
+  asserts exactly that for a locked night (club 4: Vik's night, "Whose
+  turn: Ana"). But `/clubs/[clubId]`'s lazy draft creation deliberately
+  shows the *draft's own picker* on the load that creates it (the comment
+  above `whoseTurnResult`), and every later load then flips to the next
+  member: club 3 shows "Whose turn: Theo" directly above "Waiting on Mika
+  to nominate." Needs a ruling: is "Whose turn" the in-flight night's
+  picker, or who picks next? Either way, one state should render one
+  answer. Found in step 1 of the rebuild, when the E2E suite stopped
+  racing the name picker.
 - **"We watched something else" confirmation.** What film gets recorded? Does
   it enter history/ratings/the club-connections engine the same as a normal
   win, or does it need its own lighter-weight path since it never went through

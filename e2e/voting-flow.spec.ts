@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
-import { CLUB_ID, DISPLAY_NAME, FILM_TITLE } from "../db/seed-fixtures";
+import { CLUB_ID, DISPLAY_NAME, FILM_TITLE, MEMBERSHIP } from "../db/seed-fixtures";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 import {
   getNextPicker,
   type RotationMembership,
@@ -14,9 +15,11 @@ import {
 
 const CLUB_URL = `/clubs/${CLUB_ID}`;
 
-async function pickIdentity(page: Page, name: string) {
+// Signs in as the membership's account (e2e/session.ts), then opens
+// CLUB_URL.
+async function signInTo(page: Page, membershipId: string) {
+  await signInAs(page, membershipId);
   await page.goto(CLUB_URL);
-  await page.getByRole("button", { name, exact: true }).click();
 }
 
 function nomineeRow(page: Page, filmTitle: string) {
@@ -39,7 +42,7 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("voting flow", () => {
   test("picking a name persists identity across reload", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME.marco);
+    await signInTo(page, MEMBERSHIP.marco);
     await expect(page.getByText(`You are: ${DISPLAY_NAME.marco}`)).toBeVisible();
 
     await page.reload();
@@ -48,7 +51,7 @@ test.describe("voting flow", () => {
 
   test("voting for a nominee increments its count", async ({ page }) => {
     // Paddington 2 has zero seeded votes (db/seed.ts) — a clean baseline.
-    await pickIdentity(page, DISPLAY_NAME.sam);
+    await signInTo(page, MEMBERSHIP.sam);
     const before = await voteCount(page, FILM_TITLE.paddington2);
     expect(before).toBe(0);
 
@@ -68,7 +71,7 @@ test.describe("voting flow", () => {
     // previous test, about to move that vote to The Thing. Re-picking
     // the identity just re-sets the same cookie in this fresh context —
     // the vote itself lives in the database, not the browser.
-    await pickIdentity(page, DISPLAY_NAME.sam);
+    await signInTo(page, MEMBERSHIP.sam);
 
     const paddingtonBefore = await voteCount(page, FILM_TITLE.paddington2);
     const theThingBefore = await voteCount(page, FILM_TITLE.theThing);
@@ -101,8 +104,8 @@ test.describe("voting flow", () => {
       const chrisErrors = collectConsoleErrors(chrisPage);
       const joErrors = collectConsoleErrors(joPage);
 
-      await pickIdentity(chrisPage, DISPLAY_NAME.chris);
-      await pickIdentity(joPage, DISPLAY_NAME.jo);
+      await signInTo(chrisPage, MEMBERSHIP.chris);
+      await signInTo(joPage, MEMBERSHIP.jo);
 
       const chungkingBefore = await voteCount(chrisPage, FILM_TITLE.chungkingExpress);
       const theThingBefore = await voteCount(joPage, FILM_TITLE.theThing);
@@ -131,7 +134,7 @@ test.describe("voting flow", () => {
   });
 
   test("toggling RSVP to no persists across reload", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME.dana);
+    await signInTo(page, MEMBERSHIP.dana);
     await page.getByRole("button", { name: "Not going" }).click();
     await expect(page.getByText("Current answer: no")).toBeVisible();
 
@@ -185,7 +188,7 @@ test.describe("voting flow", () => {
 
     // Whoever we're viewing as doesn't affect whose turn it is — Priya
     // just hasn't been used as a login in an earlier test.
-    await pickIdentity(page, DISPLAY_NAME.priya);
+    await signInTo(page, MEMBERSHIP.priya);
     const whoseTurn = page.locator("h2:has-text('Whose turn') + p");
     await expect(whoseTurn).toHaveText(expectedName);
   });

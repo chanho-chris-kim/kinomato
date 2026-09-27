@@ -1,12 +1,15 @@
 import type { Page } from "@playwright/test";
-import { CLUB_2_ID, DISPLAY_NAME_2 } from "../db/seed-fixtures";
+import { CLUB_2_ID, MEMBERSHIP_2 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
+import { signInAs } from "./session";
 
 const CLUB_URL = `/clubs/${CLUB_2_ID}`;
 
-async function pickIdentity(page: Page, name: string) {
+// Signs in as the membership's account (e2e/session.ts), then opens
+// CLUB_URL.
+async function signInTo(page: Page, membershipId: string) {
+  await signInAs(page, membershipId);
   await page.goto(CLUB_URL);
-  await page.getByRole("button", { name, exact: true }).click();
 }
 
 function checkbox(page: Page, filmTitle: string) {
@@ -25,13 +28,13 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("nomination", () => {
   test("the picker sees selectable tiles", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME_2.nadia);
+    await signInTo(page, MEMBERSHIP_2.nadia);
     await expect(page.getByRole("heading", { name: "Your turn to nominate" })).toBeVisible();
     await expect(checkbox(page, "Hereditary")).toBeVisible();
   });
 
   test("a non-picker doesn't see selectable tiles", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME_2.omar);
+    await signInTo(page, MEMBERSHIP_2.omar);
     await expect(
       page.getByRole("heading", { name: "Your turn to nominate" }),
     ).not.toBeVisible();
@@ -40,7 +43,7 @@ test.describe("nomination", () => {
   });
 
   test("selection caps at the setting", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME_2.nadia);
+    await signInTo(page, MEMBERSHIP_2.nadia);
     await checkbox(page, "Hereditary").check();
     await checkbox(page, "Blade Runner").check();
     await checkbox(page, "Zodiac").check();
@@ -52,7 +55,7 @@ test.describe("nomination", () => {
   test("opening voting creates exactly the selected nominations and the voting UI appears", async ({
     page,
   }) => {
-    await pickIdentity(page, DISPLAY_NAME_2.nadia);
+    await signInTo(page, MEMBERSHIP_2.nadia);
     await checkbox(page, "Hereditary").check();
     await checkbox(page, "Blade Runner").check();
     await checkbox(page, "Zodiac").check();
@@ -70,7 +73,7 @@ test.describe("nomination", () => {
   });
 
   test("a second member then sees those nominees and can vote on them", async ({ page }) => {
-    await pickIdentity(page, DISPLAY_NAME_2.omar);
+    await signInTo(page, MEMBERSHIP_2.omar);
     await expect(page.getByText("Hereditary (2018) — 0 votes")).toBeVisible();
 
     await page

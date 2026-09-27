@@ -1,5 +1,5 @@
 // Dev-only. Wipes every row in dependency order, then inserts one club,
-// six members (five accounts + one guest), a handful of films, one open
+// six members (all with accounts), a handful of films, one open
 // night with nominations, a few votes, and a few RSVPs — enough to click
 // through the first screen, and the fixture the E2E suite runs against
 // (see db/seed-fixtures.ts, e2e/global-setup.ts). Not meant to run
@@ -51,6 +51,7 @@ import {
   MEMBERSHIP_5,
   MEMBERSHIP_6,
   MEMBERSHIP_7,
+  MEMBER_USER,
   NIGHT_3_ID,
   NIGHT_4_ID,
   NIGHT_5_ID,
@@ -111,6 +112,8 @@ async function main() {
     { id: USER.marco, email: "marco@example.com" },
     { id: USER.dana, email: "dana@example.com" },
     { id: USER.sam, email: "sam@example.com" },
+    // Clubs 1–6's other members (seed-fixtures.ts MEMBER_USER).
+    ...Object.entries(MEMBER_USER).map(([name, id]) => ({ id, email: `${name}@example.com` })),
   ]);
 
   console.log("Seeding club...");
@@ -178,10 +181,10 @@ async function main() {
     {
       id: MEMBERSHIP.jo,
       clubId: CLUB_ID,
-      userId: null,
-      identityKey: "guest-cookie-jo-example", // stands in for a minted invite-cookie token
+      userId: MEMBER_USER.jo,
+      identityKey: MEMBER_USER.jo,
       displayName: "Jo",
-      role: "guest",
+      role: "member",
       joinedAt: day(6),
     },
   ]);
@@ -351,8 +354,8 @@ async function main() {
     {
       id: MEMBERSHIP_2.nadia,
       clubId: CLUB_2_ID,
-      userId: null,
-      identityKey: "guest-cookie-nadia-example",
+      userId: MEMBER_USER.nadia,
+      identityKey: MEMBER_USER.nadia,
       displayName: "Nadia",
       role: "owner",
       joinedAt: day(1),
@@ -360,8 +363,8 @@ async function main() {
     {
       id: MEMBERSHIP_2.omar,
       clubId: CLUB_2_ID,
-      userId: null,
-      identityKey: "guest-cookie-omar-example",
+      userId: MEMBER_USER.omar,
+      identityKey: MEMBER_USER.omar,
       displayName: "Omar",
       role: "member",
       joinedAt: day(2),
@@ -415,8 +418,8 @@ async function main() {
     {
       id: MEMBERSHIP_3.leo,
       clubId: CLUB_3_ID,
-      userId: null,
-      identityKey: "guest-cookie-leo-example",
+      userId: MEMBER_USER.leo,
+      identityKey: MEMBER_USER.leo,
       displayName: "Leo",
       role: "owner",
       joinedAt: day(1),
@@ -424,8 +427,8 @@ async function main() {
     {
       id: MEMBERSHIP_3.mika,
       clubId: CLUB_3_ID,
-      userId: null,
-      identityKey: "guest-cookie-mika-example",
+      userId: MEMBER_USER.mika,
+      identityKey: MEMBER_USER.mika,
       displayName: "Mika",
       role: "member",
       joinedAt: day(2),
@@ -433,8 +436,8 @@ async function main() {
     {
       id: MEMBERSHIP_3.theo,
       clubId: CLUB_3_ID,
-      userId: null,
-      identityKey: "guest-cookie-theo-example",
+      userId: MEMBER_USER.theo,
+      identityKey: MEMBER_USER.theo,
       displayName: "Theo",
       role: "member",
       joinedAt: day(3),
@@ -484,8 +487,8 @@ async function main() {
     {
       id: MEMBERSHIP_4.vik,
       clubId: CLUB_4_ID,
-      userId: null,
-      identityKey: "guest-cookie-vik-example",
+      userId: MEMBER_USER.vik,
+      identityKey: MEMBER_USER.vik,
       displayName: "Vik",
       role: "owner",
       joinedAt: day(1),
@@ -493,8 +496,8 @@ async function main() {
     {
       id: MEMBERSHIP_4.ana,
       clubId: CLUB_4_ID,
-      userId: null,
-      identityKey: "guest-cookie-ana-example",
+      userId: MEMBER_USER.ana,
+      identityKey: MEMBER_USER.ana,
       displayName: "Ana",
       role: "member",
       joinedAt: day(2),
@@ -534,8 +537,8 @@ async function main() {
     {
       id: MEMBERSHIP_5.zoe,
       clubId: CLUB_5_ID,
-      userId: null,
-      identityKey: "guest-cookie-zoe-example",
+      userId: MEMBER_USER.zoe,
+      identityKey: MEMBER_USER.zoe,
       displayName: "Zoe",
       role: "owner",
       joinedAt: day(1),
@@ -543,8 +546,8 @@ async function main() {
     {
       id: MEMBERSHIP_5.yara,
       clubId: CLUB_5_ID,
-      userId: null,
-      identityKey: "guest-cookie-yara-example",
+      userId: MEMBER_USER.yara,
+      identityKey: MEMBER_USER.yara,
       displayName: "Yara",
       role: "member",
       joinedAt: day(2),
@@ -552,8 +555,8 @@ async function main() {
     {
       id: MEMBERSHIP_5.xavier,
       clubId: CLUB_5_ID,
-      userId: null,
-      identityKey: "guest-cookie-xavier-example",
+      userId: MEMBER_USER.xavier,
+      identityKey: MEMBER_USER.xavier,
       displayName: "Xavier",
       role: "member",
       joinedAt: day(3),
@@ -600,8 +603,8 @@ async function main() {
     {
       id: MEMBERSHIP_6.nora,
       clubId: CLUB_6_ID,
-      userId: null,
-      identityKey: "guest-cookie-nora-example",
+      userId: MEMBER_USER.nora,
+      identityKey: MEMBER_USER.nora,
       displayName: "Nora",
       role: "owner",
       joinedAt: day(1),
@@ -609,8 +612,8 @@ async function main() {
     {
       id: MEMBERSHIP_6.iris,
       clubId: CLUB_6_ID,
-      userId: null,
-      identityKey: "guest-cookie-iris-example",
+      userId: MEMBER_USER.iris,
+      identityKey: MEMBER_USER.iris,
       displayName: "Iris",
       role: "member",
       joinedAt: day(2),
@@ -634,9 +637,9 @@ async function main() {
   ]);
 
   // A seventh, separate club — see seed-fixtures.ts's comment on
-  // CLUB_7_ID. Both members start as unclaimed guests, same as every
-  // other seeded club; the auth E2E spec claims Uma and rotates Wes's
-  // invite token itself.
+  // CLUB_7_ID. Both members start as unclaimed guests (the only ones
+  // left in the seed; every other member has an account); the auth E2E
+  // spec claims Uma and rotates Wes's invite token itself.
   console.log("Seeding a seventh club for the auth flows...");
   await db.insert(clubs).values({
     id: CLUB_7_ID,
