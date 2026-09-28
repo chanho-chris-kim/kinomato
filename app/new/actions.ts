@@ -71,14 +71,11 @@ export async function createClub(formData: FormData) {
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const clubId = crypto.randomUUID();
 
-  // One batch (one Postgres transaction). invite_token and the
-  // membership's identity_key/display_name are no longer read by anything
-  // — per-person invites, carry-forward by user_id, names from users — but
-  // the old schema still requires them until rebuild step 4b drops them.
+  // One batch (one Postgres transaction): the club, and its owner's
+  // membership. The owner's name is their account's.
   await db.batch([
     db.insert(clubs).values({
       id: clubId,
-      inviteToken: crypto.randomUUID(),
       name,
       cadence,
       defaultDay,
@@ -89,8 +86,6 @@ export async function createClub(formData: FormData) {
     db.insert(memberships).values({
       clubId,
       userId: owner.id,
-      identityKey: owner.id,
-      displayName: owner.displayName,
       role: "owner",
     }),
   ]);

@@ -17,14 +17,8 @@ const SESSION_COOKIE_NAME = "kinomato_session";
 // same kind of direct database write e2e/signIn.ts does for sign-in
 // codes.
 //
-// Works against today's identity resolution because it already falls back
-// from the per-club cookie to the session (app/clubs/[clubId]/identity.ts).
-// It replaces clicking a name in the picker, which step 4 of the rebuild
-// removes — tests on this helper don't notice that step.
-//
-// Only for memberships with an account. The seed's remaining guests
-// (club 7's Wes and Uma) exist for the claim-flow tests, which still pick
-// a name on purpose.
+// Identity is the session (app/clubs/[clubId]/identity.ts), so this is
+// exactly what a signed-in browser looks like.
 export async function signInAs(page: Page, membershipId: string): Promise<void> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
   const db = drizzle(client, { schema });
@@ -35,12 +29,6 @@ export async function signInAs(page: Page, membershipId: string): Promise<void> 
       .where(eq(schema.memberships.id, membershipId));
     if (!membership) {
       throw new Error(`signInAs: no membership ${membershipId} in the E2E database.`);
-    }
-    if (!membership.userId) {
-      throw new Error(
-        `signInAs: membership ${membershipId} is a guest with no account — ` +
-          "pick the name on the club page instead.",
-      );
     }
     const token = crypto.randomUUID();
     await db.insert(schema.sessions).values({

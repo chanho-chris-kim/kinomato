@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
@@ -149,9 +149,11 @@ test.describe("voting flow", () => {
     const client = postgres(databaseUrl);
     const db = drizzle(client, { schema });
 
+    // Names live on users (docs/onboarding-spec.md §8.2).
     const clubMemberships = await db
-      .select()
+      .select({ ...getTableColumns(schema.memberships), name: schema.users.displayName })
       .from(schema.memberships)
+      .innerJoin(schema.users, eq(schema.memberships.userId, schema.users.id))
       .where(eq(schema.memberships.clubId, CLUB_ID));
     const clubNights = await db
       .select()
@@ -183,8 +185,7 @@ test.describe("voting flow", () => {
     if (!expected) {
       throw new Error("Expected a picker for the seeded data, got none.");
     }
-    const expectedName = clubMemberships.find((m) => m.id === expected.id)
-      ?.displayName;
+    const expectedName = clubMemberships.find((m) => m.id === expected.id)?.name;
     if (!expectedName) {
       throw new Error("Computed picker's membership id wasn't in the club's list.");
     }

@@ -177,34 +177,6 @@ describe("getRotationOrder", () => {
     ).toHaveLength(1);
   });
 
-  it("a legacy membership with no user is never matched — not even to another with no user", () => {
-    // Only during the step-4 cutover window: guest rows (user_id NULL)
-    // still exist until the dev database is wiped. null must not act as a
-    // shared identity.
-    const oldGuest = membership("old-guest", {
-      userId: null,
-      joinedAt: new Date("2026-01-01"),
-      leftAt: new Date("2026-02-01"),
-    });
-    const otherGuest = membership("other-guest", {
-      userId: null,
-      joinedAt: new Date("2026-03-01"),
-    });
-    const order = getRotationOrder({
-      memberships: [oldGuest, otherGuest],
-      nights: [night("old-guest", "2026-01-20")],
-    });
-    expect(order.map((m) => m.id)).toEqual(["other-guest"]);
-    // other-guest never picked, so it sorts as never-picked (first) against
-    // someone who has.
-    const picker = membership("p", { joinedAt: new Date("2026-01-01") });
-    const withPicker = getRotationOrder({
-      memberships: [oldGuest, otherGuest, picker],
-      nights: [night("old-guest", "2026-01-20"), night("p", "2026-01-10")],
-    });
-    expect(withPicker.map((m) => m.id)).toEqual(["other-guest", "p"]);
-  });
-
   it("lets a new mid-season joiner pick next among the never-picked, by joined_at", () => {
     const veteran = membership("veteran", { joinedAt: new Date("2026-01-01") });
     const newcomer = membership("newcomer", {

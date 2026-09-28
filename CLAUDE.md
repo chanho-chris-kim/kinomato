@@ -21,14 +21,13 @@ another month over the thing that picks a film faster.
   table in §1.3, which v2 doesn't restate.
 - `docs/watchlist-spec.md` — watchlist organisation, add/search flow, the lock
   screen, film metadata sourcing.
-- `docs/onboarding-spec.md` — **the next build.** No guest tier, email
-  code + link auth, per-person invites, global watchlists, the public/
-  signed-in route split. Supersedes analysis-v2.md §5.1's three tiers
-  and reverses analysis-v1.md §7.1's no-account invite loop. The
-  identity, claim, invite-token and "no account settings page" rulings
-  below still describe the running code and stay as written until that
-  code lands — the spec's §8.4 lists exactly which ones get rewritten
-  then.
+- `docs/onboarding-spec.md` — **the rebuild.** No guest tier, email
+  code + link sign-in, per-person invites, global watchlists, the public/
+  signed-in route split, two-level navigation. Supersedes analysis-v2.md
+  §5.1's three tiers and reverses analysis-v1.md §7.1's no-account invite
+  loop. Build order is its §8.5; steps 1–4 are built (the cutover
+  removed guests), and step 5 (shell and navigation), 6 (global
+  watchlist) and 7 (settings) are next.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than
@@ -106,7 +105,7 @@ another month over the thing that picks a film faster.
   `AUTH_SECRET` falls back to a fixed dev value outside production and
   **throws in production when unset** — set it as a Worker secret. No
   passwords, no social login. See `docs/onboarding-spec.md` §4 and the
-  identity/claim/invite-token rulings below.
+  identity and invite rulings below.
 - Web Push (VAPID) with email fallback. No native app.
 
 ## Build order
@@ -120,7 +119,7 @@ another month over the thing that picks a film faster.
 
 Built beyond this list as the need became concrete rather than as a
 separate planned step: lock (`/clubs/[clubId]`'s "Lock it in"), club
-creation and invites (`/new`, `/clubs/[clubId]/join`), and first-night
+creation and invites (`/new`, then per-person invites), and first-night
 (`lib/schedule.ts` plus the lazy draft-night creation on `/clubs/[clubId]`
 page load — see the ruling below). A club created today reaches its
 first nomination with zero hand-seeding: `e2e/first-night.spec.ts` is
@@ -147,14 +146,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   it, a tie is nondeterministic. A cancelled night is independent of this —
   a night can be cancelled for reasons that have nothing to do with the
   picker. Leaving and rejoining doesn't reset `last_picked_at` or let
-  anyone jump the queue: every membership carries a stable `identity_key`
-  (the user's id where there is one, otherwise a per-club token minted on
-  first join and stored in a guest's invite cookie), and a rejoined
-  membership inherits the most recent pick from any prior membership with
-  the same `identity_key` in that club. A guest who clears cookies gets a
-  new `identity_key` and can't be matched — accepted, not solved. Storing
-  a pointer turns every skip, join, leave and pause into a migration
-  problem.
+  anyone jump the queue: every membership is a user's (`user_id NOT
+  NULL`), and a rejoined membership inherits the most recent pick from any
+  prior membership of the same user in that club (`lib/rotation.ts`).
+  Leaving sets `left_at` and rejoining inserts a new row; at most one
+  active row per person per club is a database constraint
+  (`memberships_one_active_per_user_per_club`), not just an app check.
+  Storing a pointer turns every skip, join, leave and pause into a
+  migration problem.
 - **Lock is immovable.** After lock, RSVP changes do not re-run the constraint
   filter and the pick does not change. A lock people can't trust is worthless.
   Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
@@ -312,8 +311,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   query path, not the shared history path. Every other read of votes or
   vetoes goes through the same module — no direct queries against those
   tables elsewhere in the codebase.
-- **Guest ratings stay club-local.** Only verified members' ratings enter public
-  aggregates. This is the bot-resistance story and the data story.
+- **Every rating is a verified member's.** There are no guests since the
+  step-4 cutover: every rating comes from an account behind a verified
+  email, and every non-founder arrived by a personal invite
+  (`invites.invited_by_membership_id` is the provenance record —
+  `docs/onboarding-spec.md` §3). Public aggregates, when they exist,
+  weight by trust; the founder is the open edge, covered by "a brand-new
+  club can't move a film's public number" (analysis-v2.md §5.2).
 - **Blind reveal: a member's whole rating — both scores and any hot take —
   stays hidden from everyone else until every attending member has rated.**
   Hiding only the text and not the quality/fun scores wouldn't stop
@@ -329,46 +333,41 @@ Do not quietly change these — they encode decisions that took a while to reach
   Plus one extra on their picking week. Notifications dedup across clubs someone
   belongs to. Everything else is in-app. This is a product constraint, not a
   setting.
-- **Free tier caps a club at six members**, enforced server-side at the
-  moment someone actually joins (`lib/clubMembers.ts`'s `canAddMember`,
-  called from `/clubs/[clubId]/join`'s `joinAsNewMember`), not just at
-  creation — an invite can circulate well past who the owner first added.
-  A refused join redirects back to the join page with the limit named in
-  a visible message, never a silent no-op: unlike the lock-immovability
-  no-ops (a benign lost race), a refused signup is new information a
-  person needs to see and act on. Checked with a plain count query, not a
-  DB constraint — a soft business-tier cap, not a safety invariant like
-  "one night in flight," so a race under truly simultaneous joins
-  (someone slipping in as a seventh member) is an accepted gap. A hard
-  constraint here would also be the wrong shape long-term: the cap is
-  meant to change per plan once paid tiers exist, which a fixed DB check
-  can't express as easily as an application-level read.
+- **Free tier caps a club at six members**, enforced server-side twice:
+  when an invite is created, where **pending invites hold a seat**
+  (`lib/invites.ts`'s `canCreateInvite`: active + pending < 6), and when
+  one is redeemed, which re-checks active members only (`canAddMember`
+  in `app/invites.ts`'s `redeemInvite`) — an invite can sit unredeemed
+  while the club changes. A refused invite is never a silent no-op: the
+  club page names the limit instead of offering the form, and a full
+  club's invite link says so and stays unconsumed. Checked with plain
+  count queries, not a DB constraint — a soft business-tier cap, not a
+  safety invariant like "one night in flight," so a race under truly
+  simultaneous redemptions is an accepted gap, and the cap is meant to
+  change per plan once paid tiers exist, which a fixed DB check can't
+  express as easily as an application-level read.
 - **A name is first name + last initial, always — never a single free-
-  text field.** `display_name` stays the one stored column, composed
-  from the two (`lib/memberName.ts`'s `composeDisplayName`, e.g. "Chris
-  K."), not stored separately — same "not eight nullable fields"
-  reasoning as `clubs.settings`. This is mandatory, not a form
-  preference, specifically because `/clubs/[clubId]/join` lets someone
-  claim a name the owner pre-added: if the owner wrote "Priya S." and
-  Priya typed just "Priya," she'd create a second membership instead of
-  claiming her own. `/new` (both the creator's own name and pre-added
-  members) and `/join`'s add-yourself path all call the same
-  `validateMemberName` — first name non-empty, last initial exactly one
-  letter, both trimmed, the initial uppercased so "k" and "K" can't
-  become two different people. That last point is load-bearing, not
-  cosmetic: it's specifically what makes "the same person always
-  composes to the same string" true, which is what makes claiming an
-  existing name actually work. No email, no full last name — this is
-  the full extent of "who are you" in v0.
+  text field.** It lives on the account (`users.display_name`), one per
+  person, the same in every club — memberships carry no name. Set once at
+  the name step (`/welcome`), composed by `lib/memberName.ts`'s
+  `validateMemberName`/`composeDisplayName` (first name non-empty, last
+  initial exactly one letter, both trimmed, the initial uppercased), the
+  same validation wherever a name is typed: the name step and an owner
+  adding someone to invite. The owner's typed name is a greeting and the
+  name step's prefill, nothing more — the person sets their own. The
+  format is consistency, no longer load-bearing: nothing matches people
+  by name since claiming is gone. Pages read names through
+  `app/clubs/[clubId]/members.ts` (`nameOf`); an account that hasn't been
+  through `/welcome` yet shows as "Unnamed member". No email and no full
+  last name are ever shown to a club.
 - **A club with no nights renders a distinct first-run state, not a
   generic empty one.** `/clubs/[clubId]` distinguishes "this club has
   never had a night" (`clubNights.length === 0`) from "nothing's in
-  flight right now, but history exists" (the older, more generic "No
-  open vote right now"). The first-run state doesn't say "coming soon" —
-  nothing creates a night's first `draft` row yet (see Open Questions),
-  so for every club created today this is permanent, not transitional —
-  and points at the one thing actually actionable right now: the invite
-  link, surfaced directly on the page next to a plain-text member list.
+  flight right now, but history exists" (the more generic "No open vote
+  right now"). In practice a new club's first page load creates its first
+  draft night (the lazy-creation ruling above), so this state is for a
+  club with nobody active to pick — it points at the one actionable
+  thing, the **Invite people** section on the same page.
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5
@@ -442,9 +441,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   (bottom tab bar on phones → icon sidebar at 620px → labeled sidebar at
   900px → optional context rail at 1120px, all via `.app`'s
   `container-type: inline-size` and `@container` queries, not viewport
-  media queries) used by the club page, watchlist, and tag page — /new
-  and /join stay standalone themed cards with no nav shell, matching
-  their pre-styling behavior of not rendering one. `.main` establishes
+  media queries) used by the club page, watchlist, and tag page — /new,
+  /login, /invite and /welcome stay standalone themed cards with no nav
+  shell. (Ruling D in `docs/onboarding-spec.md` §5.11 replaces this
+  sidebar model with top/bottom bars and club tabs; that lands in rebuild
+  step 5, and this ruling is rewritten then.) `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -472,58 +473,26 @@ Do not quietly change these — they encode decisions that took a while to reach
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
   candidate night for either section).
-- **Identity resolves in a fixed fallback order: per-club cookie, then
-  session, then nothing.** `getIdentityMembershipId`
-  (`app/clubs/[clubId]/identity.ts`) checks
-  `kinomato_identity_{clubId}` first — cheap, no DB read, and what
-  every guest always has, unchanged since v0. Only if that's missing
-  does it fall back to the site-wide `kinomato_session` cookie
-  (`app/session.ts`): session → `users.id` → look up the membership row
-  for `(clubId, userId)`. A guest with no session has no fallback and
-  is genuinely signed out, same as always. **Clearing cookies is
-  survivable for a verified member not because any cookie is
-  unclearable — clearing cookies clears the session cookie too — but
-  because `users.email` is a durable anchor.** Requesting a fresh magic
-  link re-finds the same `users` row by email every time, and every
-  membership whose `identity_key` is that `users.id` recognizes the
-  resulting new session immediately. This is also what makes a new
-  device work: it never had any cookie, guest or session, and doesn't
-  need one — verifying an email there is the entire recovery
-  mechanism. No signing library, no unclearable storage; a `sessions`
-  table (`app/session.ts`, `createSession`/`getSessionUserId`) plays
-  the role a cookie-signing dependency usually would, read straight
-  from Postgres like everything else in this app.
-- **Claiming updates the existing membership row in place — it never
-  creates a new one.** `app/verify/route.ts`'s claim branch sets
-  `userId` and `identity_key` (both to the new `users.id`) on the exact
-  membership row `magic_links.claim_membership_id` points at, gated on
-  that row still being unclaimed (`userId IS NULL`) so a narrow
-  double-click race can't steal a membership out from under a first
-  claim. This is what CLAUDE.md's rotation ruling already depends on:
-  `identity_key` is "the user's id where there is one, otherwise a
-  per-club token," and rotation carry-forward on rejoin matches
-  memberships by `identity_key` — a claim that inserted a fresh
-  membership instead would orphan the guest row's `last_picked_at` and
-  hand the claimer a clean rotation slate, silently jumping the queue.
-  Updating in place means the exact same row — same `last_picked_at`,
-  same `joined_at`, same rotation position — just gained a `userId`.
-  The prompt itself (`ClaimPrompt`, `app/clubs/[clubId]/ClaimPrompt.tsx`)
-  only ever fires at a moment of real loss aversion, never on arrival:
-  a guest's watchlist reaching 3+ films (a rating is one row and costs
-  little to lose; a built watchlist is slower to rebuild, so that's the
-  threshold, not a rating existing), or an unclaimed guest *owner* on
-  the club page regardless of watchlist size — a guest-owned club whose
-  only owner clears cookies permanently loses its invite-token
-  rotation and settings control, a real failure mode rather than a
-  preference. Never a wall either way: ignoring the prompt changes
-  nothing about what a guest can already do.
-- **Per-person invites run alongside the club-wide link until the
-  cutover** (`docs/onboarding-spec.md` §7; rebuild step 3). An owner or
+- **Identity is the session, and nothing else.** One site-wide cookie,
+  `kinomato_session` (`app/session.ts`), whose token is stored only as a
+  hash; `getIdentityMembershipId` (`app/clubs/[clubId]/identity.ts`) goes
+  session → `users.id` → that user's active membership in this club. The
+  per-club identity cookie and the name picker are gone; a stale
+  `kinomato_identity_*` cookie still in a browser is never read. Pages
+  gate with `app/auth.ts`: club routes and `/new` need a session
+  (→ `/login?returnTo=<path>`, landing back there after the code), club
+  routes also need an active membership, and anyone else gets a **404,
+  not a 403** — a 403 would confirm the club exists. Server actions are
+  callable directly, so they check again (`requireCurrentMembershipId`).
+  **Clearing cookies or a new device is survivable because `users.email`
+  is a durable anchor:** a fresh code re-finds the same `users` row, and
+  every membership that's that user's is recognized at once. No signing
+  library, no unclearable storage.
+- **Invites are per person** (`docs/onboarding-spec.md` §7). An owner or
   admin adds "First R." and gets a link for that one person
-  (`/invite/[token]`, token stored as-is so it can be re-shared), which
-  greets them by name, takes an email, and joins them after the code.
-  Pending invites hold a seat (`lib/invites.ts`'s `canCreateInvite`:
-  active + pending < cap); redemption re-checks active members only.
+  (`/invite/[token]`, 128 random bits, stored as-is so it can be
+  re-shared), which greets them by name, takes an email, and joins them
+  after the code. Pending invites hold a seat (see the free-tier ruling).
   Opening the landing page records and redeems nothing (link previews
   open every URL); `started_at` is set on the first email submitted.
   Redemption (`app/invites.ts`'s `redeemInvite`) claims the invite with a
@@ -531,32 +500,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   insert fails — neon-http has no transactions. An active member opening
   someone's invite is told they're in and it's left untouched; someone
   signed in as a non-member gets Ruling B's two labelled buttons, never a
-  silent redeem. Revoke and regenerate touch one row each (Ruling C). The
-  old club-wide `/join` link keeps working for links already sent until
-  step 4 removes it. **Names now live on `users.display_name`:** an
-  account that already has a membership gets its name filled in from it
-  (`ensureDisplayName`, at sign-in and at redemption); only a brand-new
-  account sees the one-time name step, `/welcome`, prefilled from the
-  invite. Until step 4b, `memberships.display_name` is still written too.
-- **Invite links carry a token; a club id alone no longer admits a
-  joiner.** `clubs.invite_token` (minted with the same
-  `crypto.randomUUID()` convention every other generated id in this app
-  uses) is required as `?token=` on `/clubs/[clubId]/join` — missing or
-  mismatched shows a clear "invalid or rotated" state, not a generic
-  404. A Server Action is callable directly, not just through whatever
-  page rendered its bound form, so `claimExistingName` and
-  `joinAsNewMember` (`app/clubs/[clubId]/join/actions.ts`) both
-  re-check the token server-side via `requireValidInviteToken` — the
-  join *page* gating its own UI on a valid token isn't a security
-  boundary by itself. Validation-error redirects
-  (`joinErrorUrl`) preserve the token in the query string; dropping it
-  would land a refused joiner back on the "invalid invite link" state
-  instead of the actual message (a taken name, the free-tier cap) they
-  need to see and act on. **Rotating is owner/admin only** — same
-  restriction shape as `lockNight`, both being "this changes something
-  every member depends on" actions — and just overwrites the column;
-  any link holding the old value fails immediately on its next use,
-  nothing to expire or garbage-collect.
+  silent redeem. Revoke and regenerate touch one row each (Ruling C),
+  owner/admin only, and every invite action re-checks that server-side.
+  Redeemed invites are kept: they're the provenance record.
 
 ## Things not to do
 
@@ -569,10 +515,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   Film metadata caches indefinitely; availability does not.
 - Don't put the Brevo key or `AUTH_SECRET` in a `NEXT_PUBLIC_` variable.
   Server-side only, same as the TMDB token.
-- Don't build a login-required wall anywhere, an account settings page,
-  password reset, or social login. Auth is magic links and nothing else;
-  a guest can fully participate forever without ever seeing a prompt
-  that blocks anything.
+- Don't build password reset or social login, or any account page
+  beyond Settings (`docs/onboarding-spec.md` §5.9 — exactly what it
+  lists, nothing password-shaped). Auth is email sign-in and nothing
+  else. Everything except the marketing page, the invite landing, the
+  sign-in flow and the legal pages needs a session; there are no guests
+  (§0 explains why).
 
 ## Naming
 
@@ -591,7 +539,8 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Pure logic in `lib/`, tested in isolation. UI components stay dumb.
 - **User-facing validation errors from a plain `<form action>` redirect
   back to the same page with the message in an `?error=` query param**
-  (`app/new/actions.ts`, `app/clubs/[clubId]/join/actions.ts`), rather
+  (`app/new/actions.ts`, `app/clubs/[clubId]/actions.ts`'s invite
+  actions), rather
   than throwing. A thrown error in a server action has no error boundary
   to land in anywhere in this app, so the only default is a dev-mode
   overlay or a generic production digest — worse than the "clear
@@ -653,10 +602,11 @@ Kinoma (former Marvell division) are the nearest existing marks.
     build on the run's database state, so parallel execution would race.
   - **Sign-in in tests goes through `e2e/session.ts`'s `signInAs`**, which
     inserts a `sessions` row for a seeded membership's account and sets
-    the cookie. It's a test helper, never an app route. Clicking a name in
-    the picker is only for the tests that are about the guest/claim flow
-    itself (club 7's Wes and Uma, create-club, first-night); every other
-    seeded member has an account (`seed-fixtures.ts`'s `MEMBER_USER`).
+    the cookie. It's a test helper, never an app route. Tests that are
+    about signing in (auth, gating, invites, create-club, first-night) go
+    through the real email-and-code flow instead, setting a known code on
+    the sign-in row (`e2e/signIn.ts`). Every seeded member is an account,
+    named on the account.
   - CI runs E2E as its own job (`e2e`, in `ci.yml`), separate from
     `check`, specifically so a flaky or slow E2E run never blocks a pure
     logic fix. Don't add `E2E` to `main`'s required status checks in
@@ -684,20 +634,6 @@ and move on.
   provenance, account age/cadence, rating variance, cross-club
   presence, device/network clustering) and the weighted-public-ratings
   behavior that would consume this tier are entirely undesigned.
-- **Multi-club membership has no UI.** A single `users` row can now
-  back memberships in several clubs (nothing stops it), but there's no
-  "my clubs" list anywhere to browse them — landing on a bare `/login`
-  or `/verify` with no `returnTo` goes to `/` (the dev club-listing
-  page, itself scaffolding per this file's Stack section), not
-  anywhere club-specific. A person recovering their identity on a new
-  device has to already have a specific club's URL in hand.
-- **Claim-race edge case is accepted, not handled.** If a membership
-  somehow gets claimed by someone else between a claim prompt being
-  shown and that link being clicked (two people racing the same
-  guest slot — narrow, not the common path), `/verify` silently skips
-  the membership update and just logs the clicker in as themselves,
-  rather than surfacing an error. Same posture as the free-tier cap's
-  accepted join race — a narrow gap, not a safety invariant.
 - **No theme picker, and only "late show" is built.** `docs/prototype.html`
   documents "rep house" and "video rental" as two more full palettes —
   the CSS structure (`[data-theme="..."]` blocks in `app/globals.css`)

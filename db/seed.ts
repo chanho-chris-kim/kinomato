@@ -14,7 +14,6 @@
 //
 // Run with: npm run db:seed
 import "dotenv/config";
-import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
@@ -46,6 +45,13 @@ import {
   CLUB_7_ID,
   CLUB_8_ID,
   CLUB_ID,
+  DISPLAY_NAME,
+  DISPLAY_NAME_2,
+  DISPLAY_NAME_3,
+  DISPLAY_NAME_4,
+  DISPLAY_NAME_5,
+  DISPLAY_NAME_6,
+  DISPLAY_NAME_7,
   DISPLAY_NAME_8,
   FULL_CLUB_INVITE,
   FILM,
@@ -113,20 +119,35 @@ async function main() {
   await db.delete(clubs);
 
   console.log("Seeding users...");
+  // Every member is an account, named on the account (names live on
+  // users — docs/onboarding-spec.md §8.2); memberships carry no name.
+  const NAME: Record<string, string> = {
+    ...DISPLAY_NAME,
+    ...DISPLAY_NAME_2,
+    ...DISPLAY_NAME_3,
+    ...DISPLAY_NAME_4,
+    ...DISPLAY_NAME_5,
+    ...DISPLAY_NAME_6,
+    ...DISPLAY_NAME_7,
+    ...DISPLAY_NAME_8,
+  };
   await db.insert(users).values([
-    { id: USER.chris, email: "chris@example.com" },
-    { id: USER.priya, email: "priya@example.com" },
-    { id: USER.marco, email: "marco@example.com" },
-    { id: USER.dana, email: "dana@example.com" },
-    { id: USER.sam, email: "sam@example.com" },
-    // Clubs 1–6's other members (seed-fixtures.ts MEMBER_USER).
-    ...Object.entries(MEMBER_USER).map(([name, id]) => ({ id, email: `${name}@example.com` })),
+    { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
+    { id: USER.priya, email: "priya@example.com", displayName: NAME.priya },
+    { id: USER.marco, email: "marco@example.com", displayName: NAME.marco },
+    { id: USER.dana, email: "dana@example.com", displayName: NAME.dana },
+    { id: USER.sam, email: "sam@example.com", displayName: NAME.sam },
+    // Everyone else (seed-fixtures.ts MEMBER_USER).
+    ...Object.entries(MEMBER_USER).map(([name, id]) => ({
+      id,
+      email: `${name}@example.com`,
+      displayName: NAME[name],
+    })),
   ]);
 
   console.log("Seeding club...");
   await db.insert(clubs).values({
     id: CLUB_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Movie Night Crew",
     cadence: "weekly",
     defaultDay: 6, // Saturday
@@ -144,8 +165,6 @@ async function main() {
       id: MEMBERSHIP.chris,
       clubId: CLUB_ID,
       userId: USER.chris,
-      identityKey: USER.chris,
-      displayName: "Chris",
       role: "owner",
       joinedAt: day(1),
     },
@@ -153,8 +172,6 @@ async function main() {
       id: MEMBERSHIP.priya,
       clubId: CLUB_ID,
       userId: USER.priya,
-      identityKey: USER.priya,
-      displayName: "Priya",
       role: "admin",
       joinedAt: day(2),
     },
@@ -162,8 +179,6 @@ async function main() {
       id: MEMBERSHIP.marco,
       clubId: CLUB_ID,
       userId: USER.marco,
-      identityKey: USER.marco,
-      displayName: "Marco",
       role: "member",
       joinedAt: day(3),
     },
@@ -171,8 +186,6 @@ async function main() {
       id: MEMBERSHIP.dana,
       clubId: CLUB_ID,
       userId: USER.dana,
-      identityKey: USER.dana,
-      displayName: "Dana",
       role: "member",
       joinedAt: day(4),
     },
@@ -180,8 +193,6 @@ async function main() {
       id: MEMBERSHIP.sam,
       clubId: CLUB_ID,
       userId: USER.sam,
-      identityKey: USER.sam,
-      displayName: "Sam",
       role: "member",
       joinedAt: day(5),
     },
@@ -189,8 +200,6 @@ async function main() {
       id: MEMBERSHIP.jo,
       clubId: CLUB_ID,
       userId: MEMBER_USER.jo,
-      identityKey: MEMBER_USER.jo,
-      displayName: "Jo",
       role: "member",
       joinedAt: day(6),
     },
@@ -348,7 +357,6 @@ async function main() {
   console.log("Seeding a second club for the nomination flow...");
   await db.insert(clubs).values({
     id: CLUB_2_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Second Club",
     cadence: "weekly",
     defaultDay: 3,
@@ -362,8 +370,6 @@ async function main() {
       id: MEMBERSHIP_2.nadia,
       clubId: CLUB_2_ID,
       userId: MEMBER_USER.nadia,
-      identityKey: MEMBER_USER.nadia,
-      displayName: "Nadia",
       role: "owner",
       joinedAt: day(1),
     },
@@ -371,8 +377,6 @@ async function main() {
       id: MEMBERSHIP_2.omar,
       clubId: CLUB_2_ID,
       userId: MEMBER_USER.omar,
-      identityKey: MEMBER_USER.omar,
-      displayName: "Omar",
       role: "member",
       joinedAt: day(2),
     },
@@ -412,7 +416,6 @@ async function main() {
   console.log("Seeding a third club for the confirmation/rating flow...");
   await db.insert(clubs).values({
     id: CLUB_3_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Third Club",
     cadence: "weekly",
     defaultDay: 5,
@@ -426,8 +429,6 @@ async function main() {
       id: MEMBERSHIP_3.leo,
       clubId: CLUB_3_ID,
       userId: MEMBER_USER.leo,
-      identityKey: MEMBER_USER.leo,
-      displayName: "Leo",
       role: "owner",
       joinedAt: day(1),
     },
@@ -435,8 +436,6 @@ async function main() {
       id: MEMBERSHIP_3.mika,
       clubId: CLUB_3_ID,
       userId: MEMBER_USER.mika,
-      identityKey: MEMBER_USER.mika,
-      displayName: "Mika",
       role: "member",
       joinedAt: day(2),
     },
@@ -444,8 +443,6 @@ async function main() {
       id: MEMBERSHIP_3.theo,
       clubId: CLUB_3_ID,
       userId: MEMBER_USER.theo,
-      identityKey: MEMBER_USER.theo,
-      displayName: "Theo",
       role: "member",
       joinedAt: day(3),
     },
@@ -481,7 +478,6 @@ async function main() {
   console.log("Seeding a fourth club for the cancellation flow...");
   await db.insert(clubs).values({
     id: CLUB_4_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Fourth Club",
     cadence: "weekly",
     defaultDay: 0,
@@ -495,8 +491,6 @@ async function main() {
       id: MEMBERSHIP_4.vik,
       clubId: CLUB_4_ID,
       userId: MEMBER_USER.vik,
-      identityKey: MEMBER_USER.vik,
-      displayName: "Vik",
       role: "owner",
       joinedAt: day(1),
     },
@@ -504,8 +498,6 @@ async function main() {
       id: MEMBERSHIP_4.ana,
       clubId: CLUB_4_ID,
       userId: MEMBER_USER.ana,
-      identityKey: MEMBER_USER.ana,
-      displayName: "Ana",
       role: "member",
       joinedAt: day(2),
     },
@@ -531,7 +523,6 @@ async function main() {
   console.log("Seeding a fifth club for the full lock loop...");
   await db.insert(clubs).values({
     id: CLUB_5_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Fifth Club",
     cadence: "weekly",
     defaultDay: 4,
@@ -545,8 +536,6 @@ async function main() {
       id: MEMBERSHIP_5.zoe,
       clubId: CLUB_5_ID,
       userId: MEMBER_USER.zoe,
-      identityKey: MEMBER_USER.zoe,
-      displayName: "Zoe",
       role: "owner",
       joinedAt: day(1),
     },
@@ -554,8 +543,6 @@ async function main() {
       id: MEMBERSHIP_5.yara,
       clubId: CLUB_5_ID,
       userId: MEMBER_USER.yara,
-      identityKey: MEMBER_USER.yara,
-      displayName: "Yara",
       role: "member",
       joinedAt: day(2),
     },
@@ -563,8 +550,6 @@ async function main() {
       id: MEMBERSHIP_5.xavier,
       clubId: CLUB_5_ID,
       userId: MEMBER_USER.xavier,
-      identityKey: MEMBER_USER.xavier,
-      displayName: "Xavier",
       role: "member",
       joinedAt: day(3),
     },
@@ -596,7 +581,6 @@ async function main() {
   console.log("Seeding a sixth club for confirmAt, slider sync, and tag autocomplete...");
   await db.insert(clubs).values({
     id: CLUB_6_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Sixth Club",
     cadence: "weekly",
     defaultDay: 5,
@@ -611,8 +595,6 @@ async function main() {
       id: MEMBERSHIP_6.nora,
       clubId: CLUB_6_ID,
       userId: MEMBER_USER.nora,
-      identityKey: MEMBER_USER.nora,
-      displayName: "Nora",
       role: "owner",
       joinedAt: day(1),
     },
@@ -620,8 +602,6 @@ async function main() {
       id: MEMBERSHIP_6.iris,
       clubId: CLUB_6_ID,
       userId: MEMBER_USER.iris,
-      identityKey: MEMBER_USER.iris,
-      displayName: "Iris",
       role: "member",
       joinedAt: day(2),
     },
@@ -648,7 +628,6 @@ async function main() {
   console.log("Seeding a seventh club for the auth flows...");
   await db.insert(clubs).values({
     id: CLUB_7_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Seventh Club",
     cadence: "weekly",
     defaultDay: 2,
@@ -662,8 +641,6 @@ async function main() {
       id: MEMBERSHIP_7.wes,
       clubId: CLUB_7_ID,
       userId: MEMBER_USER.wes,
-      identityKey: MEMBER_USER.wes,
-      displayName: "Wes",
       role: "owner",
       joinedAt: day(1),
     },
@@ -671,27 +648,15 @@ async function main() {
       id: MEMBERSHIP_7.uma,
       clubId: CLUB_7_ID,
       userId: MEMBER_USER.uma,
-      identityKey: MEMBER_USER.uma,
-      displayName: "Uma",
       role: "member",
       joinedAt: day(2),
     },
-  ]);
-
-  // 3 films — the claim-prompt threshold (CLAUDE.md) — so the E2E spec
-  // can go straight to the prompt instead of adding films through the
-  // UI first.
-  await db.insert(watchlistItems).values([
-    { membershipId: MEMBERSHIP_7.uma, filmId: babadookId },
-    { membershipId: MEMBERSHIP_7.uma, filmId: getOutId },
-    { membershipId: MEMBERSHIP_7.uma, filmId: arrivalId },
   ]);
 
   // An eighth club — see seed-fixtures.ts's comment on CLUB_8_ID.
   console.log("Seeding an eighth club for per-person invites...");
   await db.insert(clubs).values({
     id: CLUB_8_ID,
-    inviteToken: crypto.randomUUID(),
     name: "Eighth Club",
     cadence: "weekly",
     defaultDay: 5,
@@ -699,21 +664,11 @@ async function main() {
     timezone: "America/New_York",
     mode: "in_person",
   });
-  await db
-    .update(users)
-    .set({ displayName: DISPLAY_NAME_8.hana })
-    .where(eq(users.id, MEMBER_USER.hana));
-  await db
-    .update(users)
-    .set({ displayName: DISPLAY_NAME_8.ivo })
-    .where(eq(users.id, MEMBER_USER.ivo));
   await db.insert(memberships).values([
     {
       id: MEMBERSHIP_8.hana,
       clubId: CLUB_8_ID,
       userId: MEMBER_USER.hana,
-      identityKey: MEMBER_USER.hana,
-      displayName: DISPLAY_NAME_8.hana,
       role: "owner",
       joinedAt: day(1),
     },
@@ -721,8 +676,6 @@ async function main() {
       id: MEMBERSHIP_8.ivo,
       clubId: CLUB_8_ID,
       userId: MEMBER_USER.ivo,
-      identityKey: MEMBER_USER.ivo,
-      displayName: DISPLAY_NAME_8.ivo,
       role: "member",
       joinedAt: day(2),
     },
@@ -736,14 +689,6 @@ async function main() {
     inviteeName: FULL_CLUB_INVITE.inviteeName,
     invitedByMembershipId: MEMBERSHIP.chris,
   });
-
-  // Names live on users (docs/onboarding-spec.md §8.2): every seeded
-  // account takes the name of its membership, so pages have one to show.
-  await db.execute(sql`
-    update users set display_name = m.display_name
-    from memberships m
-    where m.user_id = users.id and users.display_name is null
-  `);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

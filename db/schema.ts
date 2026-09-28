@@ -89,14 +89,6 @@ export const clubs = pgTable("clubs", {
   // Non-null = the club (and its rotation) is paused. Same shape as
   // memberships.postponed_at.
   pausedAt: timestamp("paused_at", { withTimezone: true }),
-  // Required on /join as a query param (CLAUDE.md) — a club id alone no
-  // longer admits a joiner. Minted with the same crypto.randomUUID()
-  // convention every other generated id in this app already uses, not
-  // a shorter/URL-friendlier format invented just for this. Rotating
-  // it (owner/admin only, same restriction precedent as lockNight)
-  // just overwrites this column — old links start failing immediately,
-  // nothing to expire or garbage-collect.
-  inviteToken: text("invite_token").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -105,10 +97,8 @@ export const clubs = pgTable("clubs", {
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
-  // "First R." — set once at the name step (/welcome), or filled in at
-  // sign-in from the account's existing membership name. Nullable only
-  // until then. Replaces memberships.display_name in rebuild step 4b
-  // (docs/onboarding-spec.md §8.2).
+  // "First R." — the person's name in every club, set once at the name
+  // step (/welcome) and changeable later. Nullable only until then.
   displayName: text("display_name"),
   avatar: text("avatar"),
   // Trusted tier (analysis-v2.md §5.1) — schema room only, no logic
@@ -120,23 +110,13 @@ export const users = pgTable("users", {
     .defaultNow(),
 });
 
-// A magic link is the entire auth mechanism (CLAUDE.md) — no passwords,
-// no session-independent "remember me": the users.email row is the
-// durable anchor, and requesting a fresh link is how identity survives
-// a cleared cookie or a new device, not some unclearable cookie.
-// claimMembershipId is what distinguishes the two flows this table
-// serves: null is a plain login/recovery link; set means verifying
-// this link updates that membership row in place (userId and
-// identityKey both set to the resulting users.id) rather than ever
-// creating a new one — CLAUDE.md's claim ruling, load-bearing for
-// rotation continuity.
+// One row per sign-in email sent (docs/onboarding-spec.md §4) — email is
+// the entire auth mechanism (CLAUDE.md): no passwords, and users.email is
+// the durable anchor, so requesting a fresh code is how identity survives
+// a cleared cookie or a new device.
 export const magicLinks = pgTable("magic_links", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull(),
-  // Plaintext, pre-hashing. Nothing writes or reads it any more; nullable
-  // so new rows can leave it empty, dropped in rebuild step 4b
-  // (docs/onboarding-spec.md §8.5).
-  token: text("token").unique(),
   // One row, two ways in (docs/onboarding-spec.md §4): the link's token and
   // the 6-digit code, both stored only as hashes (lib/authCredentials.ts).
   // Using either consumes the row.
@@ -144,11 +124,6 @@ export const magicLinks = pgTable("magic_links", {
   codeHash: text("code_hash"),
   // Wrong code entries against this row; at CODE_MAX_ATTEMPTS it's dead.
   attempts: integer("attempts").notNull().default(0),
-  claimMembershipId: uuid("claim_membership_id").references(() => memberships.id),
-  // Where to land after verifying — a club id, so both a claim and a
-  // plain recovery login return to where the person actually was
-  // instead of a dead end. Null for a bare /login with no club context.
-  returnToClubId: uuid("return_to_club_id").references(() => clubs.id),
   // Set when the code was requested from an invite landing page: completing
   // sign-in then redeems that invite (app/invites.ts).
   inviteId: uuid("invite_id").references(() => invites.id),
@@ -171,8 +146,6 @@ export const sessions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    // Plaintext, pre-hashing; unused, dropped in rebuild step 4b.
-    token: text("token").unique(),
     // SHA-256 of the cookie's value (lib/authCredentials.ts). A leaked
     // table no longer hands out working sessions.
     tokenHash: text("token_hash").unique(),
@@ -191,17 +164,12 @@ export const memberships = pgTable(
     clubId: uuid("club_id")
       .notNull()
       .references(() => clubs.id),
-    // Nullable: v0 has no auth, guests have no users row.
-    userId: uuid("user_id").references(() => users.id),
-    // Stable per-club identity for rotation carry-forward: the user's id
-    // where there is one, otherwise a per-club token minted on first join
-    // and stored in the guest's invite cookie. Always present, unlike
-    // userId — this is what closes the "leave and rejoin as a fresh
-    // guest to skip the queue" hole. A guest who clears cookies gets a
-    // new identityKey and genuinely can't be matched; accepted, not
-    // handled.
-    identityKey: text("identity_key").notNull(),
-    displayName: text("display_name").notNull(),
+    // Every membership is a user's — there are no guests
+    // (docs/onboarding-spec.md §8.2). Rotation carry-forward on a rejoin
+    // matches prior memberships by it; the name comes from users.
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
     role: membershipRoleEnum("role").notNull().default("member"),
     joinedAt: timestamp("joined_at", { withTimezone: true })
       .notNull()
@@ -213,10 +181,13 @@ export const memberships = pgTable(
   },
   (table) => [
     index("memberships_club_id_idx").on(table.clubId),
-    index("memberships_club_id_identity_key_idx").on(
-      table.clubId,
-      table.identityKey,
-    ),
+    // One active membership per person per club. Leaving sets left_at, so
+    // rejoining inserts a new row (the old one keeps its history); a
+    // second *active* row is a rejected insert, the same shape as
+    // nights_one_in_flight_per_club.
+    uniqueIndex("memberships_one_active_per_user_per_club")
+      .on(table.clubId, table.userId)
+      .where(sql`${table.leftAt} IS NULL`),
   ],
 );
 

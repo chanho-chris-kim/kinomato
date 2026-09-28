@@ -12,9 +12,9 @@ export const USER = {
   sam: "22222222-2222-2222-2222-222222222225",
 };
 
-// Accounts for every seeded member who used to be a cookie-only guest.
-// Since rebuild step 4 there are no guests: every membership is a user's,
-// and the E2E suite signs in by session (e2e/session.ts).
+// Accounts for every seeded member beyond club 1's first five (USER).
+// There are no guests: every membership is a user's, and the E2E suite
+// signs in by session (e2e/session.ts).
 export const MEMBER_USER = {
   jo: "dddddddd-0000-0000-0000-000000000001",
   nadia: "dddddddd-0000-0000-0000-000000000002",
@@ -185,15 +185,13 @@ export const DISPLAY_NAME_6: Record<keyof typeof MEMBERSHIP_6, string> = {
 export const NIGHT_6_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4";
 
 // A seventh, separate club — for the auth flows: signing in again on a
-// new device (recovery by email). Both members have accounts. Wes owns
-// it (unclaimed-owner prompt, regardless of watchlist size); Uma gets a
-// 3-film watchlist seeded directly (the claim-prompt threshold), so the
-// E2E test doesn't have to add films through the UI just to reach it.
+// new device (recovery by email). Wes owns it; Uma is the one who signs
+// back in.
 export const CLUB_7_ID = "99999999-9999-9999-9999-999999999995";
 
 export const MEMBERSHIP_7 = {
   wes: "aaaaaaaa-1111-1111-1111-000000000071", // owner
-  uma: "aaaaaaaa-1111-1111-1111-000000000072", // member, 3-film watchlist
+  uma: "aaaaaaaa-1111-1111-1111-000000000072", // member
 };
 
 export const DISPLAY_NAME_7: Record<keyof typeof MEMBERSHIP_7, string> = {

@@ -11,9 +11,6 @@ import { joinInviteAsMe, signOutForInvite, startInvite } from "./actions";
 // important screen in the rebuild: "Hi Marco — Chris invited you to
 // Saturday Club" before anyone types anything. Public. GET never records
 // or redeems anything: chat apps' link previews open every URL.
-//
-// "Signed in" means a session. A guest with only a per-club identity
-// cookie is signed out here, same as everywhere else sign-in is asked for.
 export default async function InvitePage({
   params,
   searchParams,

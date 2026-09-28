@@ -16,10 +16,8 @@ export type NightState =
 export interface RotationMembership {
   id: string;
   // Who this membership belongs to. Carry-forward on a rejoin keys on it:
-  // every membership is a user's (docs/onboarding-spec.md §8.2). Null
-  // only for legacy guest rows during the step-4 cutover window, which are
-  // never matched to anything.
-  userId: string | null;
+  // every membership is a user's (docs/onboarding-spec.md §8.2).
+  userId: string;
   clubId: string;
   joinedAt: Date;
   leftAt: Date | null;
@@ -66,8 +64,6 @@ function effectiveLastPickedAt(
   allMemberships: RotationMembership[],
   nights: RotationNight[],
 ): Date | null {
-  // No user, no history to carry: null is not a shared identity.
-  if (membership.userId === null) return rawLastPickedAt(membership.id, nights);
   const candidates = allMemberships.filter(
     (m) =>
       m.userId === membership.userId &&

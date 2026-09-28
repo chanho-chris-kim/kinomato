@@ -16,8 +16,7 @@ export async function loadClubMemberships(db: ReturnType<typeof getDb>, clubId: 
 
 export type ClubMembership = Awaited<ReturnType<typeof loadClubMemberships>>[number];
 
-// Null only for an account that hasn't been through /welcome yet, or a
-// legacy guest row during the step-4 cutover window (no account at all).
+// Null only for an account that hasn't been through /welcome yet.
 export function nameOf(member: { name: string | null } | null | undefined): string {
   return member?.name ?? "Unnamed member";
 }

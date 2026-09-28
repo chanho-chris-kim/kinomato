@@ -76,20 +76,10 @@ export async function redeemInvite(db: Db, inviteId: string, userId: string): Pr
     return { status: now?.revokedAt ? "replaced" : "used", token: invite.token };
   }
 
-  // The account's own name whenever it has one, so the membership never
-  // borrows the invitee's name (e.g. Chris joining via Lee's invite under
-  // Ruling B's "join as me"). Only a brand-new account gets the owner's
-  // typed name as a placeholder, until /welcome replaces it.
-  const displayName = await accountName(db, userId);
   try {
-    // identity_key and display_name are no longer read by anything
-    // (rotation carries forward by user_id; names come from users), but
-    // the old schema still requires them until rebuild step 4b drops them.
     await db.insert(memberships).values({
       clubId: invite.clubId,
       userId,
-      identityKey: userId,
-      displayName: displayName ?? invite.inviteeName,
       role: "member",
     });
   } catch (error) {
