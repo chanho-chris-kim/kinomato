@@ -1,10 +1,8 @@
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
-import { cookies } from "next/headers";
 import type { getDb } from "@/db";
-import { magicLinks, memberships, users } from "@/db/schema";
-import { getBaseUrl } from "@/app/baseUrl";
-import { ensureDisplayName, redeemDestination, redeemInvite } from "@/app/invites";
-import { identityCookieName } from "@/app/clubs/[clubId]/identity";
+import { magicLinks, users } from "@/db/schema";
+import { getBaseUrl, safePath } from "@/app/baseUrl";
+import { redeemDestination, redeemInvite } from "@/app/invites";
 import { createSession, setSessionCookie } from "@/app/session";
 import {
   checkSendAllowed,
@@ -22,9 +20,8 @@ import { sendSignInEmail } from "@/lib/email";
 // (its cookies are separate from Safari's) and for invites opened inside
 // chat apps. The link is the same-device convenience.
 //
-// Serves both flows this app has (CLAUDE.md): plain sign-in/recovery
-// (claimMembershipId unset) and claim (set — completing it updates that
-// membership in place, never creating a new one).
+// Two ways in: plain sign-in/recovery, and from an invite (inviteId set —
+// completing sign-in redeems it).
 
 // 15 minutes — short-lived on purpose, unlike the session it produces
 // (app/session.ts). It's a one-time credential sitting in an inbox.
@@ -39,8 +36,6 @@ export async function issueSignIn(
   db: ReturnType<typeof getDb>,
   params: {
     email: string;
-    claimMembershipId?: string;
-    returnToClubId?: string;
     // From an invite landing page: completing sign-in redeems it.
     inviteId?: string;
   },
@@ -67,8 +62,6 @@ export async function issueSignIn(
     email: params.email,
     tokenHash: hashToken(token),
     codeHash: hashCode(code, getAuthSecret()),
-    claimMembershipId: params.claimMembershipId ?? null,
-    returnToClubId: params.returnToClubId ?? null,
     inviteId: params.inviteId ?? null,
     expiresAt: new Date(now.getTime() + SIGN_IN_DURATION_MS),
   });
@@ -93,10 +86,14 @@ export async function latestSignInFor(db: ReturnType<typeof getDb>, email: strin
 // Shared by the code form and the link's sign-in button. Consumes the row
 // first, conditionally: a double submit or a code-and-link race loses
 // cleanly (returns null) instead of signing in twice. Returns the path to
-// land on — /welcome first if the account still has no name.
+// land on: the invite's club if it came from one, else `returnTo` (a
+// same-origin path the code screen carried in its URL — the link from the
+// email has none and lands on /), with /welcome first if the account
+// still has no name.
 export async function completeSignIn(
   db: ReturnType<typeof getDb>,
   signInId: string,
+  returnTo?: string,
 ): Promise<string | null> {
   const [link] = await db
     .update(magicLinks)
@@ -110,26 +107,10 @@ export async function completeSignIn(
   const [existingUser] = await db.select().from(users).where(eq(users.email, link.email));
   const user = existingUser ?? (await db.insert(users).values({ email: link.email }).returning())[0];
 
-  // Claim (CLAUDE.md's claim ruling): update the existing membership row in
-  // place — never insert a new one, which is what keeps rotation history
-  // attached to the same row. Only touches a membership that's still
-  // unclaimed; if someone else claimed it in between (a narrow race, not
-  // handled further), this still signs the person in, it just doesn't
-  // steal the membership.
-  if (link.claimMembershipId) {
-    await db
-      .update(memberships)
-      .set({ userId: user.id, identityKey: user.id })
-      .where(and(eq(memberships.id, link.claimMembershipId), isNull(memberships.userId)));
-  }
-
   await setSessionCookie(await createSession(db, user.id));
 
-  // Only brand-new accounts see the name step; one that already has a
-  // membership takes its name from it (app/invites.ts).
-  const displayName = await ensureDisplayName(db, user.id);
   const withNameStep = (destination: string, inviteId?: string) => {
-    if (displayName) return destination;
+    if (user.displayName) return destination;
     const qs = new URLSearchParams({ next: destination });
     if (inviteId) qs.set("invite", inviteId);
     return `/welcome?${qs.toString()}`;
@@ -139,21 +120,5 @@ export async function completeSignIn(
     const result = await redeemInvite(db, link.inviteId, user.id);
     return withNameStep(redeemDestination(result), link.inviteId);
   }
-
-  if (link.returnToClubId) {
-    const [membership] = await db
-      .select({ id: memberships.id })
-      .from(memberships)
-      .where(and(eq(memberships.clubId, link.returnToClubId), eq(memberships.userId, user.id)));
-    if (membership) {
-      const cookieStore = await cookies();
-      cookieStore.set(identityCookieName(link.returnToClubId), membership.id, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: `/clubs/${link.returnToClubId}`,
-      });
-    }
-    return withNameStep(`/clubs/${link.returnToClubId}`);
-  }
-  return withNameStep("/");
+  return withNameStep(safePath(returnTo));
 }

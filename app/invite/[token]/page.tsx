@@ -38,7 +38,7 @@ export default async function InvitePage({
 
   const inviteeFirst = row?.invite.inviteeName.replace(/ [A-Za-z]\.$/, "") ?? "";
   const clubName = row?.club.name ?? "";
-  const inviterName = row?.inviter.displayName ?? "the club";
+  const inviterName = row?.inviterName ?? "the club";
 
   const card = (children: React.ReactNode) => (
     <main className="p-4" style={{ maxWidth: 440, margin: "0 auto" }}>
@@ -91,7 +91,7 @@ export default async function InvitePage({
         </h1>
         <p className="small muted mt-1">If you&apos;re {inviteeFirst}, sign in and you&apos;ll land in the club.</p>
         <Link
-          href={`/login?returnTo=${club.id}`}
+          href={`/login?${new URLSearchParams({ returnTo: `/clubs/${club.id}` })}`}
           className="btn primary mt20"
           style={{ display: "block", textAlign: "center" }}
         >

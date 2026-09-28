@@ -44,7 +44,7 @@ export async function submitCode(formData: FormData) {
     back("wrong", { left: String(left) });
   }
 
-  const destination = await completeSignIn(db, link!.id);
+  const destination = await completeSignIn(db, link!.id, returnTo);
   if (!destination) back("consumed");
   redirect(destination!);
 }

@@ -850,7 +850,7 @@ member.
 | **`memberships.user_id`** nullable | **`NOT NULL`**, plus the partial unique index from §7.1. |
 | **`memberships.display_name`** | **Dropped.** Name lives on `users.display_name` (nullable only until the name step). Reads join through. |
 | **`clubs.invite_token`** (club-wide, rotatable) | **Dropped.** Replaced by the `invites` table (§7.1). `requireValidInviteToken` and the rotate action go with it. |
-| **`magic_links`** | Loses `claim_membership_id`, and the plaintext `token` column (unused since step 2, which added `token_hash`, `code_hash` and `attempts`). Gains an optional `invite_id`. `returnToClubId` becomes a general same-origin `return_to` path. |
+| **`magic_links`** | Loses `claim_membership_id`, the plaintext `token` column (unused since step 2, which added `token_hash`, `code_hash` and `attempts`), and `return_to_club_id`. Gained `invite_id` in step 3. Where to land after sign-in is now a same-origin path the code screen carries in its URL (`?returnTo=`), never stored: the code is typed in the tab that asked for it, so the URL is enough. The email's link has no `returnTo` and lands on `/`. |
 | **`sessions.token`** | **Dropped** — plaintext, unused since step 2 moved sessions to `token_hash`. |
 | **`watchlist_items.membership_id`** | Becomes **`user_id`**; unique on `(user_id, film_id)`. |
 | **`constraints.membership_id`** | **Unchanged**: ruled (§1.8). |
@@ -974,12 +974,28 @@ club: its history, its rotation, who's picked. "The dev database" below
 means the Neon branch behind the Worker's `DATABASE_URL` secret, the one
 `dev.kinomato.com` actually reads.
 
+**The schema-push rule this depends on.** Nothing pushes `db/schema.ts`
+to the dev database automatically; CI only touches its own E2E branch.
+The direction depends on the change:
+- **Additive** (new tables or columns, a column made nullable): push
+  **before** merging, because the new code needs the new columns. Steps 2
+  and 3 were both this kind.
+- **Destructive** (dropping columns, adding `NOT NULL`): merge the code
+  that no longer uses them **first**, then push. 4b is the only step of
+  this kind, and it's the one below.
+
 **Before the day**
-1. Steps 2 and 3 are merged and live (step 2 needs the Worker's
-   `AUTH_SECRET` secret set before it merges, or sign-in throws), and at least one real per-person
-   invite has worked end to end on `dev.kinomato.com`.
-2. 4a and 4b are separate PRs, both green in CI. CI already exercises
-   4b's schema, because each E2E run pushes its own.
+1. `main` is healthy on `dev.kinomato.com` with steps 2 and 3, which
+   means all three of these were done:
+   - the dev database has step 2's and step 3's schema (a plain
+     `drizzle-kit push` against it for each, no `--force`; both are
+     additive),
+   - the Worker has the `AUTH_SECRET` secret (or sign-in throws),
+   - `BREVO_API_KEY` is set on the Worker (or no email arrives).
+   Proof: at least one real per-person invite has worked end to end on
+   `dev.kinomato.com`.
+2. 4a and 4b are on their branches, both green in CI. CI already
+   exercises 4b's schema, because each E2E run pushes its own.
 3. Pick a window between movie nights: no night `open` or `locked`, and
    nothing waiting on confirmation. Tell the group it's happening and
    that they'll get a new link.
@@ -990,29 +1006,41 @@ means the Neon branch behind the Worker's `DATABASE_URL` secret, the one
 1. **Back up the dev database.** In Neon, create a branch
    `pre-cutover-YYYY-MM-DD` from the dev database's branch. It's instant,
    and it's the only thing that makes step 5 reversible.
-2. **Merge 4a.** Wait for Workers Builds to finish deploying
-   `dev.kinomato.com`.
-3. **Check 4a live.** Signed out, `/clubs/<id>` redirects to `/login`. Sign
-   in with the code → your club loads. A guest browser (cookie, no
-   session) no longer gets in. That's expected from here on.
+2. **Merge 4a.** It has no schema change, so there's nothing to push.
+   Wait for Workers Builds to finish deploying `dev.kinomato.com`.
+3. **Check 4a live.** Expect exactly this:
+   - Signed out, `/clubs/<id>` redirects to `/login?returnTo=…`, and
+     signing in with the code lands you back on that club.
+   - You may be asked for your name once (`/welcome`): names are read
+     from accounts now, and yours may not be stored on the account yet.
+   - Members who were never more than guests show as "Unnamed member".
+     So does anyone whose account has no stored name. Expected: those
+     rows go at the wipe.
+   - A browser with only a guest cookie no longer gets in.
    *Rollback up to this point: revert 4a on `main`. Nothing in the
    database has changed.*
-4. **Merge 4b** and wait for its deploy. For the few minutes until step 5,
-   a new membership can't be inserted (the old schema still requires
-   `identity_key`); reads work. Nobody's joining during the window.
+4. **Merge 4b** and wait for its deploy. Until step 5, nothing new can be
+   created: a new membership (invite redemption) and a new club (`/new`)
+   both fail, because the old schema still requires columns 4b no longer
+   writes (`identity_key`, `display_name`, `invite_token`). Reads and
+   sign-in work. Keep the gap short; nobody should be joining.
 5. **⚠ POINT OF NO RETURN: wipe the dev database and push 4b's schema.**
    With `DATABASE_URL` pointed at the dev database, reset the `public`
-   schema, then run `npx drizzle-kit push --force`. Don't run the seed:
-   the dev database starts empty.
+   schema (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`), then run
+   `npx drizzle-kit push --force`. Don't run the seed: the dev database
+   starts empty.
    *After this, the old code can't run against the database. Rollback now
    means restoring from the backup branch **and** reverting both 4a and
    4b.*
-6. **Smoke test on `dev.kinomato.com`:** the marketing `/` renders; sign in
-   with your real email, the code arrives through Brevo and works; `/new`
-   creates a club; you land on its first-run state.
-7. **Re-invite.** Members → Add a person for each friend, then share each
-   link. Watch the Invited list turn *Started*, then disappear as they
-   join.
+6. **Smoke test on `dev.kinomato.com`.** `/` is still the stopgap: the
+   marketing page is step 5. Check each of these:
+   - "Start a club" sends you to sign in;
+   - the code arrives through Brevo and works;
+   - the name step appears once;
+   - `/new` creates a club and you land in it as owner.
+7. **Re-invite.** In the club page's **Invite people** section (the
+   Members tab is step 5), add each friend and share their link. Watch
+   each pending invite turn *Started*, then disappear as they join.
 8. **Update CLAUDE.md** if 4b didn't already carry the §8.4 rewrites.
 
 **After**

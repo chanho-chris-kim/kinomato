@@ -14,7 +14,7 @@
 //
 // Run with: npm run db:seed
 import "dotenv/config";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
@@ -644,9 +644,7 @@ async function main() {
   ]);
 
   // A seventh, separate club — see seed-fixtures.ts's comment on
-  // CLUB_7_ID. Both members start as unclaimed guests (the only ones
-  // left in the seed; every other member has an account); the auth E2E
-  // spec claims Uma and rotates Wes's invite token itself.
+  // CLUB_7_ID. Both members have accounts.
   console.log("Seeding a seventh club for the auth flows...");
   await db.insert(clubs).values({
     id: CLUB_7_ID,
@@ -663,8 +661,8 @@ async function main() {
     {
       id: MEMBERSHIP_7.wes,
       clubId: CLUB_7_ID,
-      userId: null,
-      identityKey: "guest-cookie-wes-example",
+      userId: MEMBER_USER.wes,
+      identityKey: MEMBER_USER.wes,
       displayName: "Wes",
       role: "owner",
       joinedAt: day(1),
@@ -672,8 +670,8 @@ async function main() {
     {
       id: MEMBERSHIP_7.uma,
       clubId: CLUB_7_ID,
-      userId: null,
-      identityKey: "guest-cookie-uma-example",
+      userId: MEMBER_USER.uma,
+      identityKey: MEMBER_USER.uma,
       displayName: "Uma",
       role: "member",
       joinedAt: day(2),
@@ -738,6 +736,14 @@ async function main() {
     inviteeName: FULL_CLUB_INVITE.inviteeName,
     invitedByMembershipId: MEMBERSHIP.chris,
   });
+
+  // Names live on users (docs/onboarding-spec.md §8.2): every seeded
+  // account takes the name of its membership, so pages have one to show.
+  await db.execute(sql`
+    update users set display_name = m.display_name
+    from memberships m
+    where m.user_id = users.id and users.display_name is null
+  `);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

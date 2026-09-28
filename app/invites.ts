@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { clubs, invites, memberships, users } from "@/db/schema";
 import { canAddMember } from "@/lib/clubMembers";
@@ -35,22 +35,11 @@ export async function findActiveMembership(db: Db, clubId: string, userId: strin
   return row ?? null;
 }
 
-// The account's name, filling it in from its newest membership if the
-// account doesn't have one yet (seeded, claimed, or joined by the old
-// club-wide link — all before names lived on users). Null only for a
-// brand-new account, which then goes through /welcome.
-export async function ensureDisplayName(db: Db, userId: string): Promise<string | null> {
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.displayName) return user.displayName;
-  const [latest] = await db
-    .select({ displayName: memberships.displayName })
-    .from(memberships)
-    .where(eq(memberships.userId, userId))
-    .orderBy(desc(memberships.joinedAt))
-    .limit(1);
-  if (!latest) return null;
-  await db.update(users).set({ displayName: latest.displayName }).where(eq(users.id, userId));
-  return latest.displayName;
+// The account's name, or null for an account that hasn't been through
+// the name step (/welcome) yet.
+export async function accountName(db: Db, userId: string): Promise<string | null> {
+  const [user] = await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, userId));
+  return user?.displayName ?? null;
 }
 
 export type RedeemResult =
@@ -91,13 +80,11 @@ export async function redeemInvite(db: Db, inviteId: string, userId: string): Pr
   // borrows the invitee's name (e.g. Chris joining via Lee's invite under
   // Ruling B's "join as me"). Only a brand-new account gets the owner's
   // typed name as a placeholder, until /welcome replaces it.
-  const displayName = await ensureDisplayName(db, userId);
+  const displayName = await accountName(db, userId);
   try {
-    // identityKey is the user's id — rotation carry-forward on a rejoin
-    // already matches prior memberships by it (CLAUDE.md rotation ruling).
-    // memberships.display_name is still required until step 4b: the
-    // account's name if it has one, else the name the owner typed, which
-    // /welcome then replaces.
+    // identity_key and display_name are no longer read by anything
+    // (rotation carries forward by user_id; names come from users), but
+    // the old schema still requires them until rebuild step 4b drops them.
     await db.insert(memberships).values({
       clubId: invite.clubId,
       userId,
@@ -117,10 +104,11 @@ export async function redeemInvite(db: Db, inviteId: string, userId: string): Pr
 
 export async function loadInviteByToken(db: Db, token: string) {
   const [row] = await db
-    .select({ invite: invites, club: clubs, inviter: memberships })
+    .select({ invite: invites, club: clubs, inviterName: users.displayName })
     .from(invites)
     .innerJoin(clubs, eq(invites.clubId, clubs.id))
     .innerJoin(memberships, eq(invites.invitedByMembershipId, memberships.id))
+    .leftJoin(users, eq(memberships.userId, users.id))
     .where(eq(invites.token, token));
   return row ?? null;
 }

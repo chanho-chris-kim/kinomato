@@ -10,8 +10,7 @@ import { saveName } from "./actions";
 // Runs once, the first time an account with no name signs in
 // (docs/onboarding-spec.md §5.6). Arriving from an invite, it's prefilled
 // with the name the owner typed — a greeting only; the person sets their
-// own. Accounts that already have a membership get their name from it at
-// sign-in (app/signIn.ts) and never see this.
+// own.
 export default async function WelcomePage({
   searchParams,
 }: {

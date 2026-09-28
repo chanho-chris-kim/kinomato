@@ -5,7 +5,6 @@ import {
   clubs,
   films,
   invites,
-  memberships,
   nights,
   nominations,
   ratings,
@@ -28,25 +27,22 @@ import { getNextOccurrence } from "@/lib/schedule";
 import {
   addRatingTag,
   castVote,
-  clearIdentity,
   confirmNight,
   createInvite,
   lockNight,
   openVoting,
-  pickIdentity,
   regenerateInvite,
   removeRatingTag,
   revokeInvite,
-  rotateInviteToken,
   setRsvp,
   submitRating,
 } from "./actions";
+import { requireClubMember } from "@/app/auth";
 import { getBaseUrl } from "@/app/baseUrl";
 import { canCreateInvite } from "@/lib/invites";
 import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
 import { AppShell } from "./AppShell";
-import { ClaimPrompt } from "./ClaimPrompt";
-import { getIdentityMembershipId } from "./identity";
+import { loadClubMemberships, nameOf } from "./members";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 import { ShareInvite } from "./ShareInvite";
@@ -68,14 +64,13 @@ export default async function ClubPage({
 }: {
   params: Promise<{ clubId: string }>;
   searchParams: Promise<{
-    claimError?: string;
     invite?: string;
     inviteError?: string;
     joined?: string;
   }>;
 }) {
   const { clubId } = await params;
-  const { claimError, invite: newInviteId, inviteError, joined } = await searchParams;
+  const { invite: newInviteId, inviteError, joined } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -85,40 +80,15 @@ export default async function ClubPage({
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
+  // Signed in and an active member, or /login (signed out) / 404 (not a
+  // member — a 403 would confirm the club exists). docs/onboarding-spec.md
+  // §5.1.
+  const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}`);
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
-  if (!club) {
-    return <main className="p-4">Club not found.</main>;
-  }
 
-  const clubMemberships = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.clubId, clubId));
+  const clubMemberships = await loadClubMemberships(db, clubId);
   const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
-
-  const identityMembershipId = await getIdentityMembershipId(clubId);
-  const currentMembership =
-    activeMemberships.find((m) => m.id === identityMembershipId) ?? null;
-
-  // No auth in v0 — a name picker is the whole identity flow.
-  if (!currentMembership) {
-    return (
-      <AppShell clubId={clubId} clubName={club.name} current="club">
-        <p className="small muted mt14">Who are you?</p>
-        <ul className="stack gap8 mt14">
-          {activeMemberships.map((m) => (
-            <li key={m.id}>
-              <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="btn">
-                  {m.displayName}
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      </AppShell>
-    );
-  }
+  const currentMembership = activeMemberships.find((m) => m.id === me.id)!;
 
   // Pending per-person invites: visible to every member (who's coming),
   // with Share/Regenerate/Revoke only for owners and admins.
@@ -137,7 +107,7 @@ export default async function ClubPage({
   // computed after the insert (CLAUDE.md ruling).
   const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
     id: m.id,
-    identityKey: m.identityKey,
+    userId: m.userId,
     clubId: m.clubId,
     joinedAt: m.joinedAt,
     leftAt: m.leftAt,
@@ -253,7 +223,7 @@ export default async function ClubPage({
 
   if (openNight) {
     pickerName =
-      clubMemberships.find((m) => m.id === openNight.pickerMembershipId)?.displayName ??
+      nameOf(clubMemberships.find((m) => m.id === openNight.pickerMembershipId)) ??
       "someone who's left";
 
     const nightNominations = await db
@@ -296,7 +266,7 @@ export default async function ClubPage({
 
   if (draftNight) {
     draftPickerName =
-      clubMemberships.find((m) => m.id === draftNight.pickerMembershipId)?.displayName ??
+      nameOf(clubMemberships.find((m) => m.id === draftNight.pickerMembershipId)) ??
       "someone who's left";
 
     if (draftNight.pickerMembershipId === currentMembership.id) {
@@ -468,7 +438,7 @@ export default async function ClubPage({
       revealedRatings: revealed
         ? nightRatings.map((r) => ({
             displayName:
-              clubMemberships.find((m) => m.id === r.membershipId)?.displayName ??
+              nameOf(clubMemberships.find((m) => m.id === r.membershipId)) ??
               "someone who's left",
             scoreQuality: r.scoreQuality,
             scoreFun: r.scoreFun,
@@ -493,57 +463,22 @@ export default async function ClubPage({
             {activeMemberships.map((m) => (
               <div key={m.id} className="row">
                 <span className={`avatar ${m.id === currentMembership.id ? "me" : ""}`}>
-                  {initials(m.displayName)}
+                  {initials(nameOf(m))}
                 </span>
-                <span className="small">{m.displayName}</span>
+                <span className="small">{nameOf(m)}</span>
               </div>
             ))}
           </div>
         </>
       }
     >
-      <div className="small mt14">
-        You are: {currentMembership.displayName}{" "}
-        <form action={clearIdentity.bind(null, clubId)} className="inline">
-          <button type="submit" className="underline">
-            (switch)
-          </button>
-        </form>
-      </div>
+      <div className="small mt14">You are: {nameOf(currentMembership)}</div>
 
-      <p className="small muted mt-1">
-        Invite link:{" "}
-        <Link href={`/clubs/${clubId}/join?token=${club.inviteToken}`} className="underline">
-          /clubs/{clubId}/join?token={club.inviteToken}
-        </Link>
-      </p>
-      {(currentMembership.role === "owner" || currentMembership.role === "admin") && (
-        <form action={rotateInviteToken.bind(null, clubId)} className="mt-1">
-          <button type="submit" className="tiny underline">
-            Rotate invite link
-          </button>
-        </form>
-      )}
-
-      {currentMembership.userId === null && currentMembership.role === "owner" && (
-        // Unclaimed owner, any watchlist size (CLAUDE.md) — a
-        // guest-owned club whose owner clears cookies permanently loses
-        // its only admin, its invite-token rotation, and its settings
-        // control. That's a real failure mode, not a preference, so
-        // this prompt doesn't wait for a watchlist threshold the way
-        // the list-page prompt does.
-        <ClaimPrompt
-          clubId={clubId}
-          returnPath={`/clubs/${clubId}`}
-          reason="owner"
-          claimError={claimError}
-        />
-      )}
 
       {joined && (
         <div className="note mt20">
           <p className="small" style={{ margin: 0 }}>
-            You&apos;re in, {currentMembership.displayName.replace(/ [A-Za-z]\.$/, "")}.
+            You&apos;re in, {nameOf(currentMembership).replace(/ [A-Za-z]\.$/, "")}.
           </p>
         </div>
       )}
@@ -628,10 +563,10 @@ export default async function ClubPage({
       )}
 
       <h2 className="sec mt20">Members</h2>
-      <p className="small">{activeMemberships.map((m) => m.displayName).join(", ")}</p>
+      <p className="small">{activeMemberships.map((m) => nameOf(m)).join(", ")}</p>
 
       <h2 className="sec mt20">Whose turn</h2>
-      <p className="small">{whoseTurn ? whoseTurn.displayName : "Nobody active in this club."}</p>
+      <p className="small">{whoseTurn ? nameOf(whoseTurn) : "Nobody active in this club."}</p>
 
       {draftNight &&
         (draftNight.pickerMembershipId === currentMembership.id ? (
@@ -691,8 +626,8 @@ export default async function ClubPage({
               No night scheduled yet
             </h2>
             <p className="small muted mt-1">
-              This club hasn&apos;t had a movie night. Share the invite link
-              above with the rest of your group.
+              This club hasn&apos;t had a movie night. Invite the people you
+              watch with above — each gets their own link.
             </p>
           </>
         ) : (

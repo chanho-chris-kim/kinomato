@@ -598,6 +598,17 @@ Kinoma (former Marvell division) are the nearest existing marks.
   message" these screens need. Reserve this for validation the user is
   meant to see and correct (a taken name, a cap hit); a genuine bug
   (a failed DB write) should still throw.
+- **Pushing schema to the dev database is a manual step, and it has a
+  direction.** Nothing automates it: CI pushes to its own E2E branch
+  only, and a merge deploys code without touching the database. Step 2
+  shipped without the push, and sign-in broke. For an **additive** change
+  to `db/schema.ts` (new table or column, a column made nullable), run
+  `DATABASE_URL=<dev database> npx drizzle-kit push` (no `--force`)
+  **before** merging, because the new code needs the new columns. For a
+  **destructive** change (dropping a column, adding `NOT NULL`), merge the
+  code that no longer uses them **first**, then push. The step-4 cutover
+  is the one destructive case so far, and `docs/onboarding-spec.md` §8.6
+  spells out its order.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every

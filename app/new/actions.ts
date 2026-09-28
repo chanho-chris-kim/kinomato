@@ -1,12 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { clubs, memberships } from "@/db/schema";
-import { FREE_TIER_MEMBER_CAP, MAX_PRE_ADDED_MEMBERS } from "@/lib/clubMembers";
-import { validateMemberName } from "@/lib/memberName";
-import { identityCookieName } from "@/app/clubs/[clubId]/identity";
+import { requireNamedUser } from "@/app/auth";
 
 const CADENCES = ["weekly", "biweekly", "monthly", "ad_hoc"] as const;
 const MODES = ["in_person", "remote"] as const;
@@ -30,21 +27,13 @@ function isSupportedTimeZone(value: string): boolean {
   }
 }
 
-// analysis-v1.md §1.1 stage 2: "Name, cadence, day and time, and
-// in-person or remote. Four questions, one screen. Notably absent:
-// account creation." The creator's own name is a fifth, practically
-// required field — CLAUDE.md's Build order note "the creator becomes
-// owner and gets an identity cookie immediately" needs a display name
-// to attach that identity to, so this can't be inferred from nothing.
-//
-// Pre-added member names (stage 3: "the club already populated with the
-// founder's name") are plain placeholder membership rows with a freshly
-// minted identityKey and no cookie attached yet — claiming one at
-// /clubs/[clubId]/join is the exact same "pick a name, set a cookie"
-// mechanism already used everywhere else in this app (pickIdentity).
-// There's no verification that the right person claims the right name;
-// that's the accepted v0 auth model, not a gap specific to this screen.
+// Four questions (docs/onboarding-spec.md §5.8): name, cadence, day and
+// time, in person or remote. The creator is the signed-in account, named
+// already — requireNamedUser sends anyone else to /login or /welcome
+// first, and so does the page. People are added afterwards, each with
+// their own invite, from the club page.
 export async function createClub(formData: FormData) {
+  const owner = await requireNamedUser("/new");
   const name = String(formData.get("name") ?? "").trim();
   const cadence = String(formData.get("cadence") ?? "");
   const defaultDay = Number(formData.get("defaultDay"));
@@ -59,15 +48,6 @@ export async function createClub(formData: FormData) {
   // tier cap explicitly asked for. Genuine bugs (a DB write failing)
   // still throw; this is only for expected, user-facing input problems.
   if (!name) redirect("/new?error=" + encodeURIComponent("Club name is required."));
-
-  const yourNameResult = validateMemberName(
-    String(formData.get("yourFirstName") ?? ""),
-    String(formData.get("yourLastInitial") ?? ""),
-  );
-  if ("error" in yourNameResult) {
-    redirect("/new?error=" + encodeURIComponent(yourNameResult.error));
-  }
-  const yourName = yourNameResult.displayName;
 
   if (!isCadence(cadence)) {
     redirect("/new?error=" + encodeURIComponent("Pick a valid cadence."));
@@ -88,53 +68,13 @@ export async function createClub(formData: FormData) {
     );
   }
 
-  // Silently deduped, not rejected — this is the owner tidying their
-  // own input (a repeated row), not a joiner contesting an identity,
-  // which is the scenario that gets a hard error instead (see
-  // join/actions.ts's isDisplayNameTaken check).
-  const seen = new Set([yourName.toLowerCase()]);
-  const memberNames: string[] = [];
-  for (let i = 0; i < MAX_PRE_ADDED_MEMBERS; i++) {
-    const firstName = String(formData.get(`memberFirstName${i}`) ?? "");
-    const lastInitial = String(formData.get(`memberLastInitial${i}`) ?? "");
-    if (!firstName.trim() && !lastInitial.trim()) continue; // an unused row
-
-    const result = validateMemberName(firstName, lastInitial);
-    if ("error" in result) {
-      redirect("/new?error=" + encodeURIComponent(result.error));
-    }
-    const key = result.displayName.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    memberNames.push(result.displayName);
-  }
-
-  const totalMembers = 1 + memberNames.length; // 1 = the owner
-  if (totalMembers > FREE_TIER_MEMBER_CAP) {
-    redirect(
-      "/new?error=" +
-        encodeURIComponent(
-          `The free tier caps a club at ${FREE_TIER_MEMBER_CAP} members. ` +
-            `That's you plus ${FREE_TIER_MEMBER_CAP - 1} others — trim the list by ` +
-            `${totalMembers - FREE_TIER_MEMBER_CAP}.`,
-        ),
-    );
-  }
-
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const clubId = crypto.randomUUID();
-  const ownerMembershipId = crypto.randomUUID();
 
-  // All these inserts ride in one db.batch() (one Postgres transaction),
-  // and defaultNow() resolves to the transaction's start time — every
-  // row would otherwise get an *identical* joined_at, leaving rotation
-  // order's joined_at-ASC tiebreak to fall through to id (a random
-  // UUID), which could hand the very first pick to someone other than
-  // the owner. Stamped explicitly instead, one millisecond apart in
-  // creation order, so the owner is deterministically first.
-  const baseJoinedAt = Date.now();
-  const joinedAtFor = (index: number) => new Date(baseJoinedAt + index);
-
+  // One batch (one Postgres transaction). invite_token and the
+  // membership's identity_key/display_name are no longer read by anything
+  // — per-person invites, carry-forward by user_id, names from users — but
+  // the old schema still requires them until rebuild step 4b drops them.
   await db.batch([
     db.insert(clubs).values({
       id: clubId,
@@ -147,33 +87,13 @@ export async function createClub(formData: FormData) {
       mode,
     }),
     db.insert(memberships).values({
-      id: ownerMembershipId,
       clubId,
-      userId: null,
-      identityKey: crypto.randomUUID(),
-      displayName: yourName,
+      userId: owner.id,
+      identityKey: owner.id,
+      displayName: owner.displayName,
       role: "owner",
-      joinedAt: joinedAtFor(0),
     }),
-    ...memberNames.map((displayName, index) =>
-      db.insert(memberships).values({
-        id: crypto.randomUUID(),
-        clubId,
-        userId: null,
-        identityKey: crypto.randomUUID(),
-        displayName,
-        role: "member",
-        joinedAt: joinedAtFor(index + 1),
-      }),
-    ),
   ]);
-
-  const cookieStore = await cookies();
-  cookieStore.set(identityCookieName(clubId), ownerMembershipId, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: `/clubs/${clubId}`,
-  });
 
   redirect(`/clubs/${clubId}`);
 }

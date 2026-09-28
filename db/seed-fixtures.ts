@@ -12,11 +12,9 @@ export const USER = {
   sam: "22222222-2222-2222-2222-222222222225",
 };
 
-// Accounts for every seeded member of clubs 1–6 who used to be a cookie-
-// only guest. The E2E suite signs in by session (e2e/session.ts, step 1
-// of docs/onboarding-spec.md §8.5), which needs a users row behind the
-// membership. Club 7's Wes and Uma stay guests: the claim-flow tests
-// need them unclaimed until step 4 removes claiming.
+// Accounts for every seeded member who used to be a cookie-only guest.
+// Since rebuild step 4 there are no guests: every membership is a user's,
+// and the E2E suite signs in by session (e2e/session.ts).
 export const MEMBER_USER = {
   jo: "dddddddd-0000-0000-0000-000000000001",
   nadia: "dddddddd-0000-0000-0000-000000000002",
@@ -33,6 +31,8 @@ export const MEMBER_USER = {
   iris: "dddddddd-0000-0000-0000-000000000013",
   hana: "dddddddd-0000-0000-0000-000000000014",
   ivo: "dddddddd-0000-0000-0000-000000000015",
+  wes: "dddddddd-0000-0000-0000-000000000016",
+  uma: "dddddddd-0000-0000-0000-000000000017",
 } as const;
 
 export const MEMBERSHIP = {
@@ -184,17 +184,15 @@ export const DISPLAY_NAME_6: Record<keyof typeof MEMBERSHIP_6, string> = {
 
 export const NIGHT_6_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4";
 
-// A seventh, separate club — for the auth flows (CLAUDE.md): claim,
-// session-fallback recovery, and invite-token rotation. Both members
-// start as unclaimed guests (every other seeded member has an account;
-// see MEMBER_USER). Wes owns
+// A seventh, separate club — for the auth flows: signing in again on a
+// new device (recovery by email). Both members have accounts. Wes owns
 // it (unclaimed-owner prompt, regardless of watchlist size); Uma gets a
 // 3-film watchlist seeded directly (the claim-prompt threshold), so the
 // E2E test doesn't have to add films through the UI just to reach it.
 export const CLUB_7_ID = "99999999-9999-9999-9999-999999999995";
 
 export const MEMBERSHIP_7 = {
-  wes: "aaaaaaaa-1111-1111-1111-000000000071", // owner, unclaimed
+  wes: "aaaaaaaa-1111-1111-1111-000000000071", // owner
   uma: "aaaaaaaa-1111-1111-1111-000000000072", // member, 3-film watchlist
 };
 

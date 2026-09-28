@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { issueSignIn } from "@/app/signIn";
 
-// Plain sign-in/recovery — no claimMembershipId, unlike requestClaim in
-// app/clubs/[clubId]/actions.ts. This is what "identity survives a cleared
-// cookie or a new device" (CLAUDE.md) runs on: the same users row is found
-// again by email, so every membership tied to it is recognized at once.
+// Plain sign-in/recovery. This is what "identity survives a cleared cookie
+// or a new device" (CLAUDE.md) runs on: the same users row is found again
+// by email, so every membership tied to it is recognized at once.
+// returnTo is a same-origin path (a gated page sent the person here) and
+// rides along in the code screen's URL — it's never stored.
 //
 // Always goes on to the code screen, sent or rate-limited, so the response
 // never reveals whether an account exists (docs/onboarding-spec.md §4.3).
@@ -23,7 +24,7 @@ export async function requestLogin(formData: FormData) {
   }
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const result = await issueSignIn(db, { email, returnToClubId: returnTo });
+  const result = await issueSignIn(db, { email });
   redirect(codeScreenUrl(email, returnTo, result.sent ? undefined : "wait"));
 }
 

@@ -1,10 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { clubs, films, memberships, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
+import { clubs, films, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
 import { areTakesRevealed } from "@/lib/ratingReveal";
-import { pickIdentity } from "../../actions";
 import { AppShell } from "../../AppShell";
-import { getIdentityMembershipId } from "../../identity";
+import { requireClubMember } from "@/app/auth";
 import { Poster } from "../../Poster";
 
 // Club-scoped only (CLAUDE.md) — no cross-club or global tag
@@ -20,41 +19,9 @@ export default async function TagPage({
   const { clubId, tag: tagName } = await params;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
+  // Signed in and an active member, or /login / 404 (docs/onboarding-spec.md §5.1).
+  await requireClubMember(clubId, `/clubs/${clubId}/tags/${tagName}`);
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
-  if (!club) {
-    return <main className="p-4">Club not found.</main>;
-  }
-
-  const clubMemberships = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.clubId, clubId));
-  const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
-
-  const identityMembershipId = await getIdentityMembershipId(clubId);
-  const currentMembership =
-    activeMemberships.find((m) => m.id === identityMembershipId) ?? null;
-
-  // No auth in v0 — a name picker is the whole identity flow, shared with
-  // every other club-scoped page.
-  if (!currentMembership) {
-    return (
-      <AppShell clubId={clubId} clubName={club.name} current="tags">
-        <p className="small muted mt14">Who are you?</p>
-        <ul className="stack gap8 mt14">
-          {activeMemberships.map((m) => (
-            <li key={m.id}>
-              <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="btn">
-                  {m.displayName}
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      </AppShell>
-    );
-  }
 
   const [tagRow] = await db
     .select()

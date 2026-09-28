@@ -1,4 +1,4 @@
-import { MAX_PRE_ADDED_MEMBERS } from "@/lib/clubMembers";
+import { requireNamedUser } from "@/app/auth";
 import { createClub } from "./actions";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -28,6 +28,9 @@ export default async function NewClubPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  // Signed in with a name, or /login then /welcome first
+  // (docs/onboarding-spec.md §5.1).
+  await requireNamedUser("/new");
 
   return (
     <main className="p-4" style={{ maxWidth: 480, margin: "0 auto" }}>
@@ -35,7 +38,7 @@ export default async function NewClubPage({
         Start a club
       </h1>
       <p className="small muted mt-1">
-        No account needed — you&apos;ll be in as soon as you submit this.
+        Four questions. You&apos;ll add people from the club page, each with their own link.
       </p>
       {error && (
         <p className="small mt14" style={{ color: "var(--warn)" }}>
@@ -51,25 +54,6 @@ export default async function NewClubPage({
               <input type="text" name="name" required />
             </div>
           </label>
-        </div>
-
-        <div className="card">
-          <span className="small">Your name</span>
-          <p className="tiny dim mt-1">This is what the rest of the club sees you as.</p>
-          <div className="row gap10 mt14">
-            <label className="small muted" style={{ flex: 1 }}>
-              First name
-              <div className="search mt-1">
-                <input type="text" name="yourFirstName" required />
-              </div>
-            </label>
-            <label className="small muted" style={{ width: 72 }}>
-              Last initial
-              <div className="search mt-1">
-                <input type="text" name="yourLastInitial" required maxLength={1} size={2} />
-              </div>
-            </label>
-          </div>
         </div>
 
         <div>
@@ -140,31 +124,6 @@ export default async function NewClubPage({
             <label className="small">
               <input type="radio" name="mode" value="remote" /> Remote
             </label>
-          </div>
-        </div>
-
-        <div className="card">
-          <span className="small">Add people now (optional)</span>
-          <p className="tiny dim mt-1">
-            So the invite lands on a club that already looks populated, not empty.
-          </p>
-          <div className="stack gap8 mt14">
-            {Array.from({ length: MAX_PRE_ADDED_MEMBERS }, (_, i) => (
-              <div key={i} className="row gap10">
-                <label className="small muted" style={{ flex: 1 }}>
-                  First name
-                  <div className="search mt-1">
-                    <input type="text" name={`memberFirstName${i}`} />
-                  </div>
-                </label>
-                <label className="small muted" style={{ width: 72 }}>
-                  Last initial
-                  <div className="search mt-1">
-                    <input type="text" name={`memberLastInitial${i}`} maxLength={1} size={2} />
-                  </div>
-                </label>
-              </div>
-            ))}
           </div>
         </div>
 
