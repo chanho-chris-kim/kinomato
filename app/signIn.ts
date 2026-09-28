@@ -1,7 +1,9 @@
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import type { getDb } from "@/db";
 import { magicLinks, memberships, users } from "@/db/schema";
+import { getBaseUrl } from "@/app/baseUrl";
+import { ensureDisplayName, redeemDestination, redeemInvite } from "@/app/invites";
 import { identityCookieName } from "@/app/clubs/[clubId]/identity";
 import { createSession, setSessionCookie } from "@/app/session";
 import {
@@ -28,18 +30,6 @@ import { sendSignInEmail } from "@/lib/email";
 // (app/session.ts). It's a one-time credential sitting in an inbox.
 const SIGN_IN_DURATION_MS = 15 * 60 * 1000;
 
-// Cloudflare sets x-forwarded-proto; localhost has no forwarding at all,
-// so it falls back to http. Derived per request rather than a hardcoded
-// domain env var — this app has two deployments (dev.kinomato.com and
-// per-branch *.workers.dev previews, CLAUDE.md) plus local dev, and the
-// link has to point back at whichever one issued it.
-async function getBaseUrl(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("host");
-  return `${proto}://${host}`;
-}
-
 export type IssueResult = { sent: true } | { sent: false; retryAfterSeconds: number };
 
 // Rate-limited per address (30s cooldown, 5 an hour). Callers show the
@@ -47,7 +37,13 @@ export type IssueResult = { sent: true } | { sent: false; retryAfterSeconds: num
 // verifying an email is what creates one.
 export async function issueSignIn(
   db: ReturnType<typeof getDb>,
-  params: { email: string; claimMembershipId?: string; returnToClubId?: string },
+  params: {
+    email: string;
+    claimMembershipId?: string;
+    returnToClubId?: string;
+    // From an invite landing page: completing sign-in redeems it.
+    inviteId?: string;
+  },
 ): Promise<IssueResult> {
   const now = new Date();
   const recent = await db
@@ -73,6 +69,7 @@ export async function issueSignIn(
     codeHash: hashCode(code, getAuthSecret()),
     claimMembershipId: params.claimMembershipId ?? null,
     returnToClubId: params.returnToClubId ?? null,
+    inviteId: params.inviteId ?? null,
     expiresAt: new Date(now.getTime() + SIGN_IN_DURATION_MS),
   });
 
@@ -96,7 +93,7 @@ export async function latestSignInFor(db: ReturnType<typeof getDb>, email: strin
 // Shared by the code form and the link's sign-in button. Consumes the row
 // first, conditionally: a double submit or a code-and-link race loses
 // cleanly (returns null) instead of signing in twice. Returns the path to
-// land on.
+// land on — /welcome first if the account still has no name.
 export async function completeSignIn(
   db: ReturnType<typeof getDb>,
   signInId: string,
@@ -128,6 +125,21 @@ export async function completeSignIn(
 
   await setSessionCookie(await createSession(db, user.id));
 
+  // Only brand-new accounts see the name step; one that already has a
+  // membership takes its name from it (app/invites.ts).
+  const displayName = await ensureDisplayName(db, user.id);
+  const withNameStep = (destination: string, inviteId?: string) => {
+    if (displayName) return destination;
+    const qs = new URLSearchParams({ next: destination });
+    if (inviteId) qs.set("invite", inviteId);
+    return `/welcome?${qs.toString()}`;
+  };
+
+  if (link.inviteId) {
+    const result = await redeemInvite(db, link.inviteId, user.id);
+    return withNameStep(redeemDestination(result), link.inviteId);
+  }
+
   if (link.returnToClubId) {
     const [membership] = await db
       .select({ id: memberships.id })
@@ -141,7 +153,7 @@ export async function completeSignIn(
         path: `/clubs/${link.returnToClubId}`,
       });
     }
-    return `/clubs/${link.returnToClubId}`;
+    return withNameStep(`/clubs/${link.returnToClubId}`);
   }
-  return "/";
+  return withNameStep("/");
 }

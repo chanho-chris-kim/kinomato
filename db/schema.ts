@@ -105,6 +105,11 @@ export const clubs = pgTable("clubs", {
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
+  // "First R." — set once at the name step (/welcome), or filled in at
+  // sign-in from the account's existing membership name. Nullable only
+  // until then. Replaces memberships.display_name in rebuild step 4b
+  // (docs/onboarding-spec.md §8.2).
+  displayName: text("display_name"),
   avatar: text("avatar"),
   // Trusted tier (analysis-v2.md §5.1) — schema room only, no logic
   // reads this yet. Non-null = trusted, same "nullable timestamp as a
@@ -144,6 +149,9 @@ export const magicLinks = pgTable("magic_links", {
   // plain recovery login return to where the person actually was
   // instead of a dead end. Null for a bare /login with no club context.
   returnToClubId: uuid("return_to_club_id").references(() => clubs.id),
+  // Set when the code was requested from an invite landing page: completing
+  // sign-in then redeems that invite (app/invites.ts).
+  inviteId: uuid("invite_id").references(() => invites.id),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   consumedAt: timestamp("consumed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -546,4 +554,34 @@ export const filmFacts = pgTable(
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
   },
   (table) => [index("film_facts_film_id_idx").on(table.filmId)],
+);
+
+// Per-person invites (docs/onboarding-spec.md §7). One row per person an
+// owner or admin adds; the link carries `token`, which is stored as-is so
+// the same link can be shared again later. Pending = neither redeemed nor
+// revoked, and a pending invite holds one of the club's seats. Redeemed
+// rows are kept, not deleted: invited_by is the provenance record the
+// trust signals rely on (analysis-v2.md §5.2).
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id),
+    token: text("token").notNull().unique(),
+    // "Marco R." — a greeting and the name step's prefill, nothing more.
+    inviteeName: text("invitee_name").notNull(),
+    invitedByMembershipId: uuid("invited_by_membership_id")
+      .notNull()
+      .references(() => memberships.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // First time someone submitted an email on the landing page. Not set
+    // on GET: link-preview crawlers open every URL in a group chat.
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
+    redeemedByUserId: uuid("redeemed_by_user_id").references(() => users.id),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [index("invites_club_id_idx").on(table.clubId)],
 );

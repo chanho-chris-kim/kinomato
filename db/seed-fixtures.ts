@@ -31,6 +31,8 @@ export const MEMBER_USER = {
   xavier: "dddddddd-0000-0000-0000-000000000011",
   nora: "dddddddd-0000-0000-0000-000000000012",
   iris: "dddddddd-0000-0000-0000-000000000013",
+  hana: "dddddddd-0000-0000-0000-000000000014",
+  ivo: "dddddddd-0000-0000-0000-000000000015",
 } as const;
 
 export const MEMBERSHIP = {
@@ -199,4 +201,33 @@ export const MEMBERSHIP_7 = {
 export const DISPLAY_NAME_7: Record<keyof typeof MEMBERSHIP_7, string> = {
   wes: "Wes",
   uma: "Uma",
+};
+
+// An eighth club — for per-person invites (docs/onboarding-spec.md §7,
+// rebuild step 3). Hana owns it, Ivo is a member; both have accounts, and
+// names in the new "First R." shape. Two of six seats taken, so the E2E
+// spec can create, share, revoke and redeem invites without hitting the
+// cap. Chris (club 1) isn't a member: the "signed in as someone else"
+// test (Ruling B) uses him.
+export const CLUB_8_ID = "99999999-9999-9999-9999-999999999996";
+
+export const MEMBERSHIP_8 = {
+  hana: "aaaaaaaa-8888-8888-8888-000000000081", // owner
+  ivo: "aaaaaaaa-8888-8888-8888-000000000082", // member, not an admin
+};
+
+export const DISPLAY_NAME_8: Record<keyof typeof MEMBERSHIP_8, string> = {
+  hana: "Hana K.",
+  ivo: "Ivo P.",
+};
+
+// A pending invite in club 1, which already has six active members: the
+// "full" states (a landing page that won't admit anyone, an owner who
+// can't create more). Seeded directly — the app itself refuses to create
+// it — and it arises for real when someone joins by the old club-wide
+// link while an invite is outstanding.
+export const FULL_CLUB_INVITE = {
+  id: "aaaaaaaa-8888-8888-8888-000000000091",
+  token: "full-club-invite-token-e2e",
+  inviteeName: "Zed Q.",
 };

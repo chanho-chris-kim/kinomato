@@ -56,3 +56,15 @@ export async function getSessionUserId(
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())));
   return session?.userId ?? null;
 }
+
+// Signs this browser out: deletes its session row and clears the cookie.
+// (Ruling B's "Sign out and continue as Marco" — docs/onboarding-spec.md
+// §7.4. "Sign out everywhere" is Settings, step 7.)
+export async function endSession(db: ReturnType<typeof getDb>): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (token) {
+    await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+  }
+  cookieStore.delete(SESSION_COOKIE_NAME);
+}
