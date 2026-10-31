@@ -134,11 +134,9 @@ export const magicLinks = pgTable("magic_links", {
     .defaultNow(),
 });
 
-// Site-wide, unlike every other identity mechanism in this app —
-// kinomato_identity_{clubId} stays per-club and unchanged (CLAUDE.md);
-// this is the one cookie that isn't scoped to a club, since "who is
-// this verified person" has to be answered before "which membership
-// row are they in this club" can be.
+// The session cookie is the only identity mechanism: every membership is
+// resolved from session → users.id → that user's active membership in
+// the club (app/clubs/[clubId]/identity.ts).
 export const sessions = pgTable(
   "sessions",
   {
