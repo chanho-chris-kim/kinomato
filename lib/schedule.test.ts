@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getNextOccurrence } from "./schedule";
+import { getNextOccurrence, zonedTimeToUtc } from "./schedule";
 
 const VANCOUVER = "America/Vancouver";
+// For the fall-back test: Vancouver no longer falls back. British Columbia
+// moved to permanent UTC-7 after the 2026-03-08 spring-forward (tzdata
+// 2026b), and Los Angeles still changes clocks on 2026-11-01.
+const LOS_ANGELES = "America/Los_Angeles";
 
 describe("getNextOccurrence", () => {
   describe("ad_hoc", () => {
@@ -91,11 +95,11 @@ describe("getNextOccurrence", () => {
       expect(result?.toISOString()).toBe("2026-03-09T03:00:00.000Z");
     });
 
-    it("gets the fall-back transition right — same local 8pm on both sides", () => {
-      // 2026-11-01 is the fall-back day (2am -> 1am local, PDT -> PST).
+    it("gets the fall-back transition right in Los Angeles — same local 8pm on both sides", () => {
+      // 2026-11-01 is Los Angeles's fall-back day (2am -> 1am local, PDT -> PST).
       // 2026-10-26 is a Monday; next Sunday (0) is 2026-11-01.
       const result = getNextOccurrence(
-        { cadence: "weekly", defaultDay: 0, defaultTime: "20:00", timezone: VANCOUVER },
+        { cadence: "weekly", defaultDay: 0, defaultTime: "20:00", timezone: LOS_ANGELES },
         new Date("2026-10-26T12:00:00Z"),
         new Date("2026-01-01T00:00:00Z"),
       );
@@ -184,5 +188,19 @@ describe("getNextOccurrence", () => {
       );
       expect(result?.toISOString()).toBe("2026-04-28T03:00:00.000Z"); // Mon Apr 27, 20:00 PDT
     });
+  });
+});
+
+// Canary for the runtime's timezone data, not for lib/schedule.ts's logic.
+// British Columbia moved to permanent UTC-7 (tzdata 2026b), so on
+// 2026-12-01 America/Vancouver must be UTC-7: 05:00 local is 12:00Z. This
+// goes through zonedTimeToUtc, the same Intl offset path every scheduled
+// night uses. It fails if the runtime's tzdata predates 2026b, which would
+// put Vancouver clubs an hour off after 2026-11-01. Unknown system
+// configuration fails loud (CLAUDE.md's missing-data ruling).
+describe("runtime timezone data", () => {
+  it("knows America/Vancouver is UTC-7 on 2026-12-01 (tzdata 2026b or later)", () => {
+    const utc = zonedTimeToUtc({ year: 2026, month: 12, day: 1 }, { hour: 5, minute: 0 }, VANCOUVER);
+    expect(utc.toISOString()).toBe("2026-12-01T12:00:00.000Z");
   });
 });
