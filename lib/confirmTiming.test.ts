@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { confirmableAt, isConfirmable } from "./confirmTiming";
 
 const VANCOUVER = "America/Vancouver";
+// For the fall-back test: Vancouver no longer falls back (British Columbia's
+// permanent UTC-7 from tzdata 2026b); Los Angeles still does on 2026-11-01.
+const LOS_ANGELES = "America/Los_Angeles";
 const NEW_YORK = "America/New_York";
 
 describe("confirmableAt", () => {
@@ -28,11 +31,11 @@ describe("confirmableAt", () => {
       expect(threshold?.toISOString()).toBe("2026-03-08T16:00:00.000Z");
     });
 
-    it("gets the fall-back transition right — night in PDT, morning in PST", () => {
-      // Sat Oct 31 2026, 8pm PDT -> threshold Sun Nov 1, 9am — already
-      // PST by then.
+    it("gets the fall-back transition right in Los Angeles — night in PDT, morning in PST", () => {
+      // Sat Oct 31 2026, 8pm PDT in Los Angeles -> threshold Sun Nov 1, 9am
+      // — already PST by then.
       const scheduledAt = new Date("2026-10-31T20:00:00-07:00");
-      const threshold = confirmableAt("morning_after", scheduledAt, VANCOUVER);
+      const threshold = confirmableAt("morning_after", scheduledAt, LOS_ANGELES);
       expect(threshold?.toISOString()).toBe("2026-11-01T17:00:00.000Z");
     });
   });
