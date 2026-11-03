@@ -588,9 +588,12 @@ Kinoma (former Marvell division) are the nearest existing marks.
   the runtime's timezone data matters. British Columbia is permanent
   UTC−7 from 2026-11-01 (tzdata 2026b): `America/Vancouver` no longer
   falls back. The canary at the end of `lib/schedule.test.ts` fails on
-  older timezone data, so a stale runtime is caught by the tests rather
-  than by an hour-off night. DST transition tests use
-  `America/Los_Angeles`, which still changes clocks.
+  older timezone data, so stale data in Node (local and CI) is caught by
+  the tests. The Worker runs on Cloudflare's runtime, which carries its
+  own timezone data and never runs these tests: it was checked by hand on
+  2026-11-02 (a Vancouver 6pm night stored as 01:00Z, i.e. UTC−7).
+  Re-check it the same way after any future timezone-rule change. DST
+  transition tests use `America/Los_Angeles`, which still changes clocks.
 - **Never print a connection string or secret in a session.** Parse it
   in-process (e.g. `node`, `dotenv.parse`, the `URL` class) and print only
   derived facts: a hostname, or true/false. Shell filters on raw values
