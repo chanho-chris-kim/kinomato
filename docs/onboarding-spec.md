@@ -924,10 +924,10 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | # | Session | What it adds or removes | Schema |
 |---|---|---|---|
 | ✓ | **`/` leak fix** (§8.1) | Shipped. | — |
-| 1 | **Test groundwork** | A test-only helper that inserts a `sessions` row and sets the cookie (§8.3). The seed gives every member a `users` row, except the guests the claim tests need. 44 tests move off the name picker. E2E global setup becomes: reset the schema → `drizzle-kit push --force` → seed, so each run's database matches its own branch. Local E2E and CI get **separate Neon branches**, so a local run can't wipe a CI run's data mid-flight. No app change. | E2E databases only |
-| 2 | **Code-primary auth** (§4) | Code + link in one email; `/verify` signs in by button press (`POST`); code hashed; attempt limit and rate limits. The existing link and session tokens are hashed in the same session (the CLAUDE.md Open Question). The claim flow keeps working, now with a code. | Additive |
-| 3 | **Invites, added alongside the old model** (§7, §5.3, §5.6) | The `invites` table, `/invite/[token]` with all its states, Add a person, share/revoke/regenerate, `users.display_name`, and the `/welcome` name step. The old `/join` keeps working for links already sent. | Additive only |
-| 4 | **Cutover** (§8.2) | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
+| ✓ 1 | **Test groundwork** — done 2026-09-27 | A test-only helper that inserts a `sessions` row and sets the cookie (§8.3). The seed gives every member a `users` row, except the guests the claim tests need. 44 tests move off the name picker. E2E global setup becomes: reset the schema → `drizzle-kit push --force` → seed, so each run's database matches its own branch. Local E2E and CI get **separate Neon branches**, so a local run can't wipe a CI run's data mid-flight. No app change. | E2E databases only |
+| ✓ 2 | **Code-primary auth** (§4) — done 2026-09-27 | Code + link in one email; `/verify` signs in by button press (`POST`); code hashed; attempt limit and rate limits. The existing link and session tokens are hashed in the same session (the CLAUDE.md Open Question). The claim flow keeps working, now with a code. | Additive |
+| ✓ 3 | **Invites, added alongside the old model** (§7, §5.3, §5.6) — done 2026-09-27 | The `invites` table, `/invite/[token]` with all its states, Add a person, share/revoke/regenerate, `users.display_name`, and the `/welcome` name step. The old `/join` keeps working for links already sent. | Additive only |
+| ✓ 4 | **Cutover** (§8.2) — done 2026-11-02 | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
 | 5 | **Shell and navigation** (§5.11, §5.2, §5.7) | Wordmark, top and bottom bars, Tonight/History/Members tabs, rail, the marketing `/` and the Ruling A cards. Also the invite's Open Graph image (§5.1), not built in step 3. Pure UI: auth gating already landed in 4a. | None |
 | 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |
 | 7 | **Settings** (§5.9) | | Additive |
@@ -974,6 +974,11 @@ today's code.
    only as §8.6 says.
 
 ### 8.6 Cutover checklist (step 4)
+
+> **Ran 2026-11-02.** 4a and 4b merged to `main` (PRs #3 and #4),
+> `production` was wiped and 4b's schema pushed per step 5, and the step 6
+> smoke test passed. Step 9 below was added afterwards: it's what keeps
+> `.env` away from `production` from here on.
 
 Follow this on the day; don't improvise it. **4b wipes all usage data on
 `dev.kinomato.com`.** It's test data by ruling, but it's also your friends'
@@ -1049,6 +1054,12 @@ The direction depends on the change:
    Members tab is step 5), add each friend and share their link. Watch
    each pending invite turn *Started*, then disappear as they join.
 8. **Update CLAUDE.md** if 4b didn't already carry the §8.4 rewrites.
+9. **Give local development its own database.** After step 5's push, so
+   it carries 4b's schema, create a `local` Neon branch from `production`
+   as **schema only**, with no data copied. Point `.env`'s `DATABASE_URL`
+   at it, then run `npm run db:seed`. From here on `.env` never points at
+   `production` (CLAUDE.md conventions), and a push to `production` names
+   its URL by hand.
 
 **After**
 - Keep the backup branch for a week, then delete it. It holds real email

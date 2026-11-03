@@ -547,17 +547,58 @@ Kinoma (former Marvell division) are the nearest existing marks.
   message" these screens need. Reserve this for validation the user is
   meant to see and correct (a taken name, a cap hit); a genuine bug
   (a failed DB write) should still throw.
-- **Pushing schema to the dev database is a manual step, and it has a
-  direction.** Nothing automates it: CI pushes to its own E2E branch
+- **Pushing schema to `production` is a manual step, and it has a
+  direction.** Nothing automates it: CI pushes to its own `e2e` branch
   only, and a merge deploys code without touching the database. Step 2
   shipped without the push, and sign-in broke. For an **additive** change
   to `db/schema.ts` (new table or column, a column made nullable), run
-  `DATABASE_URL=<dev database> npx drizzle-kit push` (no `--force`)
+  `DATABASE_URL=<production URL> npx drizzle-kit push` (no `--force`)
   **before** merging, because the new code needs the new columns. For a
   **destructive** change (dropping a column, adding `NOT NULL`), merge the
   code that no longer uses them **first**, then push. The step-4 cutover
   is the one destructive case so far, and `docs/onboarding-spec.md` §8.6
   spells out its order.
+- **Neon branches, and which is which.**
+  - **`production`** backs `dev.kinomato.com` (the Worker's
+    `DATABASE_URL` secret). Its data is real clubs.
+  - **`e2e`** is CI's (the `E2E_DATABASE_URL` repo secret), and
+    **`e2e-local`** is local Playwright's (`.env`'s `E2E_DATABASE_URL`).
+    Both are wiped at the start of every run.
+  - **`local`** is `.env`'s `DATABASE_URL`, for `npm run dev` and
+    `npm run db:seed`.
+  - **`.env`'s `DATABASE_URL` must never point at `production`.**
+    `db:seed` deletes every row, and `drizzle-kit` reads `.env` by default
+    (`drizzle.config.ts`). A schema push to `production` names the URL
+    explicitly on the command line, by hand, never through `.env`.
+- **Each Neon branch has its own role password.** Passwords are per
+  branch; a child branch inherits its parent's password when it's
+  created, then they're independent. Rotating one branch's password
+  doesn't rotate the others: rotate each one that's exposed, and update
+  everything that uses it (`.env`, the `E2E_DATABASE_URL` repo secret,
+  the Worker's `DATABASE_URL` secret).
+- **Worker secrets: never edit them in the Cloudflare dashboard.** Use
+  `wrangler secret put`, and only when the latest uploaded Worker version
+  is the deployed one. A dashboard edit deploys the latest uploaded
+  version, which may not be `main`: branch builds upload versions too.
+  **Non-production branch builds are off** in Workers Builds (Settings →
+  Build) since 2026-11-02, so only `main` uploads versions. Don't turn
+  them back on without a separate preview Worker and a separate database:
+  previews share production's secrets, including its `DATABASE_URL`.
+- **Node is pinned to 22** (`.nvmrc`, `engines` in `package.json`), and
+  the runtime's timezone data matters. British Columbia is permanent
+  UTC−7 from 2026-11-01 (tzdata 2026b): `America/Vancouver` no longer
+  falls back. The canary at the end of `lib/schedule.test.ts` fails on
+  older timezone data, so stale data in Node (local and CI) is caught by
+  the tests. The Worker runs on Cloudflare's runtime, which carries its
+  own timezone data and never runs these tests: it was checked by hand on
+  2026-11-02 (a Vancouver 6pm night stored as 01:00Z, i.e. UTC−7).
+  Re-check it the same way after any future timezone-rule change. DST
+  transition tests use `America/Los_Angeles`, which still changes clocks.
+- **Never print a connection string or secret in a session.** Parse it
+  in-process (e.g. `node`, `dotenv.parse`, the `URL` class) and print only
+  derived facts: a hostname, or true/false. Shell filters on raw values
+  have failed: a quoted `.env` line slipped past one and leaked a
+  password.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every
