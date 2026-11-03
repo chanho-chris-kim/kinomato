@@ -303,14 +303,17 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **Attribution is retained, never deleted — access is the control.**
   `votes.membership_id` and `vetoes.membership_id` persist permanently; they
   are the audit trail and deletion would make debugging impossible. What
-  enforces the ruling above is a single history-read module that is
-  physically incapable of returning attribution — not a per-component
-  reminder to omit it. General history and the vetoer's identity after a
-  night closes go through that module and never see `membership_id`. The one
-  exception is a member reading their own vote back, which is a distinct
-  query path, not the shared history path. Every other read of votes or
-  vetoes goes through the same module — no direct queries against those
-  tables elsewhere in the codebase.
+  enforces the ruling above is meant to be a single history-read module
+  that is physically incapable of returning attribution — not a
+  per-component reminder to omit it. **It isn't built yet:** it's planned
+  for rebuild step 5f, before any History page exists (there is none
+  today). General history and the vetoer's identity after a night closes
+  will go through that module and never see `membership_id`. Reads of a
+  member's own vote, and the live pre-lock vote counts on an open night
+  (e.g. `app/clubs/[clubId]/page.tsx:241`, which reads the open night's
+  votes for its tally and "you voted for this"), are allowed outside it.
+  Once it exists, every other read of votes or vetoes goes through it — no
+  direct queries against those tables elsewhere in the codebase.
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite
@@ -437,15 +440,19 @@ Do not quietly change these — they encode decisions that took a while to reach
   directly in JSX className props, not reimplemented as Tailwind
   utilities, so the palette and spacing rhythm stay exactly what the
   prototype specifies rather than a hand-translated approximation.
-  `AppShell` (`app/clubs/[clubId]/AppShell.tsx`) is the responsive shell
-  (bottom tab bar on phones → icon sidebar at 620px → labeled sidebar at
-  900px → optional context rail at 1120px, all via `.app`'s
-  `container-type: inline-size` and `@container` queries, not viewport
-  media queries) used by the club page, watchlist, and tag page — /new,
-  /login, /invite and /welcome stay standalone themed cards with no nav
-  shell. (Ruling D in `docs/onboarding-spec.md` §5.11 replaces this
-  sidebar model with top/bottom bars and club tabs; that lands in rebuild
-  step 5, and this ruling is rewritten then.) `.main` establishes
+  `app/shell.tsx` holds the shells (`docs/onboarding-spec.md` §5.11,
+  Ruling D): **bottom tab bar on phones → top bar at 620px → capped
+  content column at 900px → rail at 1120px on club pages**, all via
+  `.app`'s `container-type: inline-size` and `@container` queries, not
+  viewport media queries. `GlobalShell` wraps every signed-in screen:
+  global nav (Clubs, Watchlist, Settings, labels always, `aria-current`
+  on the current one) in a fixed bottom tab bar on phones and in a
+  sticky top bar from 620px, never a sidebar, with the wordmark top left.
+  `PublicShell` wraps signed-out screens (`/` signed out, `/invite`,
+  `/login`, `/login/code`, `/verify`, `/welcome`): a slim bar with only
+  the wordmark, no global nav. Club pages add `ClubHeader` (name and
+  `describeSchedule`'s line, no back chevron); the Tonight/Members tab
+  row is step 5c. `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at

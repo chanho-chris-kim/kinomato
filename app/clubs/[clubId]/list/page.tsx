@@ -4,7 +4,7 @@ import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
 import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
-import { AppShell } from "../AppShell";
+import { ClubHeader, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
 import { loadClubMemberships, nameOf } from "../members";
 import { Poster } from "../Poster";
@@ -210,7 +210,7 @@ export default async function WatchlistPage({
   }
 
   return (
-    <AppShell clubId={clubId} clubName={club.name} current="watchlist">
+    <GlobalShell current="watchlist" header={<ClubHeader club={club} />}>
       <p className="small mt14">You are: {nameOf(currentMembership)}</p>
 
       <form className="search mt14">
@@ -273,7 +273,7 @@ export default async function WatchlistPage({
       {genreShelves.map((shelf) => (
         <ShelfSection key={shelf.name} shelf={shelf} clubId={clubId} />
       ))}
-    </AppShell>
+    </GlobalShell>
   );
 }
 

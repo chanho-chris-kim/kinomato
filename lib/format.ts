@@ -11,3 +11,46 @@ export function formatRuntime(totalMinutes: number): string {
   if (remainder === 0) return `${hours}h`;
   return `${hours}h ${remainder}m`;
 }
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// "20:00" / "20:30:00" (Postgres's time format) -> "8pm" / "8:30pm".
+function spokenTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const suffix = h < 12 ? "am" : "pm";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${hour12}${suffix}` : `${hour12}:${String(m).padStart(2, "0")}${suffix}`;
+}
+
+// The club header's schedule line (docs/onboarding-spec.md §5.10), e.g.
+// "Weekly, Saturdays at 8pm · In person". Only what the club has set;
+// a missing day or time is left out, never invented. "Monthly" is the Nth
+// weekday of the month (lib/schedule.ts), so the line names the weekday
+// without claiming which one.
+export function describeSchedule(club: {
+  cadence: "weekly" | "biweekly" | "monthly" | "ad_hoc";
+  defaultDay: number | null;
+  defaultTime: string | null;
+  mode: "in_person" | "remote";
+}): string {
+  const day = club.defaultDay === null ? null : WEEKDAYS[club.defaultDay];
+  const at = club.defaultTime ? ` at ${spokenTime(club.defaultTime)}` : "";
+  const where = club.mode === "remote" ? "Remote" : "In person";
+
+  let when: string;
+  switch (club.cadence) {
+    case "ad_hoc":
+      when = "No fixed night";
+      break;
+    case "weekly":
+      when = day ? `Weekly, ${day}s${at}` : `Weekly${at}`;
+      break;
+    case "biweekly":
+      when = day ? `Every other ${day}${at}` : `Every other week${at}`;
+      break;
+    case "monthly":
+      when = day ? `Monthly, on a ${day}${at}` : `Monthly${at}`;
+      break;
+  }
+  return `${when} · ${where}`;
+}
