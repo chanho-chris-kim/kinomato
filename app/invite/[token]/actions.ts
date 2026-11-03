@@ -6,7 +6,7 @@ import { getDb } from "@/db";
 import { invites } from "@/db/schema";
 import {
   activeMemberCount,
-  ensureDisplayName,
+  accountName,
   loadInviteByToken,
   redeemDestination,
   redeemInvite,
@@ -61,7 +61,7 @@ export async function joinInviteAsMe(token: string) {
   const result = await redeemInvite(db, row.invite.id, userId);
   const destination = redeemDestination(result);
   // An account with no name at all still gets the name step first.
-  if (!(await ensureDisplayName(db, userId))) {
+  if (!(await accountName(db, userId))) {
     redirect(`/welcome?${new URLSearchParams({ next: destination, invite: row.invite.id })}`);
   }
   redirect(destination);

@@ -2,7 +2,6 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import {
@@ -20,77 +19,19 @@ import {
   watchlistItems,
 } from "@/db/schema";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
-import { issueSignIn } from "@/app/signIn";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
 import { getNomineesPerTurn } from "@/lib/clubSettings";
 import { normalizeTag } from "@/lib/tags";
-import { identityCookieName, requireCurrentMembershipId } from "./identity";
+import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
 import { getOrCreateCurrentSeasonId } from "./season";
 
-// No auth in v0: identity is a membership id in a per-club cookie, set by
-// picking a name from the club's member list. Nothing here trusts a
-// client-supplied membership id — every action reads it back off the
-// cookie itself (requireCurrentMembershipId, shared with the watchlist
-// page's actions in ./list/actions.ts).
-
-// Shared by the club home page and the watchlist page's own identity
-// gate — one cookie, one picker, revalidate every route that reads it.
-export async function pickIdentity(clubId: string, membershipId: string) {
-  const cookieStore = await cookies();
-  cookieStore.set(identityCookieName(clubId), membershipId, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: `/clubs/${clubId}`,
-  });
-  revalidatePath(`/clubs/${clubId}`);
-  revalidatePath(`/clubs/${clubId}/list`);
-}
-
-export async function clearIdentity(clubId: string) {
-  const cookieStore = await cookies();
-  cookieStore.delete({ name: identityCookieName(clubId), path: `/clubs/${clubId}` });
-  revalidatePath(`/clubs/${clubId}`);
-  revalidatePath(`/clubs/${clubId}/list`);
-}
-
-// The upgrade path (CLAUDE.md, analysis-v2.md §5.1) — bound to a
-// clubId, membership, and returnPath by ClaimPrompt, so this same
-// action serves the prompt regardless of which page it's rendered on.
-// Never trusts a client-supplied membership id: reads it back off
-// requireCurrentMembershipId, same as every other action here.
-// claimMembershipId on the resulting magic_links row is what makes
-// verifying it update this exact membership in place — see
-// app/verify/route.ts — rather than ever creating a new one.
-export async function requestClaim(clubId: string, returnPath: string, formData: FormData) {
-  const membershipId = await requireCurrentMembershipId(clubId);
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    redirect(`${returnPath}?claimError=${encodeURIComponent("Enter a valid email address.")}`);
-  }
-
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
-  // Already claimed (by this flow completing in another tab, say) —
-  // nothing left to do, so just return to the page rather than send a
-  // second, redundant link.
-  if (!membership || membership.clubId !== clubId || membership.userId !== null) {
-    redirect(returnPath);
-  }
-
-  // Same code screen as a plain sign-in, sent or rate-limited, so the
-  // claim finishes by typing the code (docs/onboarding-spec.md §4.2).
-  const result = await issueSignIn(db, {
-    email,
-    claimMembershipId: membershipId,
-    returnToClubId: clubId,
-  });
-  const qs = new URLSearchParams({ email, returnTo: clubId });
-  if (!result.sent) qs.set("notice", "wait");
-  redirect(`/login/code?${qs.toString()}`);
-}
+// Identity is the session's user, through their membership in this club
+// (./identity.ts). Nothing here trusts a client-supplied membership id —
+// every action reads it back with requireCurrentMembershipId, shared with
+// the watchlist page's actions in ./list/actions.ts.
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has
 // several nominations, so "movable" means deleting any existing vote(s)
@@ -421,31 +362,6 @@ export async function lockNight(clubId: string, nightId: string) {
   revalidatePath(`/clubs/${clubId}`);
 }
 
-// Owner/admin only (CLAUDE.md) — same restriction shape as lockNight
-// above, not a coincidence: both are "this changes something every
-// member depends on" actions. Rotating overwrites clubs.invite_token
-// in place; any link holding the old value starts failing
-// requireValidInviteToken (app/clubs/[clubId]/join/actions.ts)
-// immediately, on its next use — nothing to expire or garbage-collect.
-export async function rotateInviteToken(clubId: string) {
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const membershipId = await requireCurrentMembershipId(clubId);
-
-  const [membership] = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.id, membershipId));
-  if (!membership || membership.clubId !== clubId) {
-    throw new Error("No identity set for this club — pick a name first.");
-  }
-  if (membership.role !== "owner" && membership.role !== "admin") {
-    throw new Error("Only the club owner or an admin can rotate the invite link.");
-  }
-
-  await db.update(clubs).set({ inviteToken: crypto.randomUUID() }).where(eq(clubs.id, clubId));
-
-  revalidatePath(`/clubs/${clubId}`);
-}
 
 // Minimal seam, not the full veto feature (see CLAUDE.md's veto ruling
 // for the intended shape — a token pool capped at two per member per

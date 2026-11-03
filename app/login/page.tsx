@@ -1,10 +1,9 @@
 import { requestLogin } from "./actions";
 
 // Email in, code out (docs/onboarding-spec.md §5.4). Reached directly
-// (recovering on a new device) or from a claim prompt's "already verified?
-// sign in instead" — returnTo (a club id) brings a recovery sign-in back
-// to the club that prompted it. `email` prefills the field when a stale
-// link sends someone here.
+// (recovering on a new device) or from a gated page — returnTo (a
+// same-origin path) is where the code screen sends them afterwards.
+// `email` prefills the field when a stale link sends someone here.
 export default async function LoginPage({
   searchParams,
 }: {

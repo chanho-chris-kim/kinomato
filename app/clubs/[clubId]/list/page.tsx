@@ -4,17 +4,11 @@ import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
 import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
-import { pickIdentity } from "../actions";
 import { AppShell } from "../AppShell";
-import { ClaimPrompt } from "../ClaimPrompt";
-import { getIdentityMembershipId } from "../identity";
+import { requireClubMember } from "@/app/auth";
+import { loadClubMemberships, nameOf } from "../members";
 import { Poster } from "../Poster";
 import { addFilm, removeFilm } from "./actions";
-
-// A rating is one row — losing it costs little. A watchlist someone's
-// actually built is a bigger, slower-to-rebuild thing, which is why
-// the claim prompt gates on this instead (CLAUDE.md).
-const CLAIM_PROMPT_WATCHLIST_THRESHOLD = 3;
 
 interface SearchRow {
   tmdbId: number;
@@ -35,48 +29,20 @@ export default async function WatchlistPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ q?: string; claimError?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const { clubId } = await params;
-  const { q, claimError } = await searchParams;
+  const { q } = await searchParams;
   const query = q?.trim() ?? "";
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
+  // Signed in and an active member, or /login / 404 (docs/onboarding-spec.md §5.1).
+  const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}/list`);
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
-  if (!club) {
-    return <main className="p-4">Club not found.</main>;
-  }
 
-  const clubMemberships = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.clubId, clubId));
+  const clubMemberships = await loadClubMemberships(db, clubId);
   const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
-
-  const identityMembershipId = await getIdentityMembershipId(clubId);
-  const currentMembership =
-    activeMemberships.find((m) => m.id === identityMembershipId) ?? null;
-
-  // No auth in v0 — a name picker is the whole identity flow, shared with
-  // the club home page.
-  if (!currentMembership) {
-    return (
-      <AppShell clubId={clubId} clubName={club.name} current="watchlist">
-        <p className="small muted mt14">Who are you?</p>
-        <ul className="stack gap8 mt14">
-          {activeMemberships.map((m) => (
-            <li key={m.id}>
-              <form action={pickIdentity.bind(null, clubId, m.id)}>
-                <button type="submit" className="btn">
-                  {m.displayName}
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      </AppShell>
-    );
-  }
+  const currentMembership = activeMemberships.find((m) => m.id === me.id)!;
 
   // My list, joined to the cached film data.
   const myItems = await db
@@ -245,7 +211,7 @@ export default async function WatchlistPage({
 
   return (
     <AppShell clubId={clubId} clubName={club.name} current="watchlist">
-      <p className="small mt14">You are: {currentMembership.displayName}</p>
+      <p className="small mt14">You are: {nameOf(currentMembership)}</p>
 
       <form className="search mt14">
         <input type="text" name="q" defaultValue={query} placeholder="Search films" />
@@ -300,16 +266,6 @@ export default async function WatchlistPage({
       <p className="small muted mt20">
         {myItems.length} films · {formatRuntime(totalRuntime)}
       </p>
-
-      {currentMembership.userId === null &&
-        myItems.length >= CLAIM_PROMPT_WATCHLIST_THRESHOLD && (
-          <ClaimPrompt
-            clubId={clubId}
-            returnPath={`/clubs/${clubId}/list`}
-            reason="watchlist"
-            claimError={claimError}
-          />
-        )}
 
       {smartShelves.map((shelf) => (
         <ShelfSection key={shelf.name} shelf={shelf} clubId={clubId} />

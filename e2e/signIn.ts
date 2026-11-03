@@ -1,3 +1,4 @@
+import { expect, type Page } from "@playwright/test";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -53,17 +54,20 @@ export async function latestSignInRow(email: string) {
   }
 }
 
-// Simulates time passing for the per-address send limits (30s cooldown,
-// 5 an hour): moves every sign-in row for the address two hours into the
-// past, so a test that needs a fresh code for an address an earlier test
-// already used isn't rate-limited by timing it doesn't control.
-export async function forgetRecentSends(email: string): Promise<void> {
-  const client = postgres(process.env.E2E_DATABASE_URL!);
-  try {
-    await client`
-      update magic_links set created_at = created_at - interval '2 hours' where email = ${email}
-    `;
-  } finally {
-    await client.end();
-  }
+// On the code screen (after asking for a code by any route): set a known
+// code on the newest row, type it, submit.
+export async function finishCodeSignIn(page: Page, email: string): Promise<void> {
+  await expect(page).toHaveURL(/\/login\/code/);
+  await expect(page.getByText(email)).toBeVisible();
+  const { code } = await setKnownSignIn(email);
+  await page.getByLabel("6-digit code").fill(code);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
+
+// The one-time name step a brand-new account sees.
+export async function nameYourself(page: Page, firstName: string, lastInitial: string): Promise<void> {
+  await expect(page).toHaveURL(/\/welcome/);
+  await page.getByLabel("First name").fill(firstName);
+  await page.getByLabel("Last initial").fill(lastInitial);
+  await page.getByRole("button", { name: "Continue" }).click();
 }

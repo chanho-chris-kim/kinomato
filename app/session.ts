@@ -4,15 +4,14 @@ import type { getDb } from "@/db";
 import { sessions } from "@/db/schema";
 import { hashToken } from "@/lib/authCredentials";
 
-// Site-wide, unlike every per-club kinomato_identity_{clubId} cookie
-// (app/clubs/[clubId]/identity.ts) — a verified member's identity has
-// to be resolved once, independent of which club's page they're on,
-// before "which membership row in this club" can even be asked.
+// The one identity cookie: site-wide, resolved once regardless of which
+// club's page someone is on; which membership that is in a given club is
+// looked up from it (app/clubs/[clubId]/identity.ts).
 export const SESSION_COOKIE_NAME = "kinomato_session";
 
 // Long-lived on purpose: this isn't the recovery mechanism (CLAUDE.md)
 // — users.email is. A session cookie clear also clears this cookie;
-// what actually survives that is requesting a fresh magic link, which
+// what actually survives that is requesting a fresh code, which
 // re-finds the same users row by email and mints a new session here.
 // 90 days is just "don't make someone re-verify constantly" on a
 // device that keeps its cookies.

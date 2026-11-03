@@ -235,7 +235,7 @@ test.describe("per-person invites", () => {
       return link;
     })();
 
-    // Chris's account predates users.display_name; his club 1 name fills it.
+    // Chris's own account name, never the invitee's.
     await signInTo(page, MEMBERSHIP.chris, leeLink);
     await page.getByRole("button", { name: /^Join Eighth Club as .* instead$/ }).click();
     await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));

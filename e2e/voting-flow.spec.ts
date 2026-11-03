@@ -161,7 +161,7 @@ test.describe("voting flow", () => {
 
     const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
       id: m.id,
-      identityKey: m.identityKey,
+      userId: m.userId,
       clubId: m.clubId,
       joinedAt: m.joinedAt,
       leftAt: m.leftAt,
