@@ -258,6 +258,28 @@ test.describe("per-person invites", () => {
     await expect(page.getByRole("button", { name: "Create invite" })).toHaveCount(0);
   });
 
+  // memberships_one_active_per_user_per_club (docs/onboarding-spec.md
+  // §7.1): the app checks before inserting, so this proves the database
+  // backstop exists on its own — a race that slips past the check is a
+  // rejected insert, not a second active row.
+  test("the database refuses a second active membership for the same person in a club", async () => {
+    const client = postgres(process.env.E2E_DATABASE_URL!);
+    try {
+      const [hana] = await client`select user_id from memberships where id = ${MEMBERSHIP_8.hana}`;
+      await expect(
+        client`insert into memberships (club_id, user_id, role) values (${CLUB_8_ID}, ${hana.user_id}, 'member')`,
+      ).rejects.toThrow(/memberships_one_active_per_user_per_club/);
+      // A left membership doesn't count: rejoining is a new row.
+      const [left] = await client`
+        insert into memberships (club_id, user_id, role, left_at)
+        values (${CLUB_8_ID}, ${hana.user_id}, 'member', now()) returning id`;
+      expect(left.id).toBeTruthy();
+      await client`delete from memberships where id = ${left.id}`;
+    } finally {
+      await client.end();
+    }
+  });
+
   test("an unknown token reads the same as a replaced one", async ({ page }) => {
     await page.goto("/invite/not-a-real-token");
     await expect(page.getByRole("heading", { name: "This invite link was replaced" })).toBeVisible();

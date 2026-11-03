@@ -906,6 +906,13 @@ Leave these as written until then. They describe the running code:
 - "Theming is one attribute, not a rewrite": its `AppShell` breakpoint
   description, per Ruling D (§5.11.2).
 
+**Status:** done in step 4b, except the theming ruling, which describes
+`AppShell` and is rewritten when step 5 replaces it. Left over, not in
+4b's list: the `membership_role` enum still has a `guest` value that
+nothing assigns. Dropping an enum value in Postgres means rebuilding the
+type, so it belongs with the next destructive schema change (step 6's
+watchlist move) rather than a change of its own.
+
 ### 8.5 Build order
 
 **The rule: add the new thing next to the old, switch over, then delete the

@@ -10,9 +10,7 @@ export const dynamic = "force-dynamic";
 // Stopgap until docs/onboarding-spec.md §5.2/§5.7 replace this route.
 // This page used to select every row in `clubs` and link each one, to
 // anyone. Now: signed out lists nothing; signed in lists only the clubs
-// the session's user is an active member of. A guest with only a
-// per-club identity cookie has no session and sees no list — they reach
-// their club by its URL, as before.
+// the session's user is an active member of.
 export default async function Home() {
   const db = getDb();
   const userId = await getSessionUserId(db);
