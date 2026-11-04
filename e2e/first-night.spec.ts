@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { finishCodeSignIn, nameYourself } from "./signIn";
+import { expectYouAre } from "./identity";
 
 // The real deliverable this spec proves: a club that didn't exist when the
 // test started goes all the way from the home page through sign-up,
@@ -64,14 +65,14 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
     await expect(page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
     clubUrl = page.url();
-    await expect(page.getByText("You are: Priya S.")).toBeVisible();
+    await expectYouAre(page, "Priya S.");
     priya = await page.context().storageState();
   });
 
   test("Priya invites Owen, and he joins with his own link", async ({ browser }) => {
     let link = "";
     await as(browser, priya, async (page) => {
-      await page.goto(clubUrl);
+      await page.goto(`${clubUrl}/members`);
       await page.getByLabel("First name").fill("Owen");
       await page.getByLabel("Last initial").fill("R");
       await page.getByRole("button", { name: "Create invite" }).click();
@@ -90,7 +91,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
       // Prefilled from Priya's invite; he keeps it.
       await expect(page.getByLabel("First name")).toHaveValue("Owen");
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.getByText("You are: Owen R.")).toBeVisible();
+      await expectYouAre(page, "Owen R.");
       owen = await context.storageState();
     } finally {
       await context.close();

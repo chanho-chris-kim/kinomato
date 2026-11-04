@@ -2,6 +2,7 @@ import { CLUB_8_ID, CLUB_ID, DISPLAY_NAME_8, MEMBERSHIP, MEMBERSHIP_8 } from "..
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 import { finishCodeSignIn } from "./signIn";
+import { expectYouAre } from "./identity";
 
 // Who can see what (docs/onboarding-spec.md §5.1, rebuild step 4): every
 // club route and /new need a session; a club also needs an active
@@ -24,7 +25,7 @@ test.describe("gating", () => {
     await page.getByRole("button", { name: "Send code" }).click();
     await finishCodeSignIn(page, "ivo@example.com");
     await expect(page).toHaveURL(path);
-    await expect(page.getByText(`You are: ${DISPLAY_NAME_8.ivo}`)).toBeVisible();
+    await expectYouAre(page, DISPLAY_NAME_8.ivo);
   });
 
   test("signed in, a club you're not in is a 404 — indistinguishable from one that doesn't exist", async ({

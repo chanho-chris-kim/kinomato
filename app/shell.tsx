@@ -142,3 +142,27 @@ function TabIcon({ name }: { name: GlobalSection }) {
     </svg>
   );
 }
+
+export type ClubTab = "tonight" | "members";
+
+// Club-level tabs under the club header (§5.10–5.11.2): Tonight · Members,
+// the same at every width. No History tab until it's built (rebuild step
+// 5f). `current` is null on a club page that isn't one of the tabs (the
+// tag page, whose home is History).
+export function ClubTabs({ clubId, current }: { clubId: string; current: ClubTab | null }) {
+  const tabs: { key: ClubTab; href: string; label: string }[] = [
+    { key: "tonight", href: `/clubs/${clubId}`, label: "Tonight" },
+    { key: "members", href: `/clubs/${clubId}/members`, label: "Members" },
+  ];
+  return (
+    <div className="ctabs">
+      <nav className="segc" aria-label="Club">
+        {tabs.map((t) => (
+          <Link key={t.key} href={t.href} aria-current={t.key === current ? "page" : undefined}>
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}

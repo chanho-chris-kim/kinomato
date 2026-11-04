@@ -175,10 +175,50 @@ button {
 .rail {
   display: none;
 }
+/* Club-level tabs (Tonight · Members), under the club header at every
+   width: sticky at the top of the viewport on phones (the top bar scrolls
+   away there), below the 52px top bar from 620px. */
+.ctabs {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--bg);
+  padding: 8px 0;
+  margin-top: 10px;
+}
+.segc {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.segc a {
+  flex: 1;
+  text-align: center;
+  color: var(--mut);
+  padding: 8px 4px;
+  font-size: 13px;
+  text-decoration: none;
+}
+.segc a[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* The viewer's own member row: an accent border alongside the "(you)"
+   text — never colour alone. */
+.card.me {
+  border-color: var(--accent);
+}
+.you {
+  color: var(--accent);
+}
 
 @container (min-width: 620px) {
   .tabbar {
     display: none;
+  }
+  .ctabs {
+    top: 52px;
   }
   .topbar {
     height: 52px;
@@ -452,6 +492,7 @@ button {
 }
 .search input {
   flex: 1;
+  min-width: 0;
   background: none;
   border: 0;
   color: var(--fg);

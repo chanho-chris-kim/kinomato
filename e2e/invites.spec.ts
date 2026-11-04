@@ -16,6 +16,7 @@ import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 import { setKnownSignIn } from "./signIn";
+import { expectYouAre, memberNames } from "./identity";
 
 // Per-person invites (docs/onboarding-spec.md §7, rebuild step 3), on club
 // 8 (Hana owns it, Ivo is a member). Serial: later tests build on invites
@@ -25,7 +26,8 @@ test.describe.configure({ mode: "serial" });
 const CLUB_8_URL = `/clubs/${CLUB_8_ID}`;
 let marcoLink = "";
 
-async function signInTo(page: Page, membershipId: string, url = CLUB_8_URL) {
+// Defaults to the Members tab, where inviting lives (rebuild step 5c).
+async function signInTo(page: Page, membershipId: string, url = `${CLUB_8_URL}/members`) {
   await signInAs(page, membershipId);
   await page.goto(url);
 }
@@ -125,7 +127,7 @@ test.describe("per-person invites", () => {
 
       await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));
       await expect(page.getByText("You're in, Marcus.")).toBeVisible();
-      await expect(page.getByText("You are: Marcus R.")).toBeVisible();
+      await expectYouAre(page, "Marcus R.");
     });
     const row = await inviteRow(marcoLink.split("/invite/")[1]);
     expect(row.startedAt).not.toBeNull();
@@ -141,7 +143,7 @@ test.describe("per-person invites", () => {
     });
     await signInTo(page, MEMBERSHIP_8.hana);
     await expect(page.getByText("3 of 6 seats.")).toBeVisible();
-    await expect(page.locator("main h2:has-text('Members') + p")).toContainText("Marcus R.");
+    await expect(memberNames(page).filter({ hasText: "Marcus R." })).toHaveCount(1);
   });
 
   test("revoking one person's invite kills that link and no one else's (Ruling C)", async ({
@@ -176,7 +178,7 @@ test.describe("per-person invites", () => {
       .locator(".card", { hasText: "Lee S." })
       .getByRole("button", { name: "Regenerate" })
       .click();
-    await expect(page).toHaveURL(/\?invite=/);
+    await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}/members\\?invite=`));
     const newLink = await inviteLink(page, "Lee S.");
     expect(newLink).not.toBe(oldLink);
 
@@ -195,7 +197,7 @@ test.describe("per-person invites", () => {
     const leeLink = await inviteLink(page, "Lee S.");
     await page.goto(leeLink);
     await expect(page.getByRole("heading", { name: "You're already in Eighth Club" })).toBeVisible();
-    await page.goto(CLUB_8_URL);
+    await page.goto(`${CLUB_8_URL}/members`);
     await expect(page.getByLabel("Invite link for Lee S.")).toBeVisible();
   });
 
@@ -239,7 +241,7 @@ test.describe("per-person invites", () => {
     await signInTo(page, MEMBERSHIP.chris, leeLink);
     await page.getByRole("button", { name: /^Join Eighth Club as .* instead$/ }).click();
     await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));
-    await expect(page.getByText("You are: Chris")).toBeVisible();
+    await expectYouAre(page, "Chris");
     await expect(page.getByText("You're in, Chris.")).toBeVisible();
   });
 
@@ -251,7 +253,7 @@ test.describe("per-person invites", () => {
       await stranger.goto(`/invite/${FULL_CLUB_INVITE.token}`);
       await expect(stranger.getByRole("heading", { name: "Movie Night Crew is full right now" })).toBeVisible();
     });
-    await signInTo(page, MEMBERSHIP.chris, `/clubs/${CLUB_ID}`);
+    await signInTo(page, MEMBERSHIP.chris, `/clubs/${CLUB_ID}/members`);
     await expect(
       page.getByText("Movie Night Crew is full: 6 members and 1 pending invite."),
     ).toBeVisible();

@@ -416,7 +416,7 @@ async function requireOwnerOrAdmin(clubId: string) {
 }
 
 function inviteError(clubId: string, message: string): never {
-  redirect(`/clubs/${clubId}?inviteError=${encodeURIComponent(message)}`);
+  redirect(`/clubs/${clubId}/members?inviteError=${encodeURIComponent(message)}`);
 }
 
 async function insertInvite(
@@ -433,8 +433,8 @@ async function insertInvite(
 }
 
 // Pending invites hold a seat, so this is refused once active members plus
-// pending invites reach the cap. Lands back on the club page with the new
-// invite's share panel open (?invite=).
+// pending invites reach the cap. Lands back on the Members tab with the
+// new invite's share panel open (?invite=).
 export async function createInvite(clubId: string, formData: FormData) {
   const { db, membership } = await requireOwnerOrAdmin(clubId);
   const name = validateMemberName(
@@ -452,7 +452,7 @@ export async function createInvite(clubId: string, formData: FormData) {
   }
 
   const id = await insertInvite(db, clubId, name.displayName, membership.id);
-  redirect(`/clubs/${clubId}?invite=${id}`);
+  redirect(`/clubs/${clubId}/members?invite=${id}`);
 }
 
 // Kills one person's link without touching anyone else's (Ruling C). Only
@@ -471,7 +471,7 @@ export async function revokeInvite(clubId: string, inviteId: string) {
         isNull(invites.revokedAt),
       ),
     );
-  redirect(`/clubs/${clubId}`);
+  redirect(`/clubs/${clubId}/members`);
 }
 
 // Revoke + a fresh invite for the same name: "I sent it to the wrong chat."
@@ -490,7 +490,7 @@ export async function regenerateInvite(clubId: string, inviteId: string) {
       ),
     )
     .returning();
-  if (!revoked) redirect(`/clubs/${clubId}`);
+  if (!revoked) redirect(`/clubs/${clubId}/members`);
   const id = await insertInvite(db, clubId, revoked.inviteeName, membership.id);
-  redirect(`/clubs/${clubId}?invite=${id}`);
+  redirect(`/clubs/${clubId}/members?invite=${id}`);
 }

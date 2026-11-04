@@ -137,9 +137,15 @@ test.describe("lock", () => {
     ).toBeVisible();
   });
 
+  // Rating is for explicit yes-RSVPs (CLAUDE.md blind-reveal ruling), and
+  // since step 5c someone who can't rate sees no rating heading at all —
+  // so Zoe, who never answered, says she's going before confirming.
   test("Zoe confirms it watched, closing the loop into the rating screen", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_5.zoe);
+    await page.getByRole("button", { name: "Going", exact: true }).click();
+    await expect(page.getByText("Current answer: yes")).toBeVisible();
     await page.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Rate Blade Runner" })).toBeVisible();
+    await expect(page.getByLabel("Quality", { exact: true })).toBeVisible();
   });
 });

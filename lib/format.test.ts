@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeSchedule, formatRuntime } from "./format";
+import { describeSchedule, formatRuntime, timeAgo } from "./format";
 
 describe("formatRuntime", () => {
   it("formats hours and minutes", () => {
@@ -69,5 +69,35 @@ describe("describeSchedule", () => {
     days.forEach((day, i) => {
       expect(club({ defaultDay: i, cadence: "biweekly" })).toBe(`Every other ${day} at 8pm · In person`);
     });
+  });
+});
+
+// "How long ago" on a pending invite (docs/onboarding-spec.md §5.10).
+describe("timeAgo", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const ago = (ms: number) => timeAgo(new Date(now.getTime() - ms), now);
+  const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
+
+  it("under a minute is just now", () => {
+    expect(ago(0)).toBe("just now");
+    expect(ago(59_000)).toBe("just now");
+  });
+
+  it("minutes and hours, singular and plural", () => {
+    expect(ago(MIN)).toBe("1 minute ago");
+    expect(ago(45 * MIN)).toBe("45 minutes ago");
+    expect(ago(HOUR)).toBe("1 hour ago");
+    expect(ago(5 * HOUR)).toBe("5 hours ago");
+  });
+
+  it("days, then weeks from 14 days", () => {
+    expect(ago(DAY)).toBe("1 day ago");
+    expect(ago(13 * DAY)).toBe("13 days ago");
+    expect(ago(14 * DAY)).toBe("2 weeks ago");
+    expect(ago(40 * DAY)).toBe("5 weeks ago");
+  });
+
+  it("a timestamp a little in the future (clock skew) reads as just now, not negative", () => {
+    expect(timeAgo(new Date(now.getTime() + 5_000), now)).toBe("just now");
   });
 });
