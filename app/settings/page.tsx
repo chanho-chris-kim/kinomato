@@ -9,7 +9,10 @@ export default async function SettingsPage() {
   await requireUser("/settings");
   return (
     <GlobalShell current="settings">
-      <form action={signOut}>
+      <h1 className="h-display" style={{ fontSize: 22 }}>
+        Settings
+      </h1>
+      <form action={signOut} className="mt20">
         <button type="submit" className="btn">
           Sign out
         </button>
