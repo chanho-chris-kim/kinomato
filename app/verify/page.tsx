@@ -47,7 +47,7 @@ export default async function VerifyPage({
 
   // Already signed in as someone else in this browser: say so on the
   // button, never switch silently.
-  const currentUserId = await getSessionUserId(db);
+  const currentUserId = await getSessionUserId();
   const [currentUser] = currentUserId
     ? await db.select({ email: users.email }).from(users).where(eq(users.id, currentUserId))
     : [];

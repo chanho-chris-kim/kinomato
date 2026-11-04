@@ -5,18 +5,15 @@ import { getDb } from "@/db";
 import { clubs, memberships } from "@/db/schema";
 import { getSessionUserId } from "@/app/session";
 
-// Per-request: depends on the session cookie.
-export const dynamic = "force-dynamic";
-
 // Stopgap until docs/onboarding-spec.md §5.2/§5.7 replace this route.
 // This page used to select every row in `clubs` and link each one, to
 // anyone. Now: signed out lists nothing; signed in lists only the clubs
 // the session's user is an active member of.
 export default async function Home() {
-  const db = getDb();
-  const userId = await getSessionUserId(db);
+  // Per-request by construction: getSessionUserId reads the cookie first.
+  const userId = await getSessionUserId();
   const myClubs = userId
-    ? await db
+    ? await getDb()
         .select({ id: clubs.id, name: clubs.name })
         .from(memberships)
         .innerJoin(clubs, eq(memberships.clubId, clubs.id))

@@ -34,6 +34,15 @@ jobs:
       - name: Test
         run: npm test
 
+      # The production build as Workers Builds runs it: no DATABASE_URL at
+      # build time (it's a runtime Worker secret only). A page that reaches
+      # the database during `next build` prerendering fails here, before
+      # merge, instead of failing main's deploy. The E2E job's build can't
+      # catch this: it has a database URL. Unset explicitly, not just
+      # absent, so a secret added to this job later can't hide it.
+      - name: Production build (no database, as Workers Builds)
+        run: env -u DATABASE_URL -u E2E_DATABASE_URL npx opennextjs-cloudflare build
+
   # Separate job on purpose: a flaky or slow E2E run must never block a
   # logic fix that only touched lib/. Don't add this job to main's
   # required status checks in GitHub branch protection — only Check.

@@ -18,7 +18,7 @@ export async function saveName(formData: FormData) {
   const lastInitial = String(formData.get("lastInitial") ?? "");
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   if (!userId) redirect(`/login`);
 
   const result = validateMemberName(firstName, lastInitial);

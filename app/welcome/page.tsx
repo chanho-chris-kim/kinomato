@@ -19,9 +19,9 @@ export default async function WelcomePage({
 }) {
   const { next: rawNext, invite: inviteId, error, first, initial } = await searchParams;
   const next = safePath(rawNext);
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   if (!userId) redirect("/login");
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (user?.displayName) redirect(next);
 
