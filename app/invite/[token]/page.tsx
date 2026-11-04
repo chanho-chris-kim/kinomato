@@ -6,6 +6,7 @@ import { activeMemberCount, findActiveMembership, loadInviteByToken } from "@/ap
 import { getSessionUserId } from "@/app/session";
 import { resolveInviteView } from "@/lib/invites";
 import { joinInviteAsMe, signOutForInvite, startInvite } from "./actions";
+import { PublicShell } from "@/app/shell";
 
 // The invite landing page (docs/onboarding-spec.md §5.3) — the most
 // important screen in the rebuild: "Hi Marco — Chris invited you to
@@ -38,11 +39,13 @@ export default async function InvitePage({
   const inviterName = row?.inviterName ?? "the club";
 
   const card = (children: React.ReactNode) => (
-    <main className="p-4" style={{ maxWidth: 440, margin: "0 auto" }}>
-      <div className="card" style={{ padding: "20px 18px" }}>
-        {children}
-      </div>
-    </main>
+    <PublicShell>
+      <main className="p-4" style={{ maxWidth: 440, margin: "0 auto" }}>
+        <div className="card" style={{ padding: "20px 18px" }}>
+          {children}
+        </div>
+      </main>
+    </PublicShell>
   );
 
   if (view === "replaced") {

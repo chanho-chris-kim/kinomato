@@ -70,33 +70,70 @@ button {
   outline-offset: 2px;
 }
 
-/* ---------- app shell: nav / main / rail ---------- */
-/* .app is the size container; .shell is what actually lays out. A
-   container query can't restyle its own container, so the phone→sidebar
-   row switch below targets .shell — putting it on .app never applied at
-   any width, and the nav stacked above the content everywhere. */
+/* ---------- app shell: top bar / tab bar / main / rail ----------
+   docs/onboarding-spec.md §5.11 (Ruling D), styled from
+   docs/prototype.html: bottom tab bar on phones → top bar at 620px →
+   capped content column at 900px → rail at 1120px on club pages. Global
+   nav (Clubs, Watchlist, Settings) is never a sidebar. .app is the size
+   container, and a container query can't restyle its own container, so
+   everything below targets descendants. */
 .app {
   container-type: inline-size;
   position: relative;
 }
-.shell {
+.topbar {
+  height: 48px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
 }
-.nav {
-  order: 2;
+.wordmark {
+  font-family: var(--display);
+  font-weight: var(--display-w);
+  letter-spacing: var(--display-tr);
+  font-size: 19px;
+  line-height: 1;
+  color: var(--fg);
+  text-decoration: none;
+}
+/* Global nav in the top bar: hidden on phones (the tab bar has it). */
+.topnav {
+  display: none;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+}
+.topnav a {
+  color: var(--mut);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  text-decoration: none;
+}
+.topnav a[aria-current="page"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.topnav .end {
+  margin-left: auto;
+}
+/* Global nav on phones: fixed to the bottom, where thumbs reach. */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
   display: flex;
   border-top: 1px solid var(--line);
   background: var(--bg);
-  flex: 0 0 auto;
-  position: sticky;
-  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom);
 }
-.nav a,
-.nav span.navcurrent {
+.tabbar a {
   flex: 1;
-  background: none;
-  border: 0;
   color: var(--dim);
   padding: 9px 2px 11px;
   display: flex;
@@ -106,14 +143,10 @@ button {
   font-size: 10px;
   text-decoration: none;
 }
-/* :is() takes its most specific argument, so this outranks the
-   `.nav span.navcurrent { color: var(--dim) }` rule above — the bare
-   `.nav [aria-current="page"]` it replaces never did, and the current
-   page was never highlighted. */
-.nav :is(a, span.navcurrent)[aria-current="page"] {
+.tabbar a[aria-current="page"] {
   color: var(--accent);
 }
-.nav svg {
+.tabbar svg {
   width: 21px;
   height: 21px;
   stroke: currentColor;
@@ -122,13 +155,15 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.navlabel {
-  display: block;
+/* Keep the page's last lines (and the TMDB footer) clear of the fixed tab
+   bar. A media query, not a container query: <body> isn't inside .app.
+   .app spans the viewport, so the two widths agree. */
+@media (max-width: 619.98px) {
+  body:has(.tabbar) {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
 }
 .body {
-  order: 1;
-  flex: 1;
-  min-height: 0;
   display: flex;
 }
 .main {
@@ -142,43 +177,25 @@ button {
 }
 
 @container (min-width: 620px) {
-  .shell {
-    flex-direction: row;
+  .tabbar {
+    display: none;
   }
-  .nav {
-    order: 0;
-    flex-direction: column;
-    border-top: 0;
-    border-right: 1px solid var(--line);
-    width: 66px;
-    padding-top: 14px;
-    position: static;
+  .topbar {
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    padding: 0 22px;
+    gap: 22px;
   }
-  .nav a,
-  .nav span.navcurrent {
-    flex: 0 0 auto;
-    padding: 11px 4px;
-  }
-  .body {
-    order: 1;
+  .topnav {
+    display: flex;
   }
   .main {
     padding: 22px 22px 30px;
   }
 }
 @container (min-width: 900px) {
-  .nav {
-    width: 186px;
-    align-items: stretch;
-  }
-  .nav a,
-  .nav span.navcurrent {
-    flex-direction: row;
-    gap: 11px;
-    justify-content: flex-start;
-    padding: 10px 16px;
-    font-size: 13px;
-  }
   .main {
     padding: 26px 28px 34px;
     max-width: 640px;
@@ -187,10 +204,10 @@ button {
 }
 @container (min-width: 1120px) {
   /* Only widen past the 900px-breakpoint's centered column when a rail
-     is actually splitting the row with it — .main:only-child means
-     AppShell was given no rail content, so there's nothing to balance
-     a full-bleed .main against (docs/prototype.html's rail always had
-     something to show; several real pages here don't). */
+     is actually splitting the row with it — .main:only-child means the
+     page passed no rail, so there's nothing to balance a full-bleed
+     .main against (docs/prototype.html's rail always had something to
+     show; several real pages here don't). */
   .main:not(:only-child) {
     max-width: none;
     margin: 0;

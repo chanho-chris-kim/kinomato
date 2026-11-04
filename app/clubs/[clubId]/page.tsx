@@ -41,7 +41,7 @@ import { requireClubMember } from "@/app/auth";
 import { getBaseUrl } from "@/app/baseUrl";
 import { canCreateInvite } from "@/lib/invites";
 import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
-import { AppShell } from "./AppShell";
+import { ClubHeader, GlobalShell } from "@/app/shell";
 import { loadClubMemberships, nameOf } from "./members";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
@@ -452,10 +452,9 @@ export default async function ClubPage({
   }
 
   return (
-    <AppShell
-      clubId={clubId}
-      clubName={club.name}
-      current="club"
+    <GlobalShell
+      current="clubs"
+      header={<ClubHeader club={club} />}
       rail={
         <>
           <h2 className="sec">Members</h2>
@@ -473,7 +472,6 @@ export default async function ClubPage({
       }
     >
       <div className="small mt14">You are: {nameOf(currentMembership)}</div>
-
 
       {joined && (
         <div className="note mt20">
@@ -881,6 +879,6 @@ export default async function ClubPage({
           )}
         </>
       )}
-    </AppShell>
+    </GlobalShell>
   );
 }

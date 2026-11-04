@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlobalShell, PublicShell } from "@/app/shell";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, memberships } from "@/db/schema";
@@ -23,8 +24,11 @@ export default async function Home() {
         .orderBy(asc(clubs.name))
     : [];
 
-  return (
-    <main className="p-4">
+  // Signed out: the wordmark-only bar (no global nav without a session).
+  // Signed in: the global shell, Clubs current. The content itself is the
+  // stopgap until rebuild steps 5b (club cards) and 5d (marketing).
+  const content = (
+    <>
       <h1 className="text-xl font-bold">kinomato</h1>
       <p className="mt-2">
         <Link href="/new" className="underline">
@@ -51,6 +55,14 @@ export default async function Home() {
           ))}
         </ul>
       )}
-    </main>
+    </>
   );
+  if (!userId) {
+    return (
+      <PublicShell>
+        <main className="p-4">{content}</main>
+      </PublicShell>
+    );
+  }
+  return <GlobalShell current="clubs">{content}</GlobalShell>;
 }

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, films, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
 import { areTakesRevealed } from "@/lib/ratingReveal";
-import { AppShell } from "../../AppShell";
+import { ClubHeader, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
 import { Poster } from "../../Poster";
 
@@ -76,7 +76,7 @@ export default async function TagPage({
   }
 
   return (
-    <AppShell clubId={clubId} clubName={club.name} current="tags">
+    <GlobalShell current="clubs" header={<ClubHeader club={club} />}>
       <h2 className="h-display mt14" style={{ fontSize: 22 }}>
         Tagged &quot;{tagRow?.displayName ?? tagName}&quot;
       </h2>
@@ -96,6 +96,6 @@ export default async function TagPage({
           ))}
         </div>
       )}
-    </AppShell>
+    </GlobalShell>
   );
 }

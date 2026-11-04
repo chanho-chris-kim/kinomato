@@ -928,9 +928,32 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 2 | **Code-primary auth** (§4) — done 2026-09-27 | Code + link in one email; `/verify` signs in by button press (`POST`); code hashed; attempt limit and rate limits. The existing link and session tokens are hashed in the same session (the CLAUDE.md Open Question). The claim flow keeps working, now with a code. | Additive |
 | ✓ 3 | **Invites, added alongside the old model** (§7, §5.3, §5.6) — done 2026-09-27 | The `invites` table, `/invite/[token]` with all its states, Add a person, share/revoke/regenerate, `users.display_name`, and the `/welcome` name step. The old `/join` keeps working for links already sent. | Additive only |
 | ✓ 4 | **Cutover** (§8.2) — done 2026-11-02 | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
-| 5 | **Shell and navigation** (§5.11, §5.2, §5.7) | Wordmark, top and bottom bars, Tonight/History/Members tabs, rail, the marketing `/` and the Ruling A cards. Also the invite's Open Graph image (§5.1), not built in step 3. Pure UI: auth gating already landed in 4a. | None |
+| 5a | **Global shell and wordmark** (§5.11) | `GlobalShell` / `PublicShell` (`app/shell.tsx`): bottom tab bar on phones, sticky top bar from 620px, no sidebar; wordmark on every screen; `ClubHeader` (name + schedule line); temporary `/watchlist`; `/settings` with Sign out only. | None |
+| 5c | **Club tabs: Tonight and Members** (§5.10) | A tab row under the club header; `/clubs/[id]/members` holds Invite people and the member list; the rail on Tonight only. | None |
+| 5b | **Ruling A cards on the signed-in `/`** (§5.7) | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
+| 5d | **Marketing `/` signed out** (§5.2) | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
+| 5e | **Invite Open Graph image** (§5.1) | `app/invite/[token]/opengraph-image.tsx` and `metadataBase`. Measured cost: +823 KiB gzipped Worker bundle (2.37 MiB total); verified rendering on workerd. | None |
+| 5f | **History** (§5.10) | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. | None |
 | 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |
-| 7 | **Settings** (§5.9) | | Additive |
+| 7 | **Settings** (§5.9) | The rest of §5.9: name, email change, notifications, Sign out everywhere. (Sign out itself shipped in 5a.) | Additive |
+
+**Step 5 rulings** (made while planning it):
+- **No History tab until 5f.** There's no history page or history-read
+  module today; a tab with nothing behind it would be a dead link.
+- **The Members tab holds only Invite people and the member list** until
+  limits, club settings and leaving a club are built.
+- **Privacy and Terms links are omitted** until those pages exist (they
+  wait on the legal review).
+- **Settings ships in 5a with Sign out only.** Sign out everywhere and the
+  rest of §5.9 are step 7. No "coming soon" anywhere.
+- **`/watchlist` with no clubs** shows an empty state: "Your watchlist
+  lives in your clubs for now. Start a club, or join one with the invite
+  link a friend sends you." with a Start a club link.
+- **Card dates** use the draft night's `scheduledAt`, or a display-only
+  `getNextOccurrence` when no night is in flight. Never inserted from `/`:
+  only the club page creates draft nights.
+- **`metadataBase` comes from the request host** via `app/baseUrl.ts`,
+  never a hardcoded domain.
 
 **The riskiest step is 4.** Every other step only adds. A half-done 4 is
 the dangerous state:
