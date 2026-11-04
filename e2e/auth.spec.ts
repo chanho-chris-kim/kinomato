@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { CLUB_7_ID, DISPLAY_NAME_7 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { finishCodeSignIn, latestSignInRow, setKnownSignIn } from "./signIn";
+import { expectYouAre } from "./identity";
 
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
 
@@ -42,7 +43,7 @@ test.describe("auth — recovery", () => {
       await expect(newPage.getByText("Movie Night Crew")).toHaveCount(0);
 
       await newPage.goto(CLUB_7_URL);
-      await expect(newPage.getByText(`You are: ${DISPLAY_NAME_7.uma}`)).toBeVisible();
+      await expectYouAre(newPage, DISPLAY_NAME_7.uma);
     } finally {
       await newContext.close();
     }

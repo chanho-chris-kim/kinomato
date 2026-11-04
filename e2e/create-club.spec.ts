@@ -2,6 +2,7 @@ import type { BrowserContext } from "@playwright/test";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { finishCodeSignIn, nameYourself } from "./signIn";
+import { expectYouAre, memberNames } from "./identity";
 
 // Every other spec runs against clubs db/seed.ts pre-populates. This one
 // creates its own club live — the point is that a club needs no
@@ -32,8 +33,9 @@ test.describe("club creation and invites", () => {
 
       await expect(owner.page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
       const clubUrl = owner.page.url();
-      await expect(owner.page.getByText("You are: Robin B.")).toBeVisible();
-      await expect(owner.page.locator('h2:has-text("Members") + p')).toHaveText("Robin B.");
+      await expectYouAre(owner.page, "Robin B.");
+      await owner.page.goto(`${clubUrl}/members`);
+      await expect(memberNames(owner.page)).toHaveText(["Robin B. (you)"]);
       await expect(owner.page.getByText("1 of 6 seats.")).toBeVisible();
 
       // --- Robin invites Sam; Sam joins with that link. ---
@@ -49,12 +51,13 @@ test.describe("club creation and invites", () => {
       await finishCodeSignIn(friend.page, "sam.joins@example.com");
       await nameYourself(friend.page, "Sam", "K");
       await expect(friend.page).toHaveURL(new RegExp(`${clubUrl}\\?joined=1`));
-      await expect(friend.page.getByText("You are: Sam K.")).toBeVisible();
+      await expectYouAre(friend.page, "Sam K.");
 
       // --- Both now see each other. ---
-      await owner.page.goto(clubUrl);
-      await expect(owner.page.locator('h2:has-text("Members") + p')).toHaveText("Robin B., Sam K.");
-      await expect(friend.page.locator('h2:has-text("Members") + p')).toHaveText("Robin B., Sam K.");
+      await owner.page.goto(`${clubUrl}/members`);
+      await expect(memberNames(owner.page)).toHaveText(["Robin B. (you)", "Sam K."]);
+      await friend.page.goto(`${clubUrl}/members`);
+      await expect(memberNames(friend.page)).toHaveText(["Robin B.", "Sam K. (you)"]);
 
       // --- Pending invites hold seats: four more fill the club to six. ---
       for (const [first, initial] of [

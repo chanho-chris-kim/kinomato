@@ -1,10 +1,9 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { getDb } from "@/db";
 import {
   clubs,
   films,
-  invites,
   nights,
   nominations,
   ratings,
@@ -28,49 +27,29 @@ import {
   addRatingTag,
   castVote,
   confirmNight,
-  createInvite,
   lockNight,
   openVoting,
-  regenerateInvite,
   removeRatingTag,
-  revokeInvite,
   setRsvp,
   submitRating,
 } from "./actions";
 import { requireClubMember } from "@/app/auth";
-import { getBaseUrl } from "@/app/baseUrl";
-import { canCreateInvite } from "@/lib/invites";
-import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
-import { ClubHeader, GlobalShell } from "@/app/shell";
+import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
+import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
-import { ShareInvite } from "./ShareInvite";
 import { NON_TERMINAL_STATES } from "./nightState";
-
-// "Priya S." -> "PS" — decorative only (the rail's compact member
-// list), never used as an identity key or display name anywhere.
-function initials(displayName: string): string {
-  return displayName
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
 
 export default async function ClubPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{
-    invite?: string;
-    inviteError?: string;
-    joined?: string;
-  }>;
+  searchParams: Promise<{ joined?: string }>;
 }) {
   const { clubId } = await params;
-  const { invite: newInviteId, inviteError, joined } = await searchParams;
+  const { joined } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -89,16 +68,6 @@ export default async function ClubPage({
   const clubMemberships = await loadClubMemberships(db, clubId);
   const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
   const currentMembership = activeMemberships.find((m) => m.id === me.id)!;
-
-  // Pending per-person invites: visible to every member (who's coming),
-  // with Share/Regenerate/Revoke only for owners and admins.
-  const isOwnerOrAdmin = currentMembership.role === "owner" || currentMembership.role === "admin";
-  const pendingInvites = await db
-    .select()
-    .from(invites)
-    .where(and(eq(invites.clubId, clubId), isNull(invites.redeemedAt), isNull(invites.revokedAt)))
-    .orderBy(asc(invites.createdAt));
-  const baseUrl = await getBaseUrl();
 
   let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
 
@@ -451,28 +420,34 @@ export default async function ClubPage({
     };
   }
 
+  // First run (§5.10): the owner is the only member and no night has ever
+  // finished. ("No nights at all" never holds: the first page load lazily
+  // creates the owner's draft night.) Only someone who can add people sees
+  // it — the link goes to the owner/admin-only Add a person form.
+  const isFirstRun =
+    activeMemberships.length === 1 &&
+    (currentMembership.role === "owner" || currentMembership.role === "admin") &&
+    !clubNights.some((n) => ["watched", "cancelled", "unconfirmed"].includes(n.state));
+
+  // Whether the rating section renders anything for this viewer (see the
+  // comment on it below): the empty-state fallback keys on this, not on
+  // whether a watched night exists.
+  const ratingShown =
+    ratingSection !== null &&
+    (ratingSection.myRsvpYes ||
+      (ratingSection.revealed && ratingSection.revealedRatings.length > 0));
+
   return (
     <GlobalShell
       current="clubs"
-      header={<ClubHeader club={club} />}
-      rail={
+      header={
         <>
-          <h2 className="sec">Members</h2>
-          <div className="stack gap8">
-            {activeMemberships.map((m) => (
-              <div key={m.id} className="row">
-                <span className={`avatar ${m.id === currentMembership.id ? "me" : ""}`}>
-                  {initials(nameOf(m))}
-                </span>
-                <span className="small">{nameOf(m)}</span>
-              </div>
-            ))}
-          </div>
+          <ClubHeader club={club} />
+          <ClubTabs clubId={clubId} current="tonight" />
         </>
       }
+      rail={<RailMembers members={[...activeMemberships].sort(byJoinedAt)} meId={currentMembership.id} />}
     >
-      <div className="small mt14">You are: {nameOf(currentMembership)}</div>
-
       {joined && (
         <div className="note mt20">
           <p className="small" style={{ margin: 0 }}>
@@ -481,87 +456,26 @@ export default async function ClubPage({
         </div>
       )}
 
-      {/* Per-person invites (docs/onboarding-spec.md §7) — alongside the
-          club-wide link above until rebuild step 4 removes that. */}
-      <h2 className="sec mt20">Invite people</h2>
-      <p className="small muted">
-        {activeMemberships.length + pendingInvites.length} of {FREE_TIER_MEMBER_CAP} seats. Each
-        person gets their own link that greets them by name.
-      </p>
-      {inviteError && (
-        <p className="small mt-1" style={{ color: "var(--warn)" }}>
-          {inviteError}
-        </p>
-      )}
-      {isOwnerOrAdmin &&
-        (canCreateInvite(activeMemberships.length, pendingInvites.length) ? (
-          <form action={createInvite.bind(null, clubId)} className="row gap8 mt14" style={{ alignItems: "flex-end" }}>
-            <label className="small muted" style={{ flex: 3 }}>
-              First name
-              <div className="search mt-1">
-                <input name="firstName" required />
-              </div>
-            </label>
-            <label className="small muted" style={{ flex: 1 }}>
-              Last initial
-              <div className="search mt-1">
-                <input name="lastInitial" required maxLength={1} />
-              </div>
-            </label>
-            <button type="submit" className="btn" style={{ width: "auto" }}>
-              Create invite
-            </button>
-          </form>
-        ) : (
-          <p className="small mt14">
-            {club.name} is full: {activeMemberships.length} members and {pendingInvites.length}{" "}
-            pending {pendingInvites.length === 1 ? "invite" : "invites"}. Revoke an invite to free a
-            seat.
+      {isFirstRun && (
+        // First run (§5.10): nobody but the owner yet. The one useful
+        // thing to do is invite people, from the Members tab.
+        <div className="mt20">
+          <p className="eyebrow">First night</p>
+          <h2 className="h-display" style={{ fontSize: 22 }}>
+            Add the people you watch with.
+          </h2>
+          <p className="small muted mt-1">
+            Each person gets their own link that greets them by name.
           </p>
-        ))}
-      {pendingInvites.length > 0 && (
-        <div className="stack gap8 mt14">
-          {pendingInvites.map((invite) => (
-            <div key={invite.id} className="card" style={invite.id === newInviteId ? { borderColor: "var(--accent)" } : undefined}>
-              <div className="between">
-                <span>{invite.inviteeName}</span>
-                <span className="tiny dim">
-                  {invite.startedAt ? "Started: entered an email" : "Not started"}
-                </span>
-              </div>
-              {invite.id === newInviteId && (
-                <p className="tiny mt-1" style={{ color: "var(--accent)" }}>
-                  Invite ready. Send it to {invite.inviteeName} directly: whoever uses it first gets the seat.
-                </p>
-              )}
-              {isOwnerOrAdmin && (
-                <div className="stack gap8 mt14">
-                  <ShareInvite
-                    url={`${baseUrl}/invite/${invite.token}`}
-                    inviteeName={invite.inviteeName}
-                    clubName={club.name}
-                  />
-                  <div className="row gap8">
-                    <form action={regenerateInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
-                      <button type="submit" className="btn ghost">
-                        Regenerate
-                      </button>
-                    </form>
-                    <form action={revokeInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
-                      <button type="submit" className="btn ghost">
-                        Revoke
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          <Link
+            href={`/clubs/${clubId}/members#add-person`}
+            className="btn primary mt14"
+            style={{ display: "block", textAlign: "center" }}
+          >
+            Add a person
+          </Link>
         </div>
       )}
-
-      <h2 className="sec mt20">Members</h2>
-      <p className="small">{activeMemberships.map((m) => nameOf(m)).join(", ")}</p>
 
       <h2 className="sec mt20">Whose turn</h2>
       <p className="small">{whoseTurn ? nameOf(whoseTurn) : "Nobody active in this club."}</p>
@@ -595,7 +509,7 @@ export default async function ClubPage({
         !draftNight &&
         !lockedNight &&
         !confirmableNight &&
-        !ratingSection &&
+        !ratingShown &&
         (adHocNeedsManualNight ? (
           // "ad_hoc" has no computable next occurrence on purpose
           // (lib/schedule.ts) — an ad-hoc club doesn't have a standing
@@ -624,8 +538,12 @@ export default async function ClubPage({
               No night scheduled yet
             </h2>
             <p className="small muted mt-1">
-              This club hasn&apos;t had a movie night. Invite the people you
-              watch with above — each gets their own link.
+              This club hasn&apos;t had a movie night yet. Invite the people you
+              watch with from the{" "}
+              <Link href={`/clubs/${clubId}/members`} className="underline">
+                Members
+              </Link>{" "}
+              tab — each gets their own link.
             </p>
           </>
         ) : (
@@ -755,7 +673,25 @@ export default async function ClubPage({
         </>
       )}
 
-      {ratingSection && (
+      {/* Rating (blind reveal, CLAUDE.md). Only someone who RSVP'd yes can
+          rate, so only they get "Rate X" — the form, then their tags and the
+          progress line once they've rated. Anyone else sees nothing here
+          until every rating is in, then just the revealed ratings: revealed
+          ratings are visible to every member, and Tonight is where they
+          appear until the History tab exists (rebuild step 5f). */}
+      {ratingSection &&
+        !ratingSection.myRsvpYes &&
+        ratingSection.revealed &&
+        ratingSection.revealedRatings.length > 0 && (
+          <>
+            <h2 className="h-display mt20" style={{ fontSize: 22 }}>
+              How the club rated {ratingSection.filmTitle}
+            </h2>
+            <RevealedRatings ratings={ratingSection.revealedRatings} clubId={clubId} />
+          </>
+        )}
+
+      {ratingSection && ratingSection.myRsvpYes && (
         <>
           <h2 className="h-display mt20" style={{ fontSize: 22 }}>
             Rate {ratingSection.filmTitle}
@@ -845,40 +781,60 @@ export default async function ClubPage({
           )}
 
           {ratingSection.revealed && (
-            <ul className="stack gap8 mt14">
-              {ratingSection.revealedRatings.map((r, i) => (
-                <li key={i} className="card">
-                  <div className="between">
-                    <span className="small">{r.displayName}</span>
-                    <span className="tiny">
-                      <span className="muted">quality {r.scoreQuality}</span>,{" "}
-                      <span style={{ color: "var(--accent)" }}>fun {r.scoreFun}</span>
-                    </span>
-                  </div>
-                  {r.hotTake && (
-                    <p className="small muted mt-1" style={{ fontStyle: "italic" }}>
-                      &quot;{r.hotTake}&quot;
-                    </p>
-                  )}
-                  {r.tags.length > 0 && (
-                    <div className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
-                      {r.tags.map((t) => (
-                        <Link
-                          key={t.name}
-                          href={`/clubs/${clubId}/tags/${encodeURIComponent(t.name)}`}
-                          className="chip"
-                        >
-                          {t.displayName}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <RevealedRatings ratings={ratingSection.revealedRatings} clubId={clubId} />
           )}
         </>
       )}
     </GlobalShell>
+  );
+}
+
+// The blind reveal's result: every attending member's scores, hot take and
+// tags, shown only once all of them have rated.
+function RevealedRatings({
+  ratings,
+  clubId,
+}: {
+  ratings: {
+    displayName: string;
+    scoreQuality: string;
+    scoreFun: string;
+    hotTake: string | null;
+    tags: { name: string; displayName: string }[];
+  }[];
+  clubId: string;
+}) {
+  return (
+    <ul className="stack gap8 mt14">
+      {ratings.map((r, i) => (
+        <li key={i} className="card">
+          <div className="between">
+            <span className="small">{r.displayName}</span>
+            <span className="tiny">
+              <span className="muted">quality {r.scoreQuality}</span>,{" "}
+              <span style={{ color: "var(--accent)" }}>fun {r.scoreFun}</span>
+            </span>
+          </div>
+          {r.hotTake && (
+            <p className="small muted mt-1" style={{ fontStyle: "italic" }}>
+              &quot;{r.hotTake}&quot;
+            </p>
+          )}
+          {r.tags.length > 0 && (
+            <div className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
+              {r.tags.map((t) => (
+                <Link
+                  key={t.name}
+                  href={`/clubs/${clubId}/tags/${encodeURIComponent(t.name)}`}
+                  className="chip"
+                >
+                  {t.displayName}
+                </Link>
+              ))}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

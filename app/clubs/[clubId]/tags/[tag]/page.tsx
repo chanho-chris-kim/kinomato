@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, films, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
 import { areTakesRevealed } from "@/lib/ratingReveal";
-import { ClubHeader, GlobalShell } from "@/app/shell";
+import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
 import { Poster } from "../../Poster";
 
@@ -76,7 +76,16 @@ export default async function TagPage({
   }
 
   return (
-    <GlobalShell current="clubs" header={<ClubHeader club={club} />}>
+    <GlobalShell
+      current="clubs"
+      header={
+        <>
+          <ClubHeader club={club} />
+          {/* No tab current: a tag page's home is History (rebuild step 5f). */}
+          <ClubTabs clubId={clubId} current={null} />
+        </>
+      }
+    >
       <h2 className="h-display mt14" style={{ fontSize: 22 }}>
         Tagged &quot;{tagRow?.displayName ?? tagName}&quot;
       </h2>

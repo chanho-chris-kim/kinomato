@@ -74,13 +74,18 @@ test.describe("confirmation — watched path (club 3)", () => {
   });
 
 
-  test("the picker (RSVP'd no) sees no rating form, but sees the hidden-count progress", async ({
+  // Rebuild step 5c: someone who can't rate sees nothing of the rating
+  // section before the reveal — no empty "Rate Get Out" heading, no form,
+  // no progress line. After the reveal they see the club's ratings.
+  test("the picker (RSVP'd no) sees no rating section at all before the reveal", async ({
     page,
   }) => {
     await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
-    await expect(page.getByRole("heading", { name: "Rate Get Out" })).toBeVisible();
-    await expect(page.getByRole("slider", { name: "Quality" })).not.toBeVisible();
-    await expect(page.getByText("0/2 ratings in")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Whose turn" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Rate Get Out" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "How the club rated Get Out" })).toHaveCount(0);
+    await expect(page.getByRole("slider", { name: "Quality" })).toHaveCount(0);
+    await expect(page.getByText(/ratings in/)).toHaveCount(0);
   });
 
   test("Mika rates first — her take stays hidden, even from herself, until Theo also rates", async ({

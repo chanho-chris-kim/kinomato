@@ -928,7 +928,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 2 | **Code-primary auth** (§4) — done 2026-09-27 | Code + link in one email; `/verify` signs in by button press (`POST`); code hashed; attempt limit and rate limits. The existing link and session tokens are hashed in the same session (the CLAUDE.md Open Question). The claim flow keeps working, now with a code. | Additive |
 | ✓ 3 | **Invites, added alongside the old model** (§7, §5.3, §5.6) — done 2026-09-27 | The `invites` table, `/invite/[token]` with all its states, Add a person, share/revoke/regenerate, `users.display_name`, and the `/welcome` name step. The old `/join` keeps working for links already sent. | Additive only |
 | ✓ 4 | **Cutover** (§8.2) — done 2026-11-02 | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
-| 5a | **Global shell and wordmark** (§5.11) | `GlobalShell` / `PublicShell` (`app/shell.tsx`): bottom tab bar on phones, sticky top bar from 620px, no sidebar; wordmark on every screen; `ClubHeader` (name + schedule line); temporary `/watchlist`; `/settings` with Sign out only. | None |
+| ✓ 5a | **Global shell and wordmark** (§5.11) — done 2026-11-03 | `GlobalShell` / `PublicShell` (`app/shell.tsx`): bottom tab bar on phones, sticky top bar from 620px, no sidebar; wordmark on every screen; `ClubHeader` (name + schedule line); temporary `/watchlist`; `/settings` with Sign out only. | None |
 | 5c | **Club tabs: Tonight and Members** (§5.10) | A tab row under the club header; `/clubs/[id]/members` holds Invite people and the member list; the rail on Tonight only. | None |
 | 5b | **Ruling A cards on the signed-in `/`** (§5.7) | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
 | 5d | **Marketing `/` signed out** (§5.2) | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
@@ -954,6 +954,11 @@ between, and would have broken `main`'s CI on the shared E2E database.
   only the club page creates draft nights.
 - **`metadataBase` comes from the request host** via `app/baseUrl.ts`,
   never a hardcoded domain.
+- **"You are: …" is gone (removed in 5c).** Identity is the account now,
+  so a page doesn't need to tell you who you're acting as. Your own row is
+  marked "(you)" on the Members tab and in Tonight's rail instead.
+- **The signed-in `/` greets the person by name** ("Hi, Chris"), in 5b with
+  the Ruling A cards.
 
 **The riskiest step is 4.** Every other step only adds. A half-done 4 is
 the dangerous state:

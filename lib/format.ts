@@ -54,3 +54,18 @@ export function describeSchedule(club: {
   }
   return `${when} · ${where}`;
 }
+
+// "5 minutes ago", "1 day ago", "3 weeks ago" — for a pending invite's age
+// on the Members tab. Coarse on purpose: nobody needs the exact minute.
+export function timeAgo(then: Date, now: Date): string {
+  const seconds = Math.max(0, (now.getTime() - then.getTime()) / 1000);
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return unit(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return unit(hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 14) return unit(days, "day");
+  return unit(Math.floor(days / 7), "week");
+}

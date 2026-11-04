@@ -7,6 +7,7 @@ import { CLUB_ID, DISPLAY_NAME, FILM_TITLE, MEMBERSHIP } from "../db/seed-fixtur
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
+import { expectYouAre } from "./identity";
 import {
   getWhoseTurn,
   type RotationMembership,
@@ -43,10 +44,10 @@ test.describe.configure({ mode: "serial" });
 test.describe("voting flow", () => {
   test("picking a name persists identity across reload", async ({ page }) => {
     await signInTo(page, MEMBERSHIP.marco);
-    await expect(page.getByText(`You are: ${DISPLAY_NAME.marco}`)).toBeVisible();
+    await expectYouAre(page, DISPLAY_NAME.marco);
 
     await page.reload();
-    await expect(page.getByText(`You are: ${DISPLAY_NAME.marco}`)).toBeVisible();
+    await expectYouAre(page, DISPLAY_NAME.marco);
   });
 
   test("voting for a nominee increments its count", async ({ page }) => {

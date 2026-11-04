@@ -363,14 +363,16 @@ Do not quietly change these — they encode decisions that took a while to reach
   `app/clubs/[clubId]/members.ts` (`nameOf`); an account that hasn't been
   through `/welcome` yet shows as "Unnamed member". No email and no full
   last name are ever shown to a club.
-- **A club with no nights renders a distinct first-run state, not a
-  generic empty one.** `/clubs/[clubId]` distinguishes "this club has
-  never had a night" (`clubNights.length === 0`) from "nothing's in
-  flight right now, but history exists" (the more generic "No open vote
-  right now"). In practice a new club's first page load creates its first
-  draft night (the lazy-creation ruling above), so this state is for a
-  club with nobody active to pick — it points at the one actionable
-  thing, the **Invite people** section on the same page.
+- **A new club gets a distinct first-run prompt, not a generic empty
+  state.** On Tonight (`/clubs/[clubId]`), while the owner is the only
+  member and no night has ever finished, an owner or admin sees "Add the
+  people you watch with." with a link to the Members tab's Add a person
+  form (`/clubs/[clubId]/members#add-person`). "No nights at all" can't be
+  the test: the first page load lazily creates the owner's draft night
+  (the lazy-creation ruling above). A club with nobody active to pick
+  still gets its own "No night scheduled yet" state, pointing at the
+  Members tab; anything else with no night in flight gets the generic
+  "No open vote right now".
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5
@@ -451,8 +453,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   `PublicShell` wraps signed-out screens (`/` signed out, `/invite`,
   `/login`, `/login/code`, `/verify`, `/welcome`): a slim bar with only
   the wordmark, no global nav. Club pages add `ClubHeader` (name and
-  `describeSchedule`'s line, no back chevron); the Tonight/Members tab
-  row is step 5c. `.main` establishes
+  `describeSchedule`'s line, no back chevron) and `ClubTabs`, the
+  Tonight · Members tab row (sticky: top of the viewport on phones, below
+  the top bar from 620px; no History tab until step 5f). The watchlist
+  page shows the club header without tabs, being a different level, and
+  the tag page shows the tabs with none current. `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -460,10 +465,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   be available instead of the width that's actually there.
   **The context rail only ever shows real data, repurposed — never the
   prototype's fake turn-order queue, streaming-expiry list, or
-  attendance leaderboard.** The club page's rail mirrors the Members
-  list (also still in `.main`, unabbreviated, so nothing about who's in
-  the club or the invite link ever depends on a 1120px+ viewport to be
-  reachable — most of this club's members are on phones). Pages with no
+  attendance leaderboard.** The rail is Tonight's only: the club's
+  member list, with the viewer's row marked "(you)" in words plus the
+  accent highlight (`app/clubs/[clubId]/memberViews.tsx`). It's absent on
+  the Members tab, where it would repeat the main column, and nothing
+  about who's in the club or inviting ever depends on a 1120px+ viewport —
+  the Members tab has all of it at every width, and most of this club's
+  members are on phones. Pages with no
   genuine secondary content (watchlist, tags) pass no `rail` prop at
   all, rather than rendering an empty or fabricated one; `.main:only-child`
   in the 1120px query keeps a railless page's content column capped at

@@ -6,7 +6,7 @@ import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { ClubHeader, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
-import { loadClubMemberships, nameOf } from "../members";
+import { loadClubMemberships } from "../members";
 import { Poster } from "../Poster";
 import { addFilm, removeFilm } from "./actions";
 
@@ -211,7 +211,6 @@ export default async function WatchlistPage({
 
   return (
     <GlobalShell current="watchlist" header={<ClubHeader club={club} />}>
-      <p className="small mt14">You are: {nameOf(currentMembership)}</p>
 
       <form className="search mt14">
         <input type="text" name="q" defaultValue={query} placeholder="Search films" />
