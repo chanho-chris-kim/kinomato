@@ -203,7 +203,9 @@ describe("getClubStatus: each status line", () => {
 
 // The in-flight stages (draft, open, locked) are one night, so they can't
 // overlap. The rating stage is a different night — the latest watched
-// one — so it can be true alongside any of them. These pin the order.
+// one — so it can be true alongside any of them. These pin the order:
+// actions (nominate, vote, confirm, rate) before non-actions (voting when
+// you've voted, locked), so an owed rating is never hidden.
 describe("getClubStatus: priority when the rating stage overlaps", () => {
   const ratePending = { viewerOnLatestWatched: { rsvpYes: true, rated: false } };
 
@@ -219,19 +221,34 @@ describe("getClubStatus: priority when the rating stage overlaps", () => {
     expect(text(s)).toBe("Voting — you haven't voted");
   });
 
-  it("voting, you have, beats rate: a non-action line hides a pending rating", () => {
+  it("rate beats voting when you've already voted", () => {
     const s = getClubStatus(
       input({ ...ratePending, viewerVotedOnOpenNight: true, nights: [watched(), night({ state: "open" })] }),
     );
-    expect(text(s)).toBe("Voting — Lou B. is picking");
-    expect(isActionStatus(s)).toBe(false);
+    expect(text(s)).toBe("Rate Thief");
+    expect(isActionStatus(s)).toBe(true);
   });
 
-  it("locked beats rate: also a non-action line over a pending rating", () => {
+  it("rate beats locked", () => {
     const s = getClubStatus(
       input({ ...ratePending, nights: [watched(), night({ state: "locked", winningFilmId: "f-old" })] }),
     );
-    expect(text(s)).toBe("The Thing, locked in");
+    expect(text(s)).toBe("Rate Thief");
+    expect(isActionStatus(s)).toBe(true);
+  });
+
+  it("once rated, the in-flight night's line is back", () => {
+    const rated = { viewerOnLatestWatched: { rsvpYes: true, rated: true } };
+    expect(
+      text(
+        getClubStatus(
+          input({ ...rated, viewerVotedOnOpenNight: true, nights: [watched(), night({ state: "open" })] }),
+        ),
+      ),
+    ).toBe("Voting — Lou B. is picking");
+    expect(
+      text(getClubStatus(input({ ...rated, nights: [watched(), night({ state: "locked", winningFilmId: "f-old" })] }))),
+    ).toBe("The Thing, locked in");
   });
 
   it("confirmable beats rate", () => {

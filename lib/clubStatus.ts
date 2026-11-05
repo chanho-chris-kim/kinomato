@@ -117,11 +117,13 @@ export interface ClubStatusInput {
 }
 
 // Exactly one status line, in this priority (Ruling A):
-//   your turn to nominate → voting, you haven't voted → voting, you have →
-//   locked → confirmable → rate → who picks next.
-// The first five come from the one in-flight night, so they can't overlap.
-// Rate comes from the latest watched night, a different night, so it can
-// be true alongside any of them; the order above decides.
+//   your turn to nominate → voting, you haven't voted → confirmable →
+//   rate → voting, you have → locked → who picks next.
+// Every action line comes before every non-action one, so an action is
+// never hidden ("the most actionable true thing"). All but rate come from
+// the one in-flight night, so they can't overlap each other. Rate comes
+// from the latest watched night, a different night, so it can be true
+// alongside any of them; the order above decides.
 export function getClubStatus(input: ClubStatusInput): ClubStatus {
   const { viewerMembershipId: me, club, memberships, confirmAt, now } = input;
 
@@ -134,14 +136,7 @@ export function getClubStatus(input: ClubStatusInput): ClubStatus {
 
   const inFlight = findInFlightNight(nights);
   if (inFlight?.state === "draft" && inFlight.pickerMembershipId === me) return { kind: "nominate" };
-  if (inFlight?.state === "open") {
-    return input.viewerVotedOnOpenNight
-      ? { kind: "voting", pickerMembershipId: inFlight.pickerMembershipId }
-      : { kind: "vote" };
-  }
-
-  const locked = findLockedNight(nights, confirmAt, club.timezone, now);
-  if (locked?.winningFilmId) return { kind: "locked", filmId: locked.winningFilmId };
+  if (inFlight?.state === "open" && !input.viewerVotedOnOpenNight) return { kind: "vote" };
   const confirmable = findConfirmableNight(nights, confirmAt, club.timezone, now);
   if (confirmable?.winningFilmId) return { kind: "confirm", filmId: confirmable.winningFilmId };
 
@@ -153,6 +148,12 @@ export function getClubStatus(input: ClubStatusInput): ClubStatus {
   ) {
     return { kind: "rate", filmId: watched.winningFilmId };
   }
+
+  if (inFlight?.state === "open") {
+    return { kind: "voting", pickerMembershipId: inFlight.pickerMembershipId };
+  }
+  const locked = findLockedNight(nights, confirmAt, club.timezone, now);
+  if (locked?.winningFilmId) return { kind: "locked", filmId: locked.winningFilmId };
 
   // Who the club is waiting on: the in-flight night's picker, else who the
   // rotation puts next — the club page's "Whose turn" (CLAUDE.md ruling).
