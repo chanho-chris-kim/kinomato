@@ -46,6 +46,7 @@ export function GlobalShell({
   current,
   header,
   rail,
+  reserveRail = false,
   children,
 }: {
   current: GlobalSection;
@@ -53,6 +54,10 @@ export function GlobalShell({
   header?: ReactNode;
   // Club pages only, and only real data (CLAUDE.md theming ruling).
   rail?: ReactNode;
+  // Keep the rail's space with nothing in it: a club tab with no rail of
+  // its own (Members), so switching tabs doesn't move or resize the main
+  // column. Empty, not a landmark: there's no content to announce.
+  reserveRail?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -77,10 +82,12 @@ export function GlobalShell({
           {header}
           {children}
         </main>
-        {rail && (
+        {rail ? (
           <aside className="rail" aria-label="Club context">
             {rail}
           </aside>
+        ) : (
+          reserveRail && <div className="rail" aria-hidden="true" />
         )}
       </div>
       <nav className="tabbar" aria-label="Main">

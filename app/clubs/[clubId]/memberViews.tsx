@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { nameOf, type ClubMembership } from "./members";
 
 // The club's member list, in its two places: the rail on Tonight (from
@@ -24,7 +25,16 @@ function You() {
   return <span className="you"> (you)</span>;
 }
 
-export function RailMembers({ members, meId }: { members: ClubMembership[]; meId: string }) {
+export function RailMembers({
+  members,
+  meId,
+  addPersonHref,
+}: {
+  members: ClubMembership[];
+  meId: string;
+  // Owners and admins only: a way to the Members tab's Add a person form.
+  addPersonHref?: string;
+}) {
   return (
     <>
       <h2 className="sec">Members</h2>
@@ -41,6 +51,13 @@ export function RailMembers({ members, meId }: { members: ClubMembership[]; meId
           </li>
         ))}
       </ul>
+      {addPersonHref && (
+        <p className="small mt14">
+          <Link href={addPersonHref} style={{ color: "var(--accent)" }}>
+            Add a person →
+          </Link>
+        </p>
+      )}
     </>
   );
 }

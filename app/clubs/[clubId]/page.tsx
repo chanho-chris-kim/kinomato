@@ -434,7 +434,17 @@ export default async function ClubPage({
           <ClubTabs clubId={clubId} current="tonight" />
         </>
       }
-      rail={<RailMembers members={[...activeMemberships].sort(byJoinedAt)} meId={currentMembership.id} />}
+      rail={
+        <RailMembers
+          members={[...activeMemberships].sort(byJoinedAt)}
+          meId={currentMembership.id}
+          addPersonHref={
+            currentMembership.role === "owner" || currentMembership.role === "admin"
+              ? `/clubs/${clubId}/members#add-person`
+              : undefined
+          }
+        />
+      }
     >
       {joined && (
         <div className="note mt20">

@@ -16,7 +16,7 @@ import { ShareInvite } from "../ShareInvite";
 // order: Members, Invited (only when there are pending invites), Add a
 // person (owners and admins). Nothing else until it's built: limits, club
 // settings and leaving a club aren't (§8.5's step-5 rulings). No rail here:
-// it would repeat the main column.
+// it would repeat the main column. Its space is kept (reserveRail).
 export default async function MembersPage({
   params,
   searchParams,
@@ -50,6 +50,9 @@ export default async function MembersPage({
   return (
     <GlobalShell
       current="clubs"
+      // No rail here (it would repeat the main column), but its space is
+      // kept so Tonight ↔ Members doesn't shift the page at 1120px+.
+      reserveRail
       header={
         <>
           <ClubHeader club={club} />
