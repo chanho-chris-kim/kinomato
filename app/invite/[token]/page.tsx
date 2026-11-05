@@ -5,6 +5,10 @@ import { users } from "@/db/schema";
 import { activeMemberCount, findActiveMembership, loadInviteByToken } from "@/app/invites";
 import { getSessionUserId } from "@/app/session";
 import { resolveInviteView } from "@/lib/invites";
+import { inviteShareText } from "@/lib/inviteShare";
+import { describeSchedule } from "@/lib/format";
+import { DEFAULT_OPEN_GRAPH } from "@/app/metadata";
+import type { Metadata } from "next";
 import { joinInviteAsMe, signOutForInvite, startInvite } from "./actions";
 import { PublicShell } from "@/app/shell";
 
@@ -12,6 +16,36 @@ import { PublicShell } from "@/app/shell";
 // important screen in the rebuild: "Hi Marco — Chris invited you to
 // Saturday Club" before anyone types anything. Public. GET never records
 // or redeems anything: chat apps' link previews open every URL.
+// Link-preview text (docs/onboarding-spec.md §5.1; rebuild step 5e).
+// Read-only, like the page: a chat app's preview fetch records nothing.
+// A valid invite says who invited you to which club and when it meets;
+// any other state keeps the generic defaults, nothing about any club.
+// Never indexed: a personal link doesn't belong in a search engine.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const robots = { index: false, follow: false };
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const row = await loadInviteByToken(db, token);
+  const text = row
+    ? inviteShareText({
+        invite: row.invite,
+        activeMemberCount: await activeMemberCount(db, row.club.id),
+        inviterName: row.inviterName,
+        clubName: row.club.name,
+        scheduleLine: describeSchedule(row.club),
+      })
+    : null;
+  if (!text) return { robots };
+  return {
+    robots,
+    openGraph: { ...DEFAULT_OPEN_GRAPH, title: text.title, description: text.description },
+  };
+}
+
 export default async function InvitePage({
   params,
   searchParams,

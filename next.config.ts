@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Metadata always in <head>, for every user agent. Next 16 streams
+  // generateMetadata output into <body> for clients it doesn't recognize
+  // as crawlers, and its list misses link previewers people use for
+  // invites (Telegram, KakaoTalk, Signal, LINE, Viber); many only read
+  // <head>. Our metadata is cheap (the request host, plus the invite
+  // lookup the page makes anyway), so blocking on it costs little.
+  htmlLimitedBots: /.*/,
   images: {
     // Poster images (lib/tmdb.ts) — films.poster_path is a relative
     // TMDB path, resolved to a full URL at display time as
