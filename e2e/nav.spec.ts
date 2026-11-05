@@ -24,6 +24,25 @@ async function signUp(page: Page, email: string, first: string, initial: string)
   await nameYourself(page, first, initial);
 }
 
+// Runs `act` and asserts it was a client-side navigation: a marker set on
+// window beforehand survives only if no new document was loaded, and no
+// document request goes out.
+async function expectClientSideNavigation(page: Page, act: () => Promise<void>, url: string | RegExp) {
+  const documents: string[] = [];
+  const onRequest = (r: { resourceType(): string; url(): string }) => {
+    if (r.resourceType() === "document") documents.push(r.url());
+  };
+  await page.evaluate(() => {
+    (window as unknown as { __noReload?: boolean }).__noReload = true;
+  });
+  page.on("request", onRequest);
+  await act();
+  await expect(page).toHaveURL(url);
+  page.off("request", onRequest);
+  expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
+  expect(documents).toEqual([]);
+}
+
 async function createClub(page: Page, name: string) {
   await page.goto("/new");
   await page.getByLabel("Club name").fill(name);
@@ -80,6 +99,27 @@ test.describe("global shell", () => {
     await page.goto("/");
     await nav(page).getByRole("link", { name: "Watchlist" }).click();
     await expect(page).toHaveURL(`${CLUB_URL}/list`);
+  });
+
+  test("clicking Watchlist, and searching the list, never reload the page", async ({ page }) => {
+    await signInAs(page, MEMBERSHIP.dana);
+    await page.goto(CLUB_URL);
+    await expectClientSideNavigation(
+      page,
+      () => nav(page).getByRole("link", { name: "Watchlist" }).click(),
+      `${CLUB_URL}/list`,
+    );
+    await expect(page.getByPlaceholder("Search films")).toBeVisible();
+    // The search box was a plain GET <form>: every search was a full load.
+    await expectClientSideNavigation(
+      page,
+      async () => {
+        await page.getByPlaceholder("Search films").fill("Arrival");
+        await page.getByRole("button", { name: "Search", exact: true }).click();
+      },
+      `${CLUB_URL}/list?q=Arrival`,
+    );
+    await expect(page.getByRole("heading", { name: 'Results for "Arrival"' })).toBeVisible();
   });
 
   test("Watchlist with no clubs explains itself; with several it lists them by name", async ({ page }) => {

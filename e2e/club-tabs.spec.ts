@@ -93,6 +93,36 @@ test.describe("club tabs", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 
+  test("at 1280px the main column doesn't move or resize between Tonight and Members", async ({ page }) => {
+    await signInAs(page, MEMBERSHIP.dana);
+    await page.goto(CLUB_URL);
+    await expect(rail(page)).toBeVisible();
+    const tonight = await page.locator("main.main").boundingBox();
+    await clubTabs(page).getByRole("link", { name: "Members" }).click();
+    await expect(page).toHaveURL(`${CLUB_URL}/members`);
+    await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+    const members = await page.locator("main.main").boundingBox();
+    expect(tonight).not.toBeNull();
+    // Same column: left edge, top and width. Height is just how much each
+    // tab has to say.
+    const column = (b: typeof tonight) => b && { x: b.x, y: b.y, width: b.width };
+    expect(column(members)).toEqual(column(tonight));
+  });
+
+  test("Tonight's rail offers owners and admins Add a person, and no one else", async ({ page }) => {
+    await signInAs(page, MEMBERSHIP.chris); // owner
+    await page.goto(CLUB_URL);
+    await expect(rail(page).getByRole("link", { name: "Add a person →" })).toHaveAttribute(
+      "href",
+      `${CLUB_URL}/members#add-person`,
+    );
+
+    await signInAs(page, MEMBERSHIP.dana); // member
+    await page.goto(CLUB_URL);
+    await expect(rail(page).getByText(`${DISPLAY_NAME.dana} (you)`)).toBeVisible();
+    await expect(rail(page).getByRole("link", { name: /Add a person/ })).toHaveCount(0);
+  });
+
   test("Members has no rail", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(`${CLUB_URL}/members`);
@@ -134,7 +164,8 @@ test.describe("club tabs", () => {
 
     await expect(page.getByRole("heading", { name: "Add the people you watch with." })).toBeVisible();
     // No Invited section on Members when nothing is pending.
-    await page.getByRole("link", { name: "Add a person" }).click();
+    // The main column's prompt (the rail has its own "Add a person →").
+    await page.locator("main").getByRole("link", { name: "Add a person", exact: true }).click();
     await expect(page).toHaveURL(`${clubPath}/members#add-person`);
     await expect(page.locator("#add-person").getByRole("heading", { name: "Add a person" })).toBeVisible();
     await expect(page.locator("#add-person")).toBeInViewport();

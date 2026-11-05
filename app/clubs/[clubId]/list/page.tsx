@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
@@ -212,12 +213,14 @@ export default async function WatchlistPage({
   return (
     <GlobalShell current="watchlist" header={<ClubHeader club={club} />}>
 
-      <form className="search mt14">
+      {/* next/form, not a plain <form>: a GET submit becomes a client-side
+          navigation to ?q= instead of a full page load. */}
+      <Form action={`/clubs/${clubId}/list`} className="search mt14">
         <input type="text" name="q" defaultValue={query} placeholder="Search films" />
         <button type="submit" className="btn" style={{ width: "auto" }}>
           Search
         </button>
-      </form>
+      </Form>
 
       {query && (
         <section className="mt20">

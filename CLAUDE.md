@@ -470,8 +470,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   prototype's fake turn-order queue, streaming-expiry list, or
   attendance leaderboard.** The rail is Tonight's only: the club's
   member list, with the viewer's row marked "(you)" in words plus the
-  accent highlight (`app/clubs/[clubId]/memberViews.tsx`). It's absent on
-  the Members tab, where it would repeat the main column, and nothing
+  accent highlight (`app/clubs/[clubId]/memberViews.tsx`), and for owners
+  and admins an "Add a person →" link to the Members tab's form. It's
+  absent on the Members tab, where it would repeat the main column, but
+  its space is kept, empty (`GlobalShell`'s `reserveRail`, a plain
+  `aria-hidden` column, not a landmark), so switching Tonight ↔ Members
+  never moves or resizes the main column. Nothing
   about who's in the club or inviting ever depends on a 1120px+ viewport —
   the Members tab has all of it at every width, and most of this club's
   members are on phones. Pages with no
