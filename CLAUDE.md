@@ -196,7 +196,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   page load** — not a cron, not a button. If the club has no
   non-terminal night and `getNextPicker` resolves someone, that request
   inserts a `draft` night for them with `scheduledAt` from
-  `lib/schedule.ts`'s `getNextOccurrence`. The "one night in flight" index turns
+  `lib/schedule.ts`'s `getNextOccurrence`; `lib/clubStatus.ts`'s
+  `getDraftToCreate` decides. The signed-in `/` calls the same function
+  to show a club's next night and whose turn it is, **for display only**:
+  only the club page ever inserts the row. The "one night in flight" index turns
   a race between two simultaneous page loads into a rejected insert on
   the loser, caught and re-read rather than thrown — same shape as
   confirmNight and lockNight losing a race to each other. `ad_hoc`

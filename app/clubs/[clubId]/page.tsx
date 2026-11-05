@@ -14,7 +14,13 @@ import {
   watchlistItems,
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
-import { isConfirmable } from "@/lib/confirmTiming";
+import {
+  findConfirmableNight,
+  findInFlightNight,
+  findLatestWatchedNight,
+  findLockedNight,
+  getDraftToCreate,
+} from "@/lib/clubStatus";
 import { areTakesRevealed } from "@/lib/ratingReveal";
 import {
   getNextPicker,
@@ -22,7 +28,6 @@ import {
   type RotationMembership,
   type RotationNight,
 } from "@/lib/rotation";
-import { getNextOccurrence } from "@/lib/schedule";
 import {
   addRatingTag,
   castVote,
@@ -39,7 +44,6 @@ import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
-import { NON_TERMINAL_STATES } from "./nightState";
 
 export default async function ClubPage({
   params,
@@ -71,9 +75,10 @@ export default async function ClubPage({
 
   let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
 
-  // Who picks next — used only to decide whose draft night to create
-  // lazily below. Not what "Whose turn" displays: that's getWhoseTurn,
-  // computed after the insert (CLAUDE.md ruling).
+  // Who picks next — used only for the ad hoc empty state below (lazy
+  // draft creation computes its own, in getDraftToCreate). Not what
+  // "Whose turn" displays: that's getWhoseTurn, computed after the insert
+  // (CLAUDE.md ruling).
   const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
     id: m.id,
     userId: m.userId,
@@ -96,49 +101,43 @@ export default async function ClubPage({
   // A night's first draft row is created lazily, right here (CLAUDE.md's
   // load-bearing rulings) — whichever page load first finds the club
   // with no non-terminal night and a resolvable next picker creates one.
-  // ad_hoc has no computable schedule (lib/schedule.ts returns null for
-  // it on purpose) — the ad_hoc-specific empty state below explains that
-  // rather than this silently doing nothing.
-  const hasNonTerminalNight = clubNights.some((n) =>
-    NON_TERMINAL_STATES.includes(n.state as (typeof NON_TERMINAL_STATES)[number]),
-  );
+  // lib/clubStatus.ts's getDraftToCreate decides; `/` uses the same
+  // function for display only. ad_hoc has no computable schedule
+  // (lib/schedule.ts returns null for it on purpose) — the ad_hoc-specific
+  // empty state below explains that rather than this silently doing
+  // nothing.
+  const hasNonTerminalNight = findInFlightNight(clubNights) !== null;
   const adHocNeedsManualNight =
     !hasNonTerminalNight && whoseTurnResult !== null && club.cadence === "ad_hoc";
 
-  if (!hasNonTerminalNight && whoseTurnResult && club.cadence !== "ad_hoc") {
-    const scheduledAt = getNextOccurrence(
-      {
-        cadence: club.cadence,
-        defaultDay: club.defaultDay,
-        defaultTime: club.defaultTime,
-        timezone: club.timezone,
-      },
-      new Date(now),
-      club.createdAt,
-    );
-    if (scheduledAt) {
-      try {
-        await db.insert(nights).values({
-          clubId,
-          scheduledAt,
-          pickerMembershipId: whoseTurnResult.id,
-          state: "draft",
-        });
-      } catch (error) {
-        // "A club has at most one night in flight" (CLAUDE.md) is a
-        // partial unique index — a second concurrent lazy-create is a
-        // rejected insert (Postgres 23505), not a duplicate row. Losing
-        // that race is expected, not a bug: re-read below picks up
-        // whichever request won. Anything else genuinely is a failure.
-        const isUniqueViolation =
-          typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          (error as { code?: unknown }).code === "23505";
-        if (!isUniqueViolation) throw error;
-      }
-      clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
+  const draftToCreate = getDraftToCreate({
+    club,
+    memberships: rotationMemberships,
+    nights: clubNights,
+    now: new Date(now),
+  });
+  if (draftToCreate) {
+    try {
+      await db.insert(nights).values({
+        clubId,
+        scheduledAt: draftToCreate.scheduledAt,
+        pickerMembershipId: draftToCreate.pickerMembershipId,
+        state: "draft",
+      });
+    } catch (error) {
+      // "A club has at most one night in flight" (CLAUDE.md) is a
+      // partial unique index — a second concurrent lazy-create is a
+      // rejected insert (Postgres 23505), not a duplicate row. Losing
+      // that race is expected, not a bug: re-read below picks up
+      // whichever request won. Anything else genuinely is a failure.
+      const isUniqueViolation =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === "23505";
+      if (!isUniqueViolation) throw error;
     }
+    clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
   }
 
   // "Whose turn" is who the club is waiting on: the in-flight night's
@@ -257,13 +256,7 @@ export default async function ClubPage({
   // behavior "same_night" now models exactly; "morning_after" waits
   // longer, "manual_only" doesn't wait for a schedule at all.
   const confirmAt = getConfirmAt(club.settings);
-  const confirmableNight =
-    clubNights.find(
-      (n) =>
-        NON_TERMINAL_STATES.includes(n.state as (typeof NON_TERMINAL_STATES)[number]) &&
-        n.winningFilmId !== null &&
-        isConfirmable(confirmAt, n.scheduledAt, club.timezone, new Date(now)),
-    ) ?? null;
+  const confirmableNight = findConfirmableNight(clubNights, confirmAt, club.timezone, new Date(now));
 
   let confirmableFilmTitle: string | null = null;
   if (confirmableNight?.winningFilmId) {
@@ -283,9 +276,7 @@ export default async function ClubPage({
   // confirmableNight at once: "one night in flight" means at most one
   // non-terminal night exists, so as soon as it's confirmable this
   // section stops matching and the prompt below takes over.
-  const lockedNight = confirmableNight
-    ? null
-    : (clubNights.find((n) => n.state === "locked" && n.winningFilmId !== null) ?? null);
+  const lockedNight = findLockedNight(clubNights, confirmAt, club.timezone, new Date(now));
 
   let lockedFilm: { title: string; year: number; runtime: number | null } | null = null;
   let lockedStartsLabel: string | null = null;
@@ -315,10 +306,7 @@ export default async function ClubPage({
   // watched night in the club's history. "Attending" (both for who gets
   // the form and for the blind-reveal denominator) means an explicit
   // yes-RSVP, matching the constraint scoping asymmetry elsewhere.
-  const mostRecentWatchedNight =
-    clubNights
-      .filter((n) => n.state === "watched")
-      .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0] ?? null;
+  const mostRecentWatchedNight = findLatestWatchedNight(clubNights);
 
   let ratingSection: {
     nightId: string;
