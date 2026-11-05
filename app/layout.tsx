@@ -1,28 +1,28 @@
 import type { Metadata } from "next";
-import { Inter, Oswald } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import { getBaseUrl } from "@/app/baseUrl";
 import { DEFAULT_DESCRIPTION, DEFAULT_OPEN_GRAPH, OG_IMAGE } from "@/app/metadata";
 import "./globals.css";
 
 // Oswald for display headings (h-display), Inter for everything else —
-// docs/prototype.html's "late show" theme. Weight 500 is the one the
-// theme's --display-w token actually uses; 400 covers the odd default.
-const oswald = Oswald({
+// docs/prototype.html's "late show" theme. Self-hosted (app/fonts/README.md)
+// so neither the build nor the site ever fetches from Google. Variable
+// files, declared at the weights the app used through next/font/google
+// (400 and 500; the theme's --display-w is 500), so weight matching is
+// unchanged.
+const oswald = localFont({
+  src: "./fonts/oswald/Oswald.woff2",
+  weight: "400 500",
   variable: "--font-oswald",
-  weight: ["400", "500"],
-  subsets: ["latin"],
 });
 
-const inter = Inter({
+const inter = localFont({
+  src: "./fonts/inter/Inter.woff2",
+  weight: "400 500",
   variable: "--font-inter",
-  weight: ["400", "500"],
-  subsets: ["latin"],
 });
 
-// metadataBase is the request's own host (app/baseUrl.ts), never a
-// hardcoded domain: dev.kinomato.com, a *.workers.dev preview and
-// localhost each get og:image URLs that point back at themselves.
 export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(await getBaseUrl()),
