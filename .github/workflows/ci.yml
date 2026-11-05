@@ -43,6 +43,18 @@ jobs:
       - name: Production build (no database, as Workers Builds)
         run: env -u DATABASE_URL -u E2E_DATABASE_URL npx opennextjs-cloudflare build
 
+      # The Workers free plan caps a Worker at 3 MiB gzipped. Fail at 2.6
+      # MiB, well before it, and print the size every run so growth is
+      # visible. A generated invite image (next/og) alone measured +823 KiB.
+      - name: Worker bundle size (fails over 2.6 MiB gzipped)
+        run: |
+          out=$(env -u DATABASE_URL -u E2E_DATABASE_URL npx wrangler deploy --dry-run 2>&1) || { echo "$out"; exit 1; }
+          size=$(echo "$out" | grep -oE 'gzip: [0-9.]+ (KiB|MiB)' | head -1)
+          if [ -z "$size" ]; then echo "$out"; echo "::error::Couldn't read the gzipped size from wrangler's output"; exit 1; fi
+          kib=$(echo "$size" | awk '{ print ($3 == "MiB") ? $2 * 1024 : $2 }')
+          echo "Worker bundle: ${kib} KiB gzipped (fails over 2662.4 KiB = 2.6 MiB; plan limit 3 MiB)"
+          awk -v k="$kib" 'BEGIN { exit !(k <= 2662.4) }' || { echo "::error::Worker bundle is ${kib} KiB gzipped, over 2.6 MiB"; exit 1; }
+
   # Separate job on purpose: a flaky or slow E2E run must never block a
   # logic fix that only touched lib/. Don't add this job to main's
   # required status checks in GitHub branch protection — only Check.

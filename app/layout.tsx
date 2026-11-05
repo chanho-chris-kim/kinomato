@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Oswald } from "next/font/google";
 import type { ReactNode } from "react";
+import { getBaseUrl } from "@/app/baseUrl";
+import { DEFAULT_DESCRIPTION, DEFAULT_OPEN_GRAPH, OG_IMAGE } from "@/app/metadata";
 import "./globals.css";
 
 // Oswald for display headings (h-display), Inter for everything else —
@@ -18,10 +20,18 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "kinomato",
-  description: "Whose turn is it?",
-};
+// metadataBase is the request's own host (app/baseUrl.ts), never a
+// hardcoded domain: dev.kinomato.com, a *.workers.dev preview and
+// localhost each get og:image URLs that point back at themselves.
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase: new URL(await getBaseUrl()),
+    title: "Kinomato",
+    description: DEFAULT_DESCRIPTION,
+    openGraph: DEFAULT_OPEN_GRAPH,
+    twitter: { card: "summary_large_image", images: [OG_IMAGE] },
+  };
+}
 
 export default function RootLayout({
   children,

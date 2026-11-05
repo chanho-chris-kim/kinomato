@@ -7,17 +7,15 @@ import { users } from "@/db/schema";
 import { getSessionUserId } from "@/app/session";
 import { loadClubCards } from "@/app/clubCards";
 import { Marketing } from "@/app/marketing";
+import { DEFAULT_TITLE } from "@/app/metadata";
 
 // The marketing page's title and description (plain meta tags; the
 // invite preview image is rebuild step 5e). Signed in, `/` is the Clubs
 // screen and keeps the layout's defaults.
 export async function generateMetadata(): Promise<Metadata> {
   if (await getSessionUserId()) return {};
-  return {
-    title: "Kinomato — Whose turn is it?",
-    description:
-      "Kinomato keeps a friend group's movie night going: everyone keeps a watchlist, you take turns picking, and the club votes.",
-  };
+  // The description is the site-wide default (app/metadata.ts).
+  return { title: DEFAULT_TITLE };
 }
 
 // `/`. Signed in: the Clubs screen (docs/onboarding-spec.md §5.7) — a
