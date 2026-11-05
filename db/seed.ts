@@ -53,8 +53,11 @@ import {
   DISPLAY_NAME_6,
   DISPLAY_NAME_7,
   DISPLAY_NAME_8,
+  DISPLAY_NAME_HOME,
   FULL_CLUB_INVITE,
   FILM,
+  HOME_CLUB,
+  HOME_CLUB_NAME,
   MEMBERSHIP,
   MEMBERSHIP_2,
   MEMBERSHIP_3,
@@ -63,6 +66,7 @@ import {
   MEMBERSHIP_6,
   MEMBERSHIP_7,
   MEMBERSHIP_8,
+  MEMBERSHIP_HOME,
   MEMBER_USER,
   NIGHT_3_ID,
   NIGHT_4_ID,
@@ -130,6 +134,7 @@ async function main() {
     ...DISPLAY_NAME_6,
     ...DISPLAY_NAME_7,
     ...DISPLAY_NAME_8,
+    ...DISPLAY_NAME_HOME,
   };
   await db.insert(users).values([
     { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
@@ -689,6 +694,73 @@ async function main() {
     inviteeName: FULL_CLUB_INVITE.inviteeName,
     invitedByMembershipId: MEMBERSHIP.chris,
   });
+
+  // Kit and Lou's four clubs, one per card state on the signed-in / (see
+  // seed-fixtures.ts's HOME_CLUB).
+  console.log("Seeding Kit and Lou's clubs for the club cards...");
+  const HOUR = 60 * 60 * 1000;
+  // Twelfth Club's standing day is three days ahead, so its computed next
+  // night always sorts after Eleventh Club's locked night tomorrow.
+  const threeDaysAhead = (new Date().getUTCDay() + 3) % 7;
+  await db.insert(clubs).values(
+    (Object.keys(HOME_CLUB) as (keyof typeof HOME_CLUB)[]).map((key) => ({
+      id: HOME_CLUB[key],
+      name: HOME_CLUB_NAME[key],
+      cadence: "weekly" as const,
+      defaultDay: key === "next" ? threeDaysAhead : 6,
+      defaultTime: "20:00",
+      timezone: "America/New_York",
+      mode: "in_person" as const,
+    })),
+  );
+  await db.insert(memberships).values(
+    (Object.keys(HOME_CLUB) as (keyof typeof HOME_CLUB)[]).flatMap((key) => [
+      // Lou joined first everywhere, so with no picks yet Lou is next.
+      {
+        id: MEMBERSHIP_HOME.lou[key],
+        clubId: HOME_CLUB[key],
+        userId: MEMBER_USER.lou,
+        role: "owner" as const,
+        joinedAt: day(1),
+      },
+      {
+        id: MEMBERSHIP_HOME.kit[key],
+        clubId: HOME_CLUB[key],
+        userId: MEMBER_USER.kit,
+        role: "member" as const,
+        joinedAt: day(2),
+      },
+    ]),
+  );
+  const [voteNight] = await db
+    .insert(nights)
+    .values({
+      clubId: HOME_CLUB.vote,
+      scheduledAt: new Date(Date.now() + 72 * HOUR),
+      pickerMembershipId: MEMBERSHIP_HOME.lou.vote,
+      state: "open",
+    })
+    .returning({ id: nights.id });
+  await db.insert(nominations).values([
+    { nightId: voteNight.id, filmId: hereditaryId, membershipId: MEMBERSHIP_HOME.lou.vote },
+    { nightId: voteNight.id, filmId: zodiacId, membershipId: MEMBERSHIP_HOME.lou.vote },
+  ]);
+  await db.insert(nights).values([
+    {
+      clubId: HOME_CLUB.nominate,
+      scheduledAt: new Date(Date.now() + 144 * HOUR),
+      pickerMembershipId: MEMBERSHIP_HOME.kit.nominate,
+      state: "draft",
+    },
+    {
+      clubId: HOME_CLUB.locked,
+      scheduledAt: new Date(Date.now() + 24 * HOUR),
+      pickerMembershipId: MEMBERSHIP_HOME.lou.locked,
+      state: "locked",
+      winningFilmId: bladeRunnerId,
+      lockedAt: new Date(),
+    },
+  ]);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

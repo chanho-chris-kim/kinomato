@@ -554,6 +554,26 @@ button {
   color: var(--dim);
   font-size: 13px;
 }
+/* Club cards on the signed-in / (Ruling A). The dot marks an action for
+   you; "Needs you" in visually hidden text says it in words too. */
+.clubcard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: var(--fg);
+  text-decoration: none;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.status.action {
+  font-weight: 600;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {

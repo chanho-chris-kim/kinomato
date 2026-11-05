@@ -91,7 +91,7 @@ test.describe("auth — sign-in codes and links", () => {
     await page.getByLabel("Last initial").fill("u");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");
-    await expect(page.getByText("You're not in any clubs yet.")).toBeVisible();
+    await expect(page.getByText("You're not in a club yet.")).toBeVisible();
     expect((await latestSignInRow(email))!.consumedAt).not.toBeNull();
 
     // Used once; the same link now dead-ends, and so does its code.

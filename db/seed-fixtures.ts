@@ -33,6 +33,8 @@ export const MEMBER_USER = {
   ivo: "dddddddd-0000-0000-0000-000000000015",
   wes: "dddddddd-0000-0000-0000-000000000016",
   uma: "dddddddd-0000-0000-0000-000000000017",
+  kit: "dddddddd-0000-0000-0000-000000000018",
+  lou: "dddddddd-0000-0000-0000-000000000019",
 } as const;
 
 export const MEMBERSHIP = {
@@ -226,4 +228,48 @@ export const FULL_CLUB_INVITE = {
   id: "aaaaaaaa-8888-8888-8888-000000000091",
   token: "full-club-invite-token-e2e",
   inviteeName: "Zed Q.",
+};
+
+// Kit and Lou are in four clubs together, one per Ruling A card state, for
+// the signed-in / (docs/onboarding-spec.md §5.7; e2e/home-cards.spec.ts).
+// Nothing else touches these clubs, and no spec opens their club pages:
+// that would lazily create a draft night in HOME_CLUB.next and change its
+// card.
+//
+// - vote: Lou's open night, Kit hasn't voted → "Voting — you haven't voted"
+// - nominate: Kit's draft night → "Your turn to nominate"
+// - locked: a locked night tomorrow → "Blade Runner, locked in"
+// - next: no nights yet, Lou joined first → "Lou B. picks next"
+export const HOME_CLUB = {
+  vote: "99999999-9999-9999-9999-999999999997",
+  nominate: "99999999-9999-9999-9999-999999999998",
+  locked: "99999999-9999-9999-9999-999999999999",
+  next: "99999999-9999-9999-9999-99999999999a",
+};
+
+export const HOME_CLUB_NAME: Record<keyof typeof HOME_CLUB, string> = {
+  vote: "Ninth Club",
+  nominate: "Tenth Club",
+  locked: "Eleventh Club",
+  next: "Twelfth Club",
+};
+
+export const MEMBERSHIP_HOME = {
+  kit: {
+    vote: "aaaaaaaa-9999-9999-9999-000000000091",
+    nominate: "aaaaaaaa-9999-9999-9999-000000000092",
+    locked: "aaaaaaaa-9999-9999-9999-000000000093",
+    next: "aaaaaaaa-9999-9999-9999-000000000094",
+  },
+  lou: {
+    vote: "aaaaaaaa-9999-9999-9999-000000000095",
+    nominate: "aaaaaaaa-9999-9999-9999-000000000096",
+    locked: "aaaaaaaa-9999-9999-9999-000000000097",
+    next: "aaaaaaaa-9999-9999-9999-000000000098",
+  },
+};
+
+export const DISPLAY_NAME_HOME = {
+  kit: "Kit K.",
+  lou: "Lou B.",
 };
