@@ -306,17 +306,22 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **Attribution is retained, never deleted — access is the control.**
   `votes.membership_id` and `vetoes.membership_id` persist permanently; they
   are the audit trail and deletion would make debugging impossible. What
-  enforces the ruling above is meant to be a single history-read module
-  that is physically incapable of returning attribution — not a
-  per-component reminder to omit it. **It isn't built yet:** it's planned
-  for rebuild step 5f, before any History page exists (there is none
-  today). General history and the vetoer's identity after a night closes
-  will go through that module and never see `membership_id`. Reads of a
-  member's own vote, and the live pre-lock vote counts on an open night
-  (e.g. `app/clubs/[clubId]/page.tsx:241`, which reads the open night's
-  votes for its tally and "you voted for this"), are allowed outside it.
-  Once it exists, every other read of votes or vetoes goes through it — no
-  direct queries against those tables elsewhere in the codebase.
+  enforces the ruling above is a single history-read module that is
+  physically incapable of returning attribution — not a per-component
+  reminder to omit it: **`app/clubs/[clubId]/historyRead.ts`** (built in
+  rebuild step 5f). It is the only code that reads the votes and vetoes
+  tables, and nothing it returns carries a `membership_id` from them:
+  `liveVotes` (an open night's counts plus *your own* vote, pre-lock
+  only — Tonight's tally), `viewerVotedOnOpenNights` (the club cards on
+  `/`), `votesForLock` (nomination ids for `lockNightCore`'s tally) and
+  `clubHistory` (finished nights' final counts and a veto count, never
+  voters or vetoers). **Enforced by a test:** `lib/attributionAccess.test.ts`
+  scans `app/` and `lib/` and fails, naming this ruling, if any other file
+  imports `votes` or `vetoes` from `db/schema`, reaches them through a
+  namespace import, or names them in SQL. The one exception is the
+  club's server actions (`app/clubs/[clubId]/actions.ts`), which import
+  them to *write* (cast or move a vote, cast a veto) and may never read
+  them.
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite
@@ -457,10 +462,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   `/login`, `/login/code`, `/verify`, `/welcome`): a slim bar with only
   the wordmark, no global nav. Club pages add `ClubHeader` (name and
   `describeSchedule`'s line, no back chevron) and `ClubTabs`, the
-  Tonight · Members tab row (sticky: top of the viewport on phones, below
-  the top bar from 620px; no History tab until step 5f). The watchlist
-  page shows the club header without tabs, being a different level, and
-  the tag page shows the tabs with none current. `.main` establishes
+  Tonight · History · Members tab row (sticky: top of the viewport on
+  phones, below the top bar from 620px). The watchlist page shows the
+  club header without tabs, being a different level, and the tag page
+  marks History current, its home (§5.11.2). `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -468,13 +473,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   be available instead of the width that's actually there.
   **The context rail only ever shows real data, repurposed — never the
   prototype's fake turn-order queue, streaming-expiry list, or
-  attendance leaderboard.** The rail is Tonight's only: the club's
+  attendance leaderboard.** The rail is on Tonight and History: the club's
   member list, with the viewer's row marked "(you)" in words plus the
   accent highlight (`app/clubs/[clubId]/memberViews.tsx`), and for owners
   and admins an "Add a person →" link to the Members tab's form. It's
   absent on the Members tab, where it would repeat the main column, but
   its space is kept, empty (`GlobalShell`'s `reserveRail`, a plain
-  `aria-hidden` column, not a landmark), so switching Tonight ↔ Members
+  `aria-hidden` column, not a landmark), so switching between the tabs
   never moves or resizes the main column. The tag page shows the club
   tabs too, so it reserves the same space. Nothing
   about who's in the club or inviting ever depends on a 1120px+ viewport —

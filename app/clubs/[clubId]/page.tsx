@@ -10,7 +10,6 @@ import {
   ratingTags,
   rsvps,
   tags,
-  votes,
   watchlistItems,
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
@@ -42,6 +41,7 @@ import { requireClubMember } from "@/app/auth";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
+import { liveVotes } from "./historyRead";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 
@@ -204,19 +204,16 @@ export default async function ClubPage({
       .innerJoin(films, eq(nominations.filmId, films.id))
       .where(eq(nominations.nightId, openNight.id));
 
-    const nominationIds = nightNominations.map((n) => n.nominationId);
-    const nightVotes = nominationIds.length
-      ? await db.select().from(votes).where(inArray(votes.nominationId, nominationIds))
-      : [];
+    // Live counts and your own vote, through the history-read module —
+    // the only code that reads votes (CLAUDE.md attribution ruling).
+    const live = await liveVotes(db, openNight.id, currentMembership.id);
 
     nomineeRows = nightNominations.map((n) => ({
       nominationId: n.nominationId,
       filmTitle: n.filmTitle,
       filmYear: n.filmYear,
-      voteCount: nightVotes.filter((v) => v.nominationId === n.nominationId).length,
-      votedByMe: nightVotes.some(
-        (v) => v.nominationId === n.nominationId && v.membershipId === currentMembership.id,
-      ),
+      voteCount: live?.counts[n.nominationId] ?? 0,
+      votedByMe: live?.viewerVotedFor === n.nominationId,
     }));
   }
 

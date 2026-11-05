@@ -938,13 +938,14 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 5b | **Ruling A cards on the signed-in `/`** (§5.7) — done 2026-11-04 | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
 | ✓ 5d | **Marketing `/` signed out** (§5.2) — done 2026-11-05 | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
 | ✓ 5e | **Invite link previews** (§5.1) — done 2026-11-05 | Free plan: static image + text tags. `metadataBase` from the request host; one static `public/og-default.png` (made by `scripts/og-image.mjs`) for every page; per-invite `og:title`/`og:description` for a valid invite, generic otherwise (`lib/inviteShare.ts`); `noindex` on `/invite`. CI fails the Check job over 2.6 MiB gzipped (1.41 MiB on 2026-11-05). Switching to a generated image later is one added file (`opengraph-image.tsx`), measured at +823 KiB gzipped. | None |
-| 5f | **History** (§5.10) | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. | None |
+| ✓ 5f | **History** (§5.10) — done 2026-11-05 | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. Built: `app/clubs/[clubId]/historyRead.ts`, enforced by `lib/attributionAccess.test.ts`. No time limit on history: analysis-v1's free-tier history cap doesn't apply. | None |
 | 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |
 | 7 | **Settings** (§5.9) | The rest of §5.9: name, email change, notifications, Sign out everywhere. (Sign out itself shipped in 5a.) | Additive |
 
 **Step 5 rulings** (made while planning it):
 - **No History tab until 5f.** There's no history page or history-read
-  module today; a tab with nothing behind it would be a dead link.
+  module today; a tab with nothing behind it would be a dead link. (5f
+  added it: Tonight · History · Members.)
 - **The Members tab holds only Invite people and the member list** until
   limits, club settings and leaving a club are built.
 - **Privacy and Terms links are omitted** until those pages exist (they

@@ -1,6 +1,7 @@
 import { and, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
-import { clubs, films, memberships, nights, nominations, ratings, rsvps, users, votes } from "@/db/schema";
+import { clubs, films, memberships, nights, ratings, rsvps, users } from "@/db/schema";
+import { viewerVotedOnOpenNights } from "@/app/clubs/[clubId]/historyRead";
 import { getConfirmAt } from "@/lib/clubSettings";
 import {
   findInFlightNight,
@@ -71,13 +72,8 @@ export async function loadClubCards(
     .filter((id) => id !== null);
 
   const [myVotes, myRsvps, myRatings, filmRows] = await Promise.all([
-    openNightIds.length
-      ? db
-          .select({ nightId: nominations.nightId })
-          .from(votes)
-          .innerJoin(nominations, eq(votes.nominationId, nominations.id))
-          .where(and(inArray(nominations.nightId, openNightIds), inArray(votes.membershipId, myMembershipIds)))
-      : [],
+    // Through the history-read module, the only code that reads votes.
+    viewerVotedOnOpenNights(db, openNightIds, myMembershipIds),
     watchedIds.length
       ? db
           .select({ nightId: rsvps.nightId, status: rsvps.status })
@@ -107,7 +103,7 @@ export async function loadClubCards(
       nights: clubNightRows,
       confirmAt: getConfirmAt(club.settings),
       now,
-      viewerVotedOnOpenNight: open ? myVotes.some((v) => v.nightId === open.id) : false,
+      viewerVotedOnOpenNight: open ? myVotes.has(open.id) : false,
       viewerOnLatestWatched: watched
         ? {
             rsvpYes: myRsvps.some((r) => r.nightId === watched.id && r.status === "yes"),
