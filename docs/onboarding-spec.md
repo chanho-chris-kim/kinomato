@@ -372,14 +372,19 @@ has to fit on a card. Each card shows:
 2. **The next night**: "Sat 8:00pm", or "No night scheduled" for `ad_hoc`,
    or "Paused" when `paused_at` is set.
 3. **One status line**, chosen by the night's stage and *your* position in
-   it. Exactly one line, the most actionable true thing:
-   - Your turn to nominate → "**Your turn** — nominate by Thu" *(action)*
+   it. Exactly one line, the most actionable true thing, in this priority
+   (`lib/clubStatus.ts`):
+   - Your turn to nominate → "**Your turn to nominate**" *(action)*
    - Voting open, you haven't voted → "Voting — **you haven't voted**" *(action)*
-   - Voting open, you have → "Voting — Sam is picking"
-   - Locked → "*Thief*, locked in"
    - Confirmable → "**Did you watch *Thief*?**" *(action)*
    - Rating open, you haven't rated → "**Rate *Thief***" *(action)*
+   - Voting open, you have → "Voting — Sam is picking"
+   - Locked → "*Thief*, locked in"
    - Otherwise → "Priya picks next"
+
+   Changed on 2026-11-04: Rate moved above "Voting — Sam is picking" and
+   "locked in", so an owed rating, an action, is never hidden by a
+   non-action line.
 4. **An accent dot** when the status line is an action for you. That's also
    what floats the card to the top of the list.
 
@@ -930,7 +935,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 4 | **Cutover** (§8.2) — done 2026-11-02 | **4a, code:** remove the per-club cookie, name picker, `/join`, the claim flow and the claim prompt. Every route requires a session, and non-members get 404 (§5.1). `/new` requires sign-in. Rotation carry-forward moves from `identity_key` to `user_id`, tests first. The code stops reading every column 4b drops. **4b, schema:** drop those columns; `memberships.user_id NOT NULL`; the partial unique index; seed rewritten; the CLAUDE.md rulings in §8.4 rewritten. Follow §8.6 on the day. | **Destructive (4b)** |
 | ✓ 5a | **Global shell and wordmark** (§5.11) — done 2026-11-03 | `GlobalShell` / `PublicShell` (`app/shell.tsx`): bottom tab bar on phones, sticky top bar from 620px, no sidebar; wordmark on every screen; `ClubHeader` (name + schedule line); temporary `/watchlist`; `/settings` with Sign out only. | None |
 | ✓ 5c | **Club tabs: Tonight and Members** (§5.10) — done 2026-11-04 | A tab row under the club header; `/clubs/[id]/members` holds Invite people and the member list; the rail on Tonight only. | None |
-| 5b | **Ruling A cards on the signed-in `/`** (§5.7) | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
+| ✓ 5b | **Ruling A cards on the signed-in `/`** (§5.7) — done 2026-11-04 | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
 | 5d | **Marketing `/` signed out** (§5.2) | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
 | 5e | **Invite Open Graph image** (§5.1) | `app/invite/[token]/opengraph-image.tsx` and `metadataBase`. Measured cost: +823 KiB gzipped Worker bundle (2.37 MiB total); verified rendering on workerd. | None |
 | 5f | **History** (§5.10) | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. | None |

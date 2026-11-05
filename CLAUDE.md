@@ -475,12 +475,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   absent on the Members tab, where it would repeat the main column, but
   its space is kept, empty (`GlobalShell`'s `reserveRail`, a plain
   `aria-hidden` column, not a landmark), so switching Tonight ↔ Members
-  never moves or resizes the main column. Nothing
+  never moves or resizes the main column. The tag page shows the club
+  tabs too, so it reserves the same space. Nothing
   about who's in the club or inviting ever depends on a 1120px+ viewport —
   the Members tab has all of it at every width, and most of this club's
   members are on phones. Pages with no
-  genuine secondary content (watchlist, tags) pass no `rail` prop at
-  all, rather than rendering an empty or fabricated one; `.main:only-child`
+  genuine secondary content pass no `rail` prop at all, rather than
+  rendering an empty or fabricated one (the watchlist reserves nothing
+  either: it has no club tabs to switch between); `.main:only-child`
   in the 1120px query keeps a railless page's content column capped at
   the same width the 900px breakpoint set, instead of stretching
   full-bleed with nothing to balance it against.
