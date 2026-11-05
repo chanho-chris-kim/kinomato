@@ -13,10 +13,11 @@ function loginUrl(returnTo: string) {
 }
 
 // Signed in, or off to /login — coming back to `returnTo` afterwards.
+// Session cookie before any database call (app/session.ts).
 export async function requireUser(returnTo: string) {
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   if (!userId) redirect(loginUrl(returnTo));
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) redirect(loginUrl(returnTo));
   return user;

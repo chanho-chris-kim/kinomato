@@ -55,7 +55,7 @@ export async function signOutForInvite(token: string) {
 // silent — only reachable from its own labelled button.
 export async function joinInviteAsMe(token: string) {
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   const row = await loadInviteByToken(db, token);
   if (!userId || !row) redirect(`/invite/${token}`);
   const result = await redeemInvite(db, row.invite.id, userId);

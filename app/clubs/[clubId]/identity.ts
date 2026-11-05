@@ -10,9 +10,9 @@ import { getSessionUserId } from "@/app/session";
 // Pages gate with app/auth.ts's requireClubMember; this is for server
 // actions, which are callable directly and so check again.
 export async function getIdentityMembershipId(clubId: string): Promise<string | null> {
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   if (!userId) return null;
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const [membership] = await db
     .select({ id: memberships.id })
     .from(memberships)

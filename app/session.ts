@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
-import type { getDb } from "@/db";
+import { getDb } from "@/db";
 import { sessions } from "@/db/schema";
 import { hashToken } from "@/lib/authCredentials";
 
@@ -42,14 +42,17 @@ export async function setSessionCookie(token: string) {
   });
 }
 
-export async function getSessionUserId(
-  db: ReturnType<typeof getDb>,
-): Promise<string | null> {
+// The cookie first, the database only if there is one. Reading cookies()
+// before anything else is what makes every session-gated page dynamic by
+// construction: `next build` never gets as far as getDb(), which throws
+// without DATABASE_URL — and Workers Builds has none at build time (it's
+// a runtime Worker secret). Signed out costs no database call either.
+export async function getSessionUserId(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const [session] = await db
+  const [session] = await getDb()
     .select()
     .from(sessions)
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())));

@@ -24,7 +24,7 @@ export default async function InvitePage({
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
   const row = await loadInviteByToken(db, token);
-  const userId = await getSessionUserId(db);
+  const userId = await getSessionUserId();
   const [viewer] = userId ? await db.select().from(users).where(eq(users.id, userId)) : [];
   const view = resolveInviteView({
     invite: row?.invite ?? null,
