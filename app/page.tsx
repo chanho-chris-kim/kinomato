@@ -1,36 +1,32 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { GlobalShell, PublicShell } from "@/app/shell";
+import { GlobalShell } from "@/app/shell";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { getSessionUserId } from "@/app/session";
 import { loadClubCards } from "@/app/clubCards";
+import { Marketing } from "@/app/marketing";
+
+// The marketing page's title and description (plain meta tags; the
+// invite preview image is rebuild step 5e). Signed in, `/` is the Clubs
+// screen and keeps the layout's defaults.
+export async function generateMetadata(): Promise<Metadata> {
+  if (await getSessionUserId()) return {};
+  return {
+    title: "Kinomato — Whose turn is it?",
+    description:
+      "Kinomato keeps a friend group's movie night going: everyone keeps a watchlist, you take turns picking, and the club votes.",
+  };
+}
 
 // `/`. Signed in: the Clubs screen (docs/onboarding-spec.md §5.7) — a
-// greeting and one Ruling A card per active membership. Signed out: a
-// stopgap until the marketing page (rebuild step 5d).
+// greeting and one Ruling A card per active membership. Signed out: the
+// marketing page (§5.2, app/marketing.tsx).
 export default async function Home() {
   // Per-request by construction: getSessionUserId reads the cookie first.
   const userId = await getSessionUserId();
-  if (!userId) {
-    return (
-      <PublicShell>
-        <main className="p-4">
-          <p>
-            <Link href="/new" className="underline">
-              Start a club
-            </Link>
-          </p>
-          <p className="mt-2">
-            <Link href="/login" className="underline">
-              Sign in
-            </Link>{" "}
-            to see your clubs.
-          </p>
-        </main>
-      </PublicShell>
-    );
-  }
+  if (!userId) return <Marketing />;
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity targets client components the React Compiler might
