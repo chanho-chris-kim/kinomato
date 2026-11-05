@@ -36,9 +36,10 @@ test.describe("club tabs", () => {
   test("Tonight and Members each mark themselves current", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(CLUB_URL);
-    await expect(clubTabs(page).getByRole("link")).toHaveText(["Tonight", "Members"]);
+    await expect(clubTabs(page).getByRole("link")).toHaveText(["Tonight", "History", "Members"]);
     await expect(clubTabs(page).getByRole("link", { name: "Tonight" })).toHaveAttribute("aria-current", "page");
     await expect(clubTabs(page).getByRole("link", { name: "Members" })).not.toHaveAttribute("aria-current");
+    await expect(clubTabs(page).getByRole("link", { name: "History" })).not.toHaveAttribute("aria-current");
 
     await clubTabs(page).getByRole("link", { name: "Members" }).click();
     await expect(page).toHaveURL(`${CLUB_URL}/members`);
@@ -93,7 +94,7 @@ test.describe("club tabs", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 
-  test("at 1280px the main column doesn't move or resize between Tonight, Members and a tag page", async ({
+  test("at 1280px the main column doesn't move or resize between Tonight, Members, History and a tag page", async ({
     page,
   }) => {
     await signInAs(page, MEMBERSHIP.dana);
@@ -110,8 +111,13 @@ test.describe("club tabs", () => {
     const column = (b: typeof tonight) => b && { x: b.x, y: b.y, width: b.width };
     expect(column(members)).toEqual(column(tonight));
 
-    // The tag page shows the tabs too (none current), so it keeps the
-    // same column.
+    // History, and the tag page under it, keep the same column too.
+    await clubTabs(page).getByRole("link", { name: "History" }).click();
+    await expect(page).toHaveURL(`${CLUB_URL}/history`);
+    await expect(rail(page)).toBeVisible();
+    const history = await page.locator("main.main").boundingBox();
+    expect(column(history)).toEqual(column(tonight));
+
     await page.goto(`${CLUB_URL}/tags/cozy`);
     await expect(page.getByRole("heading", { name: /Tagged/ })).toBeVisible();
     await expect(rail(page)).toHaveCount(0);
@@ -184,11 +190,11 @@ test.describe("club tabs", () => {
     await expect(memberNames(page)).toHaveText(["Tess V. (you)"]);
   });
 
-  test("the tag page shows the tabs with none current; the watchlist shows no tabs", async ({ page }) => {
+  test("the tag page marks History current (its home); the watchlist shows no tabs", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(`${CLUB_URL}/tags/cozy`);
-    await expect(clubTabs(page).getByRole("link")).toHaveText(["Tonight", "Members"]);
-    await expect(clubTabs(page).locator('[aria-current="page"]')).toHaveCount(0);
+    await expect(clubTabs(page).getByRole("link")).toHaveText(["Tonight", "History", "Members"]);
+    await expect(clubTabs(page).locator('[aria-current="page"]')).toHaveText(["History"]);
 
     await page.goto(`${CLUB_URL}/list`);
     await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
@@ -197,7 +203,7 @@ test.describe("club tabs", () => {
 
   test('"You are:" appears on no club page', async ({ page }) => {
     await signInAs(page, MEMBERSHIP.chris);
-    for (const path of ["", "/members", "/list", "/tags/cozy"]) {
+    for (const path of ["", "/history", "/members", "/list", "/tags/cozy"]) {
       await page.goto(`${CLUB_URL}${path}`);
       await expect(clubTabs(page).or(page.getByRole("heading", { name: "Movie Night Crew" })).first()).toBeVisible();
       await expect(page.getByText("You are:")).toHaveCount(0);

@@ -7,9 +7,9 @@ import {
   nights,
   nominations,
   rsvps,
-  votes,
 } from "@/db/schema";
 import { pickWinningNomination } from "@/lib/lockTally";
+import { votesForLock } from "./historyRead";
 
 // The actual lock work, split out from the "use server" action in
 // actions.ts so it has exactly one caller-independent entry point —
@@ -50,11 +50,9 @@ export async function lockNightCore(
     throw new Error("Nothing to lock — this night has no nominations.");
   }
 
-  const nominationIds = nightNominations.map((n) => n.id);
-  const nightVotes = await db
-    .select({ nominationId: votes.nominationId })
-    .from(votes)
-    .where(inArray(votes.nominationId, nominationIds));
+  // Nomination ids only, through the history-read module (the only code
+  // that reads votes).
+  const nightVotes = await votesForLock(db, nightId);
 
   const filmIds = nightNominations.map((n) => n.filmId);
   const nominatedFilms = await db

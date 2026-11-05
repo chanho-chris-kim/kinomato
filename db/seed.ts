@@ -53,9 +53,12 @@ import {
   DISPLAY_NAME_6,
   DISPLAY_NAME_7,
   DISPLAY_NAME_8,
+  DISPLAY_NAME_HISTORY,
   DISPLAY_NAME_HOME,
   FULL_CLUB_INVITE,
   FILM,
+  HISTORY_CLUB_ID,
+  HISTORY_TAKE,
   HOME_CLUB,
   HOME_CLUB_NAME,
   MEMBERSHIP,
@@ -66,6 +69,7 @@ import {
   MEMBERSHIP_6,
   MEMBERSHIP_7,
   MEMBERSHIP_8,
+  MEMBERSHIP_HISTORY,
   MEMBERSHIP_HOME,
   MEMBER_USER,
   NIGHT_3_ID,
@@ -135,6 +139,7 @@ async function main() {
     ...DISPLAY_NAME_7,
     ...DISPLAY_NAME_8,
     ...DISPLAY_NAME_HOME,
+    ...DISPLAY_NAME_HISTORY,
   };
   await db.insert(users).values([
     { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
@@ -761,6 +766,87 @@ async function main() {
       lockedAt: new Date(),
     },
   ]);
+
+  // A club with a finished history (seed-fixtures.ts HISTORY_CLUB_ID).
+  console.log("Seeding a club with history...");
+  const H = MEMBERSHIP_HISTORY;
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+  await db.insert(clubs).values({
+    id: HISTORY_CLUB_ID,
+    name: "History Club",
+    cadence: "weekly",
+    defaultDay: 6,
+    defaultTime: "20:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+  await db.insert(memberships).values([
+    { id: H.rae, clubId: HISTORY_CLUB_ID, userId: MEMBER_USER.rae, role: "owner", joinedAt: day(1) },
+    { id: H.sol, clubId: HISTORY_CLUB_ID, userId: MEMBER_USER.sol, role: "member", joinedAt: day(2) },
+    { id: H.tib, clubId: HISTORY_CLUB_ID, userId: MEMBER_USER.tib, role: "member", joinedAt: day(3) },
+  ]);
+  const [hUnconfirmed, hRevealed, , hHidden] = await db
+    .insert(nights)
+    .values([
+      { clubId: HISTORY_CLUB_ID, scheduledAt: daysAgo(28), pickerMembershipId: H.tib, state: "unconfirmed", winningFilmId: zodiacId, lockedAt: daysAgo(29) },
+      { clubId: HISTORY_CLUB_ID, scheduledAt: daysAgo(21), pickerMembershipId: H.rae, state: "watched", winningFilmId: bladeRunnerId, lockedAt: daysAgo(22), confirmedAt: daysAgo(20), confirmedBy: H.rae },
+      { clubId: HISTORY_CLUB_ID, scheduledAt: daysAgo(14), pickerMembershipId: H.sol, state: "cancelled", confirmedAt: daysAgo(13), confirmedBy: H.sol },
+      { clubId: HISTORY_CLUB_ID, scheduledAt: daysAgo(7), pickerMembershipId: H.tib, state: "watched", winningFilmId: getOutId, lockedAt: daysAgo(8), confirmedAt: daysAgo(6), confirmedBy: H.tib },
+    ])
+    .returning({ id: nights.id });
+  const [uZodiac, uWhiplash, rBlade, rArrival, rHereditary, hGetOut] = await db
+    .insert(nominations)
+    .values([
+      { nightId: hUnconfirmed.id, filmId: zodiacId, membershipId: H.tib },
+      { nightId: hUnconfirmed.id, filmId: whiplashId, membershipId: H.tib },
+      { nightId: hRevealed.id, filmId: bladeRunnerId, membershipId: H.rae },
+      { nightId: hRevealed.id, filmId: arrivalId, membershipId: H.rae },
+      { nightId: hRevealed.id, filmId: hereditaryId, membershipId: H.rae },
+      { nightId: hHidden.id, filmId: getOutId, membershipId: H.tib },
+      { nightId: hHidden.id, filmId: babadookId, membershipId: H.tib },
+    ])
+    .returning({ id: nominations.id });
+  await db.insert(votes).values([
+    { nominationId: uZodiac.id, membershipId: H.rae },
+    { nominationId: uZodiac.id, membershipId: H.sol },
+    { nominationId: uWhiplash.id, membershipId: H.tib },
+    { nominationId: rBlade.id, membershipId: H.sol },
+    { nominationId: rBlade.id, membershipId: H.tib },
+    { nominationId: rArrival.id, membershipId: H.rae },
+    { nominationId: hGetOut.id, membershipId: H.rae },
+    { nominationId: hGetOut.id, membershipId: H.sol },
+  ]);
+  const [hSeason] = await db
+    .insert(seasons)
+    .values({ clubId: HISTORY_CLUB_ID, startedAt: daysAgo(60) })
+    .returning({ id: seasons.id });
+  await db.insert(vetoes).values({
+    nightId: hRevealed.id,
+    nominationId: rHereditary.id,
+    membershipId: H.tib,
+    seasonId: hSeason.id,
+  });
+  await db.insert(rsvps).values([
+    { nightId: hRevealed.id, membershipId: H.rae, status: "yes" },
+    { nightId: hRevealed.id, membershipId: H.sol, status: "yes" },
+    { nightId: hRevealed.id, membershipId: H.tib, status: "no" },
+    { nightId: hHidden.id, membershipId: H.rae, status: "yes" },
+    { nightId: hHidden.id, membershipId: H.sol, status: "yes" },
+    { nightId: hHidden.id, membershipId: H.tib, status: "yes" },
+  ]);
+  const [raeRating] = await db
+    .insert(ratings)
+    .values([
+      { nightId: hRevealed.id, membershipId: H.rae, scoreQuality: "8.5", scoreFun: "9.0", hotTake: HISTORY_TAKE.revealed },
+      { nightId: hRevealed.id, membershipId: H.sol, scoreQuality: "7.0", scoreFun: "8.0" },
+      { nightId: hHidden.id, membershipId: H.sol, scoreQuality: "6.0", scoreFun: "7.5", hotTake: HISTORY_TAKE.hidden },
+    ])
+    .returning({ id: ratings.id });
+  const [rainy] = await db
+    .insert(tags)
+    .values({ clubId: HISTORY_CLUB_ID, name: "rainy", displayName: "Rainy" })
+    .returning({ id: tags.id });
+  await db.insert(ratingTags).values({ ratingId: raeRating.id, tagId: rainy.id });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

@@ -159,15 +159,15 @@ function TabIcon({ name }: { name: GlobalSection }) {
   );
 }
 
-export type ClubTab = "tonight" | "members";
+export type ClubTab = "tonight" | "history" | "members";
 
-// Club-level tabs under the club header (§5.10–5.11.2): Tonight · Members,
-// the same at every width. No History tab until it's built (rebuild step
-// 5f). `current` is null on a club page that isn't one of the tabs (the
-// tag page, whose home is History).
+// Club-level tabs under the club header (§5.10–5.11.2): Tonight · History ·
+// Members, the same at every width. `current` is null on a club page that
+// isn't one of the tabs.
 export function ClubTabs({ clubId, current }: { clubId: string; current: ClubTab | null }) {
   const tabs: { key: ClubTab; href: string; label: string }[] = [
     { key: "tonight", href: `/clubs/${clubId}`, label: "Tonight" },
+    { key: "history", href: `/clubs/${clubId}/history`, label: "History" },
     { key: "members", href: `/clubs/${clubId}/members`, label: "Members" },
   ];
   return (

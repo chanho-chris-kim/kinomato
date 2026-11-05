@@ -35,6 +35,9 @@ export const MEMBER_USER = {
   uma: "dddddddd-0000-0000-0000-000000000017",
   kit: "dddddddd-0000-0000-0000-000000000018",
   lou: "dddddddd-0000-0000-0000-000000000019",
+  rae: "dddddddd-0000-0000-0000-000000000020",
+  sol: "dddddddd-0000-0000-0000-000000000021",
+  tib: "dddddddd-0000-0000-0000-000000000022",
 } as const;
 
 export const MEMBERSHIP = {
@@ -272,4 +275,35 @@ export const MEMBERSHIP_HOME = {
 export const DISPLAY_NAME_HOME = {
   kit: "Kit K.",
   lou: "Lou B.",
+};
+
+// A club with a finished history, for the History tab (rebuild step 5f;
+// e2e/history.spec.ts). Rae, Sol and Tib; four finished nights, oldest
+// first:
+// - unconfirmed: Tib's pick, Zodiac (votes: Rae, Sol → Zodiac; Tib →
+//   Whiplash), never confirmed
+// - watched, revealed: Rae's pick, Blade Runner won 2–1 (Sol, Tib → Blade
+//   Runner; Rae → Arrival), Tib vetoed Hereditary; Rae and Sol came and
+//   both rated, so the ratings show
+// - cancelled: Sol's turn, never nominated
+// - watched, hidden: Tib's pick, Get Out; all three came, only Sol rated,
+//   so the ratings stay hidden
+// No spec opens this club's Tonight, which would lazily create a draft.
+export const HISTORY_CLUB_ID = "99999999-9999-9999-9999-99999999999b";
+
+export const MEMBERSHIP_HISTORY = {
+  rae: "aaaaaaaa-1313-1313-1313-000000000131",
+  sol: "aaaaaaaa-1313-1313-1313-000000000132",
+  tib: "aaaaaaaa-1313-1313-1313-000000000133",
+};
+
+export const DISPLAY_NAME_HISTORY: Record<keyof typeof MEMBERSHIP_HISTORY, string> = {
+  rae: "Rae D.",
+  sol: "Sol M.",
+  tib: "Tib N.",
+};
+
+export const HISTORY_TAKE = {
+  revealed: "Tears in rain, every time.",
+  hidden: "Hidden until everyone rates.",
 };

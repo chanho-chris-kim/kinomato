@@ -85,8 +85,8 @@ export default async function TagPage({
       header={
         <>
           <ClubHeader club={club} />
-          {/* No tab current: a tag page's home is History (rebuild step 5f). */}
-          <ClubTabs clubId={clubId} current={null} />
+          {/* A tag page lives under History (§5.11.2). */}
+          <ClubTabs clubId={clubId} current="history" />
         </>
       }
     >
