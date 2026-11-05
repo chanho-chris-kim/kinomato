@@ -554,6 +554,58 @@ button {
   color: var(--dim);
   font-size: 13px;
 }
+/* The signed-out / (docs/onboarding-spec.md §5.2): one column on phones
+   (pitch, actions, steps); from 900px the pitch sits beside a sample
+   Tonight card, which is hidden below that. */
+.topbar-end {
+  margin-left: auto;
+  color: var(--mut);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  text-decoration: none;
+}
+.landing {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 16px 8px;
+}
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.hero-art {
+  display: none;
+  margin: 0;
+}
+.steps {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+@container (min-width: 620px) {
+  .steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (min-width: 900px) {
+  .landing {
+    padding: 48px 28px 8px;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  .hero-art {
+    display: block;
+  }
+}
+
 /* Club cards on the signed-in / (Ruling A). The dot marks an action for
    you; "Needs you" in visually hidden text says it in words too. */
 .clubcard {

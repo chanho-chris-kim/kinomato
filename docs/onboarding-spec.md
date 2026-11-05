@@ -936,7 +936,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 5a | **Global shell and wordmark** (§5.11) — done 2026-11-03 | `GlobalShell` / `PublicShell` (`app/shell.tsx`): bottom tab bar on phones, sticky top bar from 620px, no sidebar; wordmark on every screen; `ClubHeader` (name + schedule line); temporary `/watchlist`; `/settings` with Sign out only. | None |
 | ✓ 5c | **Club tabs: Tonight and Members** (§5.10) — done 2026-11-04 | A tab row under the club header; `/clubs/[id]/members` holds Invite people and the member list; the rail on Tonight only. | None |
 | ✓ 5b | **Ruling A cards on the signed-in `/`** (§5.7) — done 2026-11-04 | `lib/clubStatus.ts` (pure, tests first), lifted from the club page's own state logic; cards sorted actions-first. | None |
-| 5d | **Marketing `/` signed out** (§5.2) | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
+| ✓ 5d | **Marketing `/` signed out** (§5.2) — done 2026-11-05 | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
 | 5e | **Invite Open Graph image** (§5.1) | `app/invite/[token]/opengraph-image.tsx` and `metadataBase`. Measured cost: +823 KiB gzipped Worker bundle (2.37 MiB total); verified rendering on workerd. | None |
 | 5f | **History** (§5.10) | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. | None |
 | 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |

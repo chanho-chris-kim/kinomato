@@ -31,11 +31,20 @@ export function Wordmark() {
   );
 }
 
-export function PublicShell({ children }: { children: ReactNode }) {
+export function PublicShell({
+  topbarEnd,
+  children,
+}: {
+  // Right end of the bar. Only the marketing page uses it, for Sign in
+  // (§5.11.2); never the global nav.
+  topbarEnd?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="app">
       <header className="topbar">
         <Wordmark />
+        {topbarEnd}
       </header>
       {children}
     </div>
