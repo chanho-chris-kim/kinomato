@@ -78,6 +78,10 @@ export default async function TagPage({
   return (
     <GlobalShell
       current="clubs"
+      // No rail content here, but it shows the club tabs, so it keeps the
+      // rail's space like Members: moving between it and Tonight doesn't
+      // shift the main column.
+      reserveRail
       header={
         <>
           <ClubHeader club={club} />

@@ -93,7 +93,9 @@ test.describe("club tabs", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 
-  test("at 1280px the main column doesn't move or resize between Tonight and Members", async ({ page }) => {
+  test("at 1280px the main column doesn't move or resize between Tonight, Members and a tag page", async ({
+    page,
+  }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(CLUB_URL);
     await expect(rail(page)).toBeVisible();
@@ -107,6 +109,14 @@ test.describe("club tabs", () => {
     // tab has to say.
     const column = (b: typeof tonight) => b && { x: b.x, y: b.y, width: b.width };
     expect(column(members)).toEqual(column(tonight));
+
+    // The tag page shows the tabs too (none current), so it keeps the
+    // same column.
+    await page.goto(`${CLUB_URL}/tags/cozy`);
+    await expect(page.getByRole("heading", { name: /Tagged/ })).toBeVisible();
+    await expect(rail(page)).toHaveCount(0);
+    const tag = await page.locator("main.main").boundingBox();
+    expect(column(tag)).toEqual(column(tonight));
   });
 
   test("Tonight's rail offers owners and admins Add a person, and no one else", async ({ page }) => {
