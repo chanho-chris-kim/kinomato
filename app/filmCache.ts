@@ -5,9 +5,7 @@ import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow
 
 // The films cache (watchlist-spec.md §5; CLAUDE.md "film metadata caches
 // indefinitely, never re-fetch on browse"): one films row per tmdbId.
-// Shared by the global /watchlist's search and add. Touches only `films`.
-// (/clubs/[id]/list still carries its own copy of this until rebuild step
-// 6d retires that page.)
+// The global /watchlist's search and add. Touches only `films`.
 
 type Db = ReturnType<typeof getDb>;
 export type FilmRow = typeof films.$inferSelect;

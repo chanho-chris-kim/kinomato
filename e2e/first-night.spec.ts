@@ -100,7 +100,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
 
   test("Priya (joined first, so she picks first) adds a film to her watchlist", async ({ browser }) => {
     await as(browser, priya, async (page) => {
-      await page.goto(`${clubUrl}/list`);
+      await page.goto("/watchlist");
       await page.getByPlaceholder("Search films").fill("Whiplash");
       await page.getByRole("button", { name: "Search", exact: true }).click();
       await page.locator("li", { hasText: "Whiplash" }).getByRole("button", { name: "Add" }).click();

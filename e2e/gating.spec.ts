@@ -36,6 +36,10 @@ test.describe("gating", () => {
     // the browser logging the 404 as a console error.
     const notMine = await page.request.get(`/clubs/${CLUB_ID}`, { maxRedirects: 0 });
     expect(notMine.status()).toBe(404);
+    // The retired club list too: gated before it redirects, so it never
+    // confirms a club exists.
+    const notMyList = await page.request.get(`/clubs/${CLUB_ID}/list`, { maxRedirects: 0 });
+    expect(notMyList.status()).toBe(404);
     const missing = await page.request.get("/clubs/00000000-0000-0000-0000-000000000000", {
       maxRedirects: 0,
     });
@@ -43,6 +47,11 @@ test.describe("gating", () => {
     // And a club Hana is in is a 200, so this isn't a blanket 404.
     const mine = await page.request.get(`/clubs/${CLUB_8_ID}`, { maxRedirects: 0 });
     expect(mine.status()).toBe(200);
+    // A member's old list link lands on the global watchlist, seen from
+    // that club for the visit.
+    const myList = await page.request.get(`/clubs/${CLUB_8_ID}/list`, { maxRedirects: 0 });
+    expect(myList.status()).toBe(307);
+    expect(myList.headers()["location"]).toBe(`/watchlist?seen=${CLUB_8_ID}`);
   });
 
   test("a leftover per-club identity cookie, with no session, opens nothing", async ({ page }) => {

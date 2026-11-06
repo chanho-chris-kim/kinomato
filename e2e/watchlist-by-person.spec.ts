@@ -8,13 +8,15 @@ import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 
 // One watchlist per person (docs/onboarding-spec.md §6; rebuild step 6b).
-// Kit is in four seeded clubs (HOME_CLUB) with an empty list. Only the
-// /list pages are opened here, never a club's Tonight, which would lazily
+// Kit is in four seeded clubs (HOME_CLUB) with an empty list. Only
+// /watchlist is opened here, never a club's Tonight, which would lazily
 // create a draft night and change Kit's club cards.
 test.describe.configure({ mode: "serial" });
 
 const PRIVACY = "Your clubs can see which films you've added, one film at a time, never your whole list.";
-const listUrl = (clubId: string) => `/clubs/${clubId}/list`;
+// One list, seen from a given club (rebuild step 6d retired the per-club
+// list pages; ?seen= is how a club's view of it is reached now).
+const listUrl = (clubId: string) => `/watchlist?seen=${clubId}`;
 
 async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -39,10 +41,10 @@ test.describe("one watchlist per person", () => {
     await page.goto(listUrl(HOME_CLUB.vote));
     await expect(page.getByRole("heading", { name: "Your watchlist" })).toBeVisible();
     await expect(page.getByText(PRIVACY, { exact: true })).toBeVisible();
-    await expect(page.getByText("0 films")).toBeVisible();
+    await expect(page.getByText("Your list is empty.")).toBeVisible();
     // Under the heading, above the search field.
     const order = await page.evaluate((text) => {
-      const heading = [...document.querySelectorAll("main h2")].find((h) => h.textContent === "Your watchlist")!;
+      const heading = [...document.querySelectorAll("main h1")].find((h) => h.textContent === "Your watchlist")!;
       const line = [...document.querySelectorAll("main p")].find((p) => p.textContent === text)!;
       const search = document.querySelector('main input[name="q"]')!;
       const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -81,7 +83,7 @@ test.describe("one watchlist per person", () => {
       await page.goto(listUrl(club));
       await expect(page.getByRole("heading", { name: "Your watchlist" })).toBeVisible();
       await expect(tile(page, "Arrival")).toHaveCount(0);
-      await expect(page.getByText("0 films")).toBeVisible();
+      await expect(page.getByText("Your list is empty.")).toBeVisible();
     }
   });
 
@@ -117,13 +119,13 @@ test.describe("one watchlist per person", () => {
       await page.goto(listUrl(CLUB_ID));
       await search(page, "Hereditary");
       // Priya and Marco, not Lou: 2, not 3.
-      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("2 others in your club want this");
+      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("2 others in Movie Night Crew want this");
 
       // Lou is active in Kit's clubs, so there his film counts.
       await signInAs(page, MEMBERSHIP_HOME.kit.vote);
       await page.goto(listUrl(HOME_CLUB.vote));
       await search(page, "Hereditary");
-      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("1 other in your club want this");
+      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("1 other in Ninth Club wants this");
     });
   });
 });

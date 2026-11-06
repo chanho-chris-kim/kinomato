@@ -1,5 +1,16 @@
 import type { Page } from "@playwright/test";
-import { CLUB_ID, MEMBERSHIP, MEMBERSHIP_SEEN, SEEN_CLUB, SEEN_CLUB_NAME } from "../db/seed-fixtures";
+import {
+  CLUB_8_ID,
+  CLUB_ID,
+  HOME_CLUB,
+  HOME_CLUB_NAME,
+  MEMBERSHIP,
+  MEMBERSHIP_8,
+  MEMBERSHIP_HOME,
+  MEMBERSHIP_SEEN,
+  SEEN_CLUB,
+  SEEN_CLUB_NAME,
+} from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 import { finishCodeSignIn, nameYourself } from "./signIn";
@@ -147,31 +158,39 @@ test.describe("global watchlist", () => {
     await expect(page.getByText("Movie Night Crew")).toHaveCount(0);
   });
 
-  test("add and remove on /watchlist show on the club list pages, and the other way round", async ({ page }) => {
+  // Rebuild step 6d: the club-scoped list is retired; links into it, and
+  // Tonight's nominate empty state, cross levels to /watchlist?seen=
+  // (§5.11.2), seen from that club for the visit.
+  test("an old club list link lands on /watchlist seen from that club, carrying ?q=", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_SEEN.skyApple);
+    await page.goto(`/clubs/${SEEN_CLUB.birch}/list?q=heat`);
+    await expect(page).toHaveURL(`/watchlist?seen=${SEEN_CLUB.birch}&q=heat`);
+    await expectGlobalPage(page);
+    await expect(pressed(page)).toHaveText(BIRCH);
+    await expect(page.getByRole("heading", { name: 'Results for "heat"' })).toBeVisible();
+    // A preset, not a saved choice.
     await page.goto("/watchlist");
-    await search(page, "Arrival");
-    await result(page, "Arrival").getByRole("button", { name: "Add" }).click();
-    await expect(tile(page, "Arrival")).toHaveCount(1);
-    await page.goto(`/clubs/${SEEN_CLUB.apple}/list`);
-    await expect(tile(page, "Arrival")).toHaveCount(1);
+    await expect(pressed(page)).toHaveText(APPLE);
+  });
 
-    await page.goto(`/clubs/${SEEN_CLUB.birch}/list`);
-    await tile(page, "Arrival").getByRole("button", { name: "Remove" }).click();
-    await expect(tile(page, "Arrival")).toHaveCount(0);
-    await page.goto("/watchlist");
-    await expect(tile(page, "Arrival")).toHaveCount(0);
+  test("Tonight's nominate empty state links to /watchlist with that club's chip selected", async ({ page }) => {
+    // Kit picks in Tenth Club, has an empty list, and is in four clubs.
+    await signInAs(page, MEMBERSHIP_HOME.kit.nominate);
+    await page.goto(`/clubs/${HOME_CLUB.nominate}`);
+    await page.getByRole("link", { name: "Add films to it" }).click();
+    await expect(page).toHaveURL(`/watchlist?seen=${HOME_CLUB.nominate}`);
+    await expectGlobalPage(page);
+    await expect(pressed(page)).toHaveText(HOME_CLUB_NAME.nominate);
+    await expect(page.getByText("Your list is empty.")).toBeVisible();
+  });
 
-    await page.goto(`/clubs/${SEEN_CLUB.birch}/list`);
-    await page.getByPlaceholder("Search films").fill("Blade Runner");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.locator("li", { hasText: "Blade Runner" }).getByRole("button", { name: "Add" }).click();
-    await expect(tile(page, "Blade Runner")).toHaveCount(1);
-    await page.goto("/watchlist");
-    await expect(tile(page, "Blade Runner")).toHaveCount(1);
-    await tile(page, "Blade Runner").getByRole("button", { name: "Remove" }).click();
-    await expect(tile(page, "Blade Runner")).toHaveCount(0);
-    await page.goto(`/clubs/${SEEN_CLUB.apple}/list`);
-    await expect(tile(page, "Blade Runner")).toHaveCount(0);
+  test("…and for someone in one club, Seen from is that club, implicitly", async ({ page }) => {
+    // Hana picks in Eighth Club, her only club, and has an empty list.
+    await signInAs(page, MEMBERSHIP_8.hana);
+    await page.goto(`/clubs/${CLUB_8_ID}`);
+    await page.getByRole("link", { name: "Add films to it" }).click();
+    await expect(page).toHaveURL(`/watchlist?seen=${CLUB_8_ID}`);
+    await expectGlobalPage(page);
+    await expect(chips(page)).toHaveCount(0);
   });
 });
