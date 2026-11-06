@@ -31,8 +31,7 @@ import { getOrCreateCurrentSeasonId } from "./season";
 
 // Identity is the session's user, through their membership in this club
 // (./identity.ts). Nothing here trusts a client-supplied membership id —
-// every action reads it back with requireCurrentMembershipId, shared with
-// the watchlist page's actions in ./list/actions.ts.
+// every action reads it back with requireCurrentMembershipId.
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has
 // several nominations, so "movable" means deleting any existing vote(s)
@@ -286,8 +285,8 @@ export async function addRatingTag(clubId: string, nightId: string, formData: Fo
       .returning({ id: tags.id });
     // onConflictDoNothing returns no row on a race (another member added
     // the same normalized tag between our select and insert) — re-read
-    // rather than treat that as a failure, same shape as addFilm's
-    // films.tmdbId race in ./list/actions.ts. Whoever won the race set
+    // rather than treat that as a failure, same shape as the films.tmdbId
+    // race in app/filmCache.ts's ensureFilm. Whoever won the race set
     // displayName; that's the "first-seen casing" rule working as
     // intended, not a bug in this branch.
     if (inserted) {
@@ -306,8 +305,7 @@ export async function addRatingTag(clubId: string, nightId: string, formData: Fo
   revalidatePath(`/clubs/${clubId}`);
 }
 
-// Scoped to the current membership's own rating, same shape as
-// removeFilm in ./list/actions.ts — a member can only remove a tag from
+// Scoped to the current membership's own rating — a member can only remove a tag from
 // their own rating, never someone else's. There's no separate "edit"
 // action: a club-scoped tag is a reference to a shared row, not free
 // text on the rating, so changing which tag applies is remove-then-add,

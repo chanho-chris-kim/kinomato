@@ -190,23 +190,30 @@ test.describe("club tabs", () => {
     await expect(memberNames(page)).toHaveText(["Tess V. (you)"]);
   });
 
-  test("the tag page marks History current (its home); the watchlist shows no tabs", async ({ page }) => {
+  test("the tag page marks History current (its home); the watchlist is global, with no club tabs", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(`${CLUB_URL}/tags/cozy`);
     await expect(clubTabs(page).getByRole("link")).toHaveText(["Tonight", "History", "Members"]);
     await expect(clubTabs(page).locator('[aria-current="page"]')).toHaveText(["History"]);
 
-    await page.goto(`${CLUB_URL}/list`);
-    await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
-    await expect(clubTabs(page)).toHaveCount(0);
+    for (const url of ["/watchlist", `${CLUB_URL}/list`]) {
+      await page.goto(url);
+      await expect(page).toHaveURL(/\/watchlist/);
+      await expect(page.getByRole("heading", { level: 1, name: "Your watchlist" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toHaveCount(0);
+      await expect(clubTabs(page)).toHaveCount(0);
+    }
   });
 
   test('"You are:" appears on no club page', async ({ page }) => {
     await signInAs(page, MEMBERSHIP.chris);
-    for (const path of ["", "/history", "/members", "/list", "/tags/cozy"]) {
+    for (const path of ["", "/history", "/members", "/tags/cozy"]) {
       await page.goto(`${CLUB_URL}${path}`);
       await expect(clubTabs(page).or(page.getByRole("heading", { name: "Movie Night Crew" })).first()).toBeVisible();
       await expect(page.getByText("You are:")).toHaveCount(0);
     }
+    await page.goto("/watchlist");
+    await expect(page.getByRole("heading", { level: 1, name: "Your watchlist" })).toBeVisible();
+    await expect(page.getByText("You are:")).toHaveCount(0);
   });
 });

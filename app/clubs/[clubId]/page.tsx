@@ -482,7 +482,7 @@ export default async function ClubPage({
             {myWatchlistFilms.length === 0 ? (
               <p className="small muted mt14">
                 Your watchlist is empty.{" "}
-                <Link href={`/clubs/${clubId}/list`} className="underline">
+                <Link href={`/watchlist?seen=${clubId}`} className="underline">
                   Add films to it
                 </Link>{" "}
                 before you can nominate.

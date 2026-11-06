@@ -66,7 +66,7 @@ test.describe("global shell", () => {
     await expect(page).toHaveURL("/");
   });
 
-  test("Clubs is current on / and inside a club; Watchlist on the club's list", async ({ page }) => {
+  test("Clubs is current on / and inside a club; Watchlist on the watchlist, even from a club's old list link", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     for (const url of ["/", CLUB_URL]) {
       await page.goto(url);
@@ -77,10 +77,14 @@ test.describe("global shell", () => {
     await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
     await expect(page.getByText("Weekly, Saturdays at 8pm · In person")).toBeVisible();
 
+    // The retired club list lands on the global watchlist (rebuild step 6d).
     await page.goto(`${CLUB_URL}/list`);
+    await expect(page).toHaveURL(`/watchlist?seen=${CLUB_ID}`);
     await expect(nav(page).getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
     await expect(nav(page).getByRole("link", { name: "Clubs" })).not.toHaveAttribute("aria-current");
-    await page.getByRole("link", { name: "Movie Night Crew" }).click();
+    // Back to the club through Clubs, the club list being the switcher.
+    await nav(page).getByRole("link", { name: "Clubs" }).click();
+    await page.locator("main a.clubcard", { hasText: "Movie Night Crew" }).click();
     await expect(page).toHaveURL(CLUB_URL);
   });
 

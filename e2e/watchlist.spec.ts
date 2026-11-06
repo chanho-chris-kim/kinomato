@@ -3,11 +3,13 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
-import { CLUB_ID, MEMBERSHIP, USER } from "../db/seed-fixtures";
+import { MEMBERSHIP, USER } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 
-const LIST_URL = `/clubs/${CLUB_ID}/list`;
+// The global watchlist (rebuild step 6d retired /clubs/[id]/list). Dana is
+// in one club, Movie Night Crew, so badges are seen from it implicitly.
+const LIST_URL = "/watchlist";
 
 // Signs in as the membership's account (e2e/session.ts), then opens
 // LIST_URL.
@@ -60,7 +62,7 @@ test.describe("watchlist", () => {
     await search(page, "Hereditary");
     // Priya and Marco have it, Dana doesn't yet — "2 others", not 3.
     await expect(resultRow(page, "Hereditary")).toContainText(
-      "2 others in your club want this",
+      "2 others in Movie Night Crew want this",
     );
   });
 
@@ -77,16 +79,16 @@ test.describe("watchlist", () => {
     await expect(shelfSection.getByText("The Babadook")).toBeVisible();
     await expect(shelfSection.getByText("Get Out")).toBeVisible();
 
-    // Rebuild step 6a: the new row carries the person as well as the
-    // membership (dual-write), ready for the global watchlist.
+    // One list per person: the new row is Dana's, keyed by her user and no
+    // membership (added on /watchlist, which has no club).
     const client = postgres(process.env.E2E_DATABASE_URL!);
     try {
       const rows = await drizzle(client, { schema })
-        .select({ userId: schema.watchlistItems.userId })
+        .select({ userId: schema.watchlistItems.userId, membershipId: schema.watchlistItems.membershipId })
         .from(schema.watchlistItems)
         .innerJoin(schema.films, eq(schema.watchlistItems.filmId, schema.films.id))
-        .where(and(eq(schema.watchlistItems.membershipId, MEMBERSHIP.dana), eq(schema.films.title, "Hereditary")));
-      expect(rows).toEqual([{ userId: USER.dana }]);
+        .where(and(eq(schema.watchlistItems.userId, USER.dana), eq(schema.films.title, "Hereditary")));
+      expect(rows).toEqual([{ userId: USER.dana, membershipId: null }]);
     } finally {
       await client.end();
     }
@@ -95,7 +97,7 @@ test.describe("watchlist", () => {
   test("already-watched shows for a film in the club's history", async ({ page }) => {
     await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Thief");
-    await expect(resultRow(page, "Thief")).toContainText("Club already watched this");
+    await expect(resultRow(page, "Thief")).toContainText("Movie Night Crew watched this");
   });
 
   test("removing takes it off the list", async ({ page }) => {

@@ -337,9 +337,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   you, the search badge counts others) and `nominatableFilms` (Tonight's
   picker and `openVoting`'s server check). **Enforced by a test:**
   `lib/watchlistAccess.test.ts` fails, naming this ruling, if any file
-  other than the loader and the own-list files
-  (`app/clubs/[clubId]/list/page.tsx` and `actions.ts`, which touch only
-  the viewer's own rows) touches `watchlist_items`. **Per-club lists or
+  other than the loader and the own-list files (`app/watchlist/page.tsx`
+  and `actions.ts`, which touch only the viewer's own rows) touches
+  `watchlist_items`. **Per-club lists or
   folders** (§6.2's later feature, §10) are planned, not built: they add
   one table, loaded by `app/watchlistRead.ts` into `ClubVisibilityRules`
   and applied in `visibleToClub`, with no call site changing. A film
@@ -487,9 +487,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   the wordmark, no global nav. Club pages add `ClubHeader` (name and
   `describeSchedule`'s line, no back chevron) and `ClubTabs`, the
   Tonight · History · Members tab row (sticky: top of the viewport on
-  phones, below the top bar from 620px). The watchlist page shows the
-  club header without tabs, being a different level, and the tag page
-  marks History current, its home (§5.11.2). `.main` establishes
+  phones, below the top bar from 620px). The tag page marks History
+  current, its home (§5.11.2). The watchlist is global, never a club
+  page: `/watchlist`, with Watchlist current and no club header, tabs or
+  rail. The old `/clubs/[clubId]/list` is only a redirect to
+  `/watchlist?seen={clubId}` (§5.11.2 crossing levels), behind the same
+  member gate. `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -510,7 +513,7 @@ Do not quietly change these — they encode decisions that took a while to reach
   the Members tab has all of it at every width, and most of this club's
   members are on phones. Pages with no
   genuine secondary content pass no `rail` prop at all, rather than
-  rendering an empty or fabricated one (the watchlist reserves nothing
+  rendering an empty or fabricated one (`/watchlist` reserves nothing
   either: it has no club tabs to switch between); `.main:only-child`
   in the 1120px query keeps a railless page's content column capped at
   the same width the 900px breakpoint set, instead of stretching
