@@ -292,7 +292,9 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **History is shared and symmetric.** Every member sees the same club
   history — no admin-only view, no hidden data, consistent with there being
   no admin tier over data access. It contains every night (film, date, week
-  number, picker, state including `cancelled` and `unconfirmed`), the final
+  number — not derived yet: week numbers wait until seasons have a
+  defined start and length, and History omits them until then — picker,
+  state including `cancelled` and `unconfirmed`), the final
   tally, both rating axes, hot takes, and who attended each individual night.
   It does **not** surface: individual vote attribution after lock (live
   counts are visible during voting; once the night is over, keep "won 4-1"

@@ -8,19 +8,23 @@
 // (docs/onboarding-spec.md §8.5).
 //
 // Run: node scripts/og-image.mjs
-// Dev only. It loads Oswald from Google Fonts while rendering (the same
-// source next/font uses at build time); the site itself never requests
-// anything from Google. Commit the PNG it writes.
+// Dev only. It renders with the app's own self-hosted Oswald
+// (app/fonts/oswald/Oswald.woff2, embedded as a data URL), so nothing is
+// fetched from anywhere. Commit the PNG it writes.
 import { chromium } from "@playwright/test";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const OUT = fileURLToPath(new URL("../public/og-default.png", import.meta.url));
+const OSWALD = readFileSync(new URL("../app/fonts/oswald/Oswald.woff2", import.meta.url)).toString("base64");
 
 const html = `<!doctype html>
 <html><head>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500&display=block">
 <style>
+  @font-face {
+    font-family: Oswald; font-weight: 400 500; font-display: block;
+    src: url(data:font/woff2;base64,${OSWALD}) format("woff2");
+  }
   html, body { margin: 0; }
   body {
     width: 1200px; height: 630px; box-sizing: border-box;
