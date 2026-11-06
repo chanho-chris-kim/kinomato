@@ -230,6 +230,12 @@ export const watchlistItems = pgTable(
     membershipId: uuid("membership_id")
       .notNull()
       .references(() => memberships.id),
+    // The person, not the membership: the global watchlist (docs/
+    // onboarding-spec.md §6.1). Step 6a adds it nullable and dual-writes
+    // it; scripts/sql/6a-backfill-watchlist-user-id.sql fills old rows;
+    // reads move to it in 6b; 6e drops membership_id and makes this
+    // NOT NULL (expand, then contract — no drizzle-kit rename prompt).
+    userId: uuid("user_id").references(() => users.id),
     filmId: uuid("film_id")
       .notNull()
       .references(() => films.id),
@@ -241,6 +247,7 @@ export const watchlistItems = pgTable(
   },
   (table) => [
     index("watchlist_items_membership_id_idx").on(table.membershipId),
+    index("watchlist_items_user_id_idx").on(table.userId),
     index("watchlist_items_film_id_idx").on(table.filmId),
     // Adding the same film twice is a no-op (onConflictDoNothing at the
     // insert site), not a duplicate row — a duplicate would double-count

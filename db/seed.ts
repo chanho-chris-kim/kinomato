@@ -349,13 +349,13 @@ async function main() {
     // Dana: The Babadook + Get Out (a real 2-film Horror shelf) + Arrival
     // (a singleton, collapses into Everything else) — 94 + 104 + 116 = 314
     // minutes to start.
-    { membershipId: MEMBERSHIP.dana, filmId: babadookId },
-    { membershipId: MEMBERSHIP.dana, filmId: getOutId },
-    { membershipId: MEMBERSHIP.dana, filmId: arrivalId },
+    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: babadookId },
+    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: getOutId },
+    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: arrivalId },
     // Hereditary is on two OTHER members' lists, not Dana's — searching
     // it as Dana should show "2 others in your club want this".
-    { membershipId: MEMBERSHIP.priya, filmId: hereditaryId },
-    { membershipId: MEMBERSHIP.marco, filmId: hereditaryId },
+    { membershipId: MEMBERSHIP.priya, userId: USER.priya, filmId: hereditaryId },
+    { membershipId: MEMBERSHIP.marco, userId: USER.marco, filmId: hereditaryId },
   ]);
 
   // A second, separate club for the nomination flow — see
@@ -396,10 +396,10 @@ async function main() {
   // Films are shared across clubs, cached once — reusing the same rows
   // already inserted above rather than re-fetching or duplicating them.
   await db.insert(watchlistItems).values([
-    { membershipId: MEMBERSHIP_2.nadia, filmId: hereditaryId },
-    { membershipId: MEMBERSHIP_2.nadia, filmId: bladeRunnerId },
-    { membershipId: MEMBERSHIP_2.nadia, filmId: zodiacId },
-    { membershipId: MEMBERSHIP_2.nadia, filmId: whiplashId },
+    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: hereditaryId },
+    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: bladeRunnerId },
+    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: zodiacId },
+    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: whiplashId },
   ]);
 
   console.log("Seeding a draft night for Nadia's turn to nominate...");
@@ -566,8 +566,8 @@ async function main() {
   ]);
 
   await db.insert(watchlistItems).values([
-    { membershipId: MEMBERSHIP_5.zoe, filmId: bladeRunnerId },
-    { membershipId: MEMBERSHIP_5.zoe, filmId: zodiacId },
+    { membershipId: MEMBERSHIP_5.zoe, userId: MEMBER_USER.zoe, filmId: bladeRunnerId },
+    { membershipId: MEMBERSHIP_5.zoe, userId: MEMBER_USER.zoe, filmId: zodiacId },
   ]);
 
   // 2 days ago, not an hour — see seed-fixtures.ts's comment on why

@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
-import { CLUB_ID, MEMBERSHIP } from "../db/seed-fixtures";
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "../db/schema";
+import { CLUB_ID, MEMBERSHIP, USER } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 
@@ -72,6 +76,20 @@ test.describe("watchlist", () => {
     await expect(shelfSection.getByText("Hereditary")).toBeVisible();
     await expect(shelfSection.getByText("The Babadook")).toBeVisible();
     await expect(shelfSection.getByText("Get Out")).toBeVisible();
+
+    // Rebuild step 6a: the new row carries the person as well as the
+    // membership (dual-write), ready for the global watchlist.
+    const client = postgres(process.env.E2E_DATABASE_URL!);
+    try {
+      const rows = await drizzle(client, { schema })
+        .select({ userId: schema.watchlistItems.userId })
+        .from(schema.watchlistItems)
+        .innerJoin(schema.films, eq(schema.watchlistItems.filmId, schema.films.id))
+        .where(and(eq(schema.watchlistItems.membershipId, MEMBERSHIP.dana), eq(schema.films.title, "Hereditary")));
+      expect(rows).toEqual([{ userId: USER.dana }]);
+    } finally {
+      await client.end();
+    }
   });
 
   test("already-watched shows for a film in the club's history", async ({ page }) => {

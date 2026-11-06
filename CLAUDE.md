@@ -25,9 +25,10 @@ another month over the thing that picks a film faster.
   code + link sign-in, per-person invites, global watchlists, the public/
   signed-in route split, two-level navigation. Supersedes analysis-v2.md
   §5.1's three tiers and reverses analysis-v1.md §7.1's no-account invite
-  loop. Build order is its §8.5; steps 1–4 are built (the cutover
-  removed guests), and step 5 (shell and navigation), 6 (global
-  watchlist) and 7 (settings) are next.
+  loop. Build order is its §8.5; steps 1–5 are built (the cutover
+  removed guests; step 5 was the shell, navigation, History and the
+  marketing page), step 6 (global watchlist, split 6a–6e) is in
+  progress, and 7 (settings) is next.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than

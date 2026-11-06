@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { films, watchlistItems } from "@/db/schema";
 import { getMovieById, isValidFilmRow, tmdbMovieToFilmRow } from "@/lib/tmdb";
+import { getSessionUserId } from "@/app/session";
 import { requireCurrentMembershipId } from "../identity";
 
 // Adding a film that's never been fetched before caches it (one films
@@ -50,9 +51,15 @@ export async function addFilm(clubId: string, tmdbId: number) {
     }
   }
 
+  // Dual-write (rebuild step 6a): the session's user alongside the
+  // membership, so the global watchlist (§6.1) has every new row's owner.
+  // Reads still go by membership until 6b. requireCurrentMembershipId
+  // above already proved there's a session.
+  const userId = await getSessionUserId();
+
   // Adding a film already on this member's list is a harmless no-op —
   // see the unique constraint on (membership_id, film_id).
-  await db.insert(watchlistItems).values({ membershipId, filmId }).onConflictDoNothing();
+  await db.insert(watchlistItems).values({ membershipId, userId, filmId }).onConflictDoNothing();
 
   revalidatePath(`/clubs/${clubId}/list`);
 }
