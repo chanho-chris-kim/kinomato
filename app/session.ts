@@ -59,6 +59,15 @@ export async function getSessionUserId(): Promise<string | null> {
   return session?.userId ?? null;
 }
 
+// Sign out everywhere (docs/onboarding-spec.md §4.4, §5.9): deletes every
+// session row for the user, this browser's included, and clears this
+// browser's cookie. Any other device's cookie now matches no row, so its
+// next request is signed out.
+export async function endAllSessions(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+  (await cookies()).delete(SESSION_COOKIE_NAME);
+}
+
 // Signs this browser out: deletes its session row and clears the cookie.
 // (Ruling B's "Sign out and continue as Marco" — docs/onboarding-spec.md
 // §7.4. "Sign out everywhere" is Settings, step 7.)

@@ -155,7 +155,8 @@ test.describe("global shell", () => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto("/settings");
     await expect(nav(page).getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    // exact: Settings also has "Sign out everywhere" (rebuild step 7a).
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page).toHaveURL("/");
 
     await page.goto(CLUB_URL);

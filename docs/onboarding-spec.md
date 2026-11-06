@@ -207,8 +207,9 @@ device or cleared cookies: enter your email, get a code, you're back, with every
 club and your whole watchlist, because all of it hangs off `users.id`.
 
 Settings adds **"Sign out everywhere"**, which deletes every `sessions` row
-for the user. That matters more while session tokens are stored in
-plaintext.
+for the user, this browser's included. Session tokens are stored only as
+hashes (since rebuild step 2), so a leaked table hands out no sessions; this
+is for a lost or shared device.
 
 ---
 
@@ -416,9 +417,39 @@ settings page"):
   then, the old address stays.
 - **How we reach you**: push / email / both / nothing (`analysis-v2.md` §2,
   personal not per-club), with a per-club mute list beneath. The two-per-week
-  cap line stays as today's prototype copy.
-- **Sign out**, and **Sign out everywhere**.
-- Footer: Privacy, Terms.
+  cap line stays as today's prototype copy. **Not built in step 7 (ruled):**
+  it waits for the notifications feature itself (Web Push, email fallback,
+  the two-per-week cap). No toggles for something that doesn't exist, no
+  "coming soon".
+- **Sign out** (this browser), and **Sign out everywhere** (every session
+  for the account, this browser's included; §4.4).
+- Footer: Privacy, Terms. **Omitted until those pages exist** (§8.5's
+  step-5 ruling; they wait on the legal review).
+
+**Rulings for step 7 (2026-11-06):**
+- **Renames are retroactive everywhere.** Names live on the account
+  (`users.display_name`), so a new name shows at once in every club,
+  including past History nights and pending invite previews.
+- **Email change (7b):**
+  - **Code only, entered on `/settings`**, in the signed-in session. No
+    link. The code lives in its own `email_changes` table that sign-in
+    (`/login/code`, `/verify`) can never consume, so a change code can't
+    create or sign in to an account.
+  - **The old address gets a notice** with the new address masked and
+    "If this wasn't you, reply to this email". Reply-to comes from a
+    `SUPPORT_EMAIL` setting, which fails loud if unset.
+  - **A new address that already belongs to another account:** the
+    requester sees the same "code sent" screen; that address gets a notice
+    instead of a code. Nothing is revealed (§4.3, no enumeration).
+  - **On success:** every other session is signed out; this one stays.
+  - **Rate limits:** the existing per-address limits (§4.3), shared with
+    sign-in, plus at most 3 change requests per user per day.
+  - **A pending change** shows on `/settings` with **Cancel**. A newer
+    request cancels the older one. Codes expire in 15 minutes.
+  - **One shared email-normalisation function** for every place an email
+    is entered.
+- **Account deletion and data export** are deferred to the launch-
+  foundations pass with the legal review (§10, which holds the agenda).
 
 Not here: passwords (none exist), connected accounts (none exist), hard
 limits (per club, §5.10), leaving a club (per club, §5.10), data export and
@@ -949,7 +980,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 5e | **Invite link previews** (§5.1) — done 2026-11-05 | Free plan: static image + text tags. `metadataBase` from the request host; one static `public/og-default.png` (made by `scripts/og-image.mjs`) for every page; per-invite `og:title`/`og:description` for a valid invite, generic otherwise (`lib/inviteShare.ts`); `noindex` on `/invite`. CI fails the Check job over 2.6 MiB gzipped (1.41 MiB on 2026-11-05). Switching to a generated image later is one added file (`opengraph-image.tsx`), measured at +823 KiB gzipped. | None |
 | ✓ 5f | **History** (§5.10) — done 2026-11-05 | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. Built: `app/clubs/[clubId]/historyRead.ts`, enforced by `lib/attributionAccess.test.ts`. No time limit on history: analysis-v1's free-tier history cap doesn't apply. | None |
 | ✓ 6 (6a–6d 2026-11-05, 6e 2026-11-06 — step 6 complete) | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. **Split 6a–6e, expand then contract instead of a rename** (which avoids drizzle-kit's rename prompt): 6a adds nullable `user_id`, dual-writes it, and ships the backfill script (`scripts/sql/6a-backfill-watchlist-user-id.sql`, run by hand); 6b moves reads to `user_id` through one visibility function, with the overlap fix; 6c the global `/watchlist` with Seen from; 6d `/clubs/[id]/list` → `/watchlist?seen=`; 6e drops `membership_id` and makes `user_id` NOT NULL. | Additive (6a, 6b), then destructive (6e: test data only by then; no usage data at risk) |
-| 7 | **Settings** (§5.9) | The rest of §5.9: name, email change, notifications, Sign out everywhere. (Sign out itself shipped in 5a.) | Additive |
+| 7 | **Settings** (§5.9) | The rest of §5.9: **7a** name and Sign out everywhere (done 2026-11-06); **7b** email change (§5.9's rulings). Notifications wait for the notifications feature; Privacy and Terms for those pages. (Sign out itself shipped in 5a.) | None (7a), additive (7b) |
 
 **Step 5 rulings** (made while planning it):
 - **No History tab until 5f.** There's no history page or history-read
@@ -1145,7 +1176,31 @@ Questions):
   another (§6.2). Not built. Revisit only if people ask.
 - **Data export and account deletion.** `analysis-v2.md` §10 wants one-click
   export on free accounts, and PIPEDA likely requires a deletion path. Both
-  belong with the legal review, not this spec. Leaving a club and
+  belong with the legal review, not this spec (ruled 2026-11-06: deferred
+  to the launch-foundations pass). The agenda that pass has to decide:
+  - **Delete or anonymize the account.** A `users` row can't simply be
+    deleted: `memberships.user_id` is NOT NULL, and memberships are
+    referenced by votes and vetoes (attribution retained, never deleted),
+    ratings, nominations and each night's picker (rotation and History),
+    and `invites.invited_by_membership_id` (the provenance record).
+    `analysis-v1.md` §1.3 already says "anonymize rather than delete" for
+    someone leaving a club; the likely shape is a placeholder name, the
+    email removed or tombstoned, sessions and codes deleted, memberships
+    marked left.
+  - **Ratings and hot takes:** keep the scores in club history and drop the
+    take? Do they still count toward a night's reveal, and toward any
+    future public aggregates?
+  - **The personal watchlist:** delete (it's personal, not club history),
+    knowing it changes overlap counts in every club.
+  - **A sole owner:** transfer first, or block deletion until ownership
+    moves (`analysis-v2.md` §3: ownership is always transferable).
+  - **Re-signup with the same email** afterwards: a fresh account, or
+    refused?
+  - **Processors and backups:** Brevo holds addresses; Neon branches and
+    backups keep copies. What does deletion promise, and on what timeline?
+  - **Export:** format, scope (my ratings, my watchlist, my clubs'
+    history?), and whether it includes other people's names.
+  Leaving a club and
   anonymization are the existing `analysis-v1.md` §1.3 ruling.
 - **A leaver's view of past club history.** A club you've left disappears
   from `/` (§5.7). Whether you can still read its history isn't decided.
