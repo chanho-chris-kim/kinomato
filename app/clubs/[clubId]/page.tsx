@@ -10,7 +10,6 @@ import {
   ratingTags,
   rsvps,
   tags,
-  watchlistItems,
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import {
@@ -42,6 +41,7 @@ import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { liveVotes } from "./historyRead";
+import { nominatableFilms } from "@/app/watchlistRead";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 
@@ -236,11 +236,8 @@ export default async function ClubPage({
 
     if (draftNight.pickerMembershipId === currentMembership.id) {
       nomineesPerTurn = getNomineesPerTurn(club.settings);
-      myWatchlistFilms = await db
-        .select({ id: films.id, title: films.title, year: films.year })
-        .from(watchlistItems)
-        .innerJoin(films, eq(watchlistItems.filmId, films.id))
-        .where(eq(watchlistItems.membershipId, currentMembership.id));
+      // Your list as this club can see it (app/watchlistRead.ts).
+      myWatchlistFilms = await nominatableFilms(db, clubId, currentMembership.userId);
     }
   }
 
