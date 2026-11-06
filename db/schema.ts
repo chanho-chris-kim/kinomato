@@ -13,7 +13,6 @@ import {
   text,
   time,
   timestamp,
-  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -196,6 +195,10 @@ export const films = pgTable("films", {
   year: integer("year").notNull(),
   runtime: integer("runtime"), // minutes
   posterPath: text("poster_path"),
+  // Empty text-array defaults (here and watchlist_items.tags) don't
+  // round-trip in drizzle-kit 0.31: it reads '{}'::text[] back as '{""}',
+  // so every push re-sets them. Harmless; e2e/schemaRoundTrip.ts allows
+  // exactly these five statements and nothing else.
   genres: text("genres").array().notNull().default([]), // display strings
   // TMDB genre/keyword ids, for matching. Constraint values match on
   // these, never on the display strings above — "Sci-Fi" vs "Science
@@ -223,6 +226,12 @@ export const films = pgTable("films", {
     .defaultNow(),
 });
 
+// Multi-column uniqueness is declared as uniqueIndex(), never unique()
+// (a constraint): drizzle-kit 0.31 reads a unique constraint's columns back
+// in no fixed order, so pushes kept dropping and re-adding them. A unique
+// index enforces the same thing and reads back in its real column order.
+// ON CONFLICT targets work the same. e2e/schemaRoundTrip.ts checks every
+// E2E run that a second push would change nothing.
 export const watchlistItems = pgTable(
   "watchlist_items",
   {
@@ -252,13 +261,13 @@ export const watchlistItems = pgTable(
     // Adding the same film twice is a no-op (onConflictDoNothing at the
     // insert site), not a duplicate row — a duplicate would double-count
     // this person in every overlap/smart-shelf calculation.
-    unique("watchlist_items_membership_id_film_id_unique").on(
+    uniqueIndex("watchlist_items_membership_id_film_id_unique").on(
       table.membershipId,
       table.filmId,
     ),
     // One list per person (§6.1): a film is on it once. addFilm's
     // onConflictDoNothing targets this.
-    unique("watchlist_items_user_id_film_id_unique").on(table.userId, table.filmId),
+    uniqueIndex("watchlist_items_user_id_film_id_unique").on(table.userId, table.filmId),
   ],
 );
 
@@ -380,7 +389,7 @@ export const votes = pgTable(
     // nominations, then insert), not by a constraint here — a night has
     // several nominations, so that rule can't be a single-table unique
     // index.
-    unique("votes_nomination_id_membership_id_unique").on(
+    uniqueIndex("votes_nomination_id_membership_id_unique").on(
       table.nominationId,
       table.membershipId,
     ),
@@ -406,7 +415,7 @@ export const rsvps = pgTable(
     index("rsvps_night_id_idx").on(table.nightId),
     // One RSVP row per member per night — the RSVP action upserts on
     // this.
-    unique("rsvps_night_id_membership_id_unique").on(
+    uniqueIndex("rsvps_night_id_membership_id_unique").on(
       table.nightId,
       table.membershipId,
     ),
@@ -468,7 +477,7 @@ export const ratings = pgTable(
     // One rating per member per night — the rating action upserts on
     // this, and the blind-reveal count (lib/ratingReveal.ts) depends on
     // rows here being one-per-member, not one-per-submit.
-    unique("ratings_night_id_membership_id_unique").on(
+    uniqueIndex("ratings_night_id_membership_id_unique").on(
       table.nightId,
       table.membershipId,
     ),
@@ -498,7 +507,7 @@ export const tags = pgTable(
     index("tags_club_id_idx").on(table.clubId),
     // One row per normalized name per club — adding an existing tag
     // upserts onto this rather than creating a near-duplicate.
-    unique("tags_club_id_name_unique").on(table.clubId, table.name),
+    uniqueIndex("tags_club_id_name_unique").on(table.clubId, table.name),
   ],
 );
 
@@ -516,7 +525,7 @@ export const ratingTags = pgTable(
   (table) => [
     index("rating_tags_rating_id_idx").on(table.ratingId),
     index("rating_tags_tag_id_idx").on(table.tagId),
-    unique("rating_tags_rating_id_tag_id_unique").on(table.ratingId, table.tagId),
+    uniqueIndex("rating_tags_rating_id_tag_id_unique").on(table.ratingId, table.tagId),
   ],
 );
 

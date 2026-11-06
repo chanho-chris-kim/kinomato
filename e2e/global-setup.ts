@@ -3,6 +3,8 @@
 //
 //   1. Drop and recreate the `public` schema — every table, enum and row.
 //   2. `drizzle-kit push --force` this branch's db/schema.ts onto it.
+//   2b. Check the schema round-trips: a second push must want to change
+//      nothing (e2e/schemaRoundTrip.ts). Fails the run otherwise.
 //   3. Seed it with db/seed.ts (the same fixture db/seed-fixtures.ts and
 //      the tests both reference).
 //
@@ -22,6 +24,7 @@
 // instead of silently falling back to whatever DATABASE_URL is set to.
 import { execFileSync } from "node:child_process";
 import postgres from "postgres";
+import { KNOWN_DRIZZLE_KIT_NOISE, schemaRoundTripStatements } from "./schemaRoundTrip";
 
 export default async function globalSetup() {
   const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
@@ -52,5 +55,20 @@ export default async function globalSetup() {
 
   const env = { ...process.env, DATABASE_URL: e2eDatabaseUrl };
   execFileSync("npx", ["drizzle-kit", "push", "--force"], { env, stdio: "inherit" });
+
+  // The schema must round-trip: pushing it again, right after, must want
+  // to change nothing. Otherwise every real push (production's, by hand)
+  // shows that noise and buries the change it was meant to make. Checked
+  // before seeding, on empty tables (see e2e/schemaRoundTrip.ts).
+  const again = await schemaRoundTripStatements(e2eDatabaseUrl);
+  const known = again.filter((s) => KNOWN_DRIZZLE_KIT_NOISE.includes(s));
+  const unexpected = again.filter((s) => !KNOWN_DRIZZLE_KIT_NOISE.includes(s));
+  if (known.length > 0) {
+    console.log(`Schema round-trip: ${known.length} known drizzle-kit default re-set(s), allowed.`);
+  }
+  if (unexpected.length > 0) {
+    throw new Error(`schema doesn't round-trip: ${unexpected.join(" ")}`);
+  }
+
   execFileSync("npx", ["tsx", "db/seed.ts"], { env, stdio: "inherit" });
 }
