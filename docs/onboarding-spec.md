@@ -622,7 +622,8 @@ alongside the §8.4 list. `docs/prototype.html` already shows this model.
 `watchlist_items` moves from `membership_id` to `user_id`, unique on
 `(user_id, film_id)`. One list per person, carried into every club they
 join. The Watchlist tab (`/watchlist`) is that list, and nomination in any
-club draws from it, filtered by that club's constraints as today.
+club draws from it, filtered by that club's constraints once hard limits
+are wired in (not yet: actions.ts SEAM).
 
 ### 6.2 What "private" means, precisely
 
@@ -674,6 +675,14 @@ fixes the bug by construction:
 
 The add sheet's "club watched this · week 9" badge follows the same **Seen
 from** club.
+
+**Seen from, ruled (2026-11-05):**
+- **It persists in a first-party cookie**, validated against the viewer's
+  active memberships on every read.
+- **`?seen=` from a club presets that visit only.** It never overwrites the
+  saved choice.
+- **A `?seen=` (or cookie) club the viewer isn't an active member of is
+  silently ignored**: never a 404, never another club's data.
 
 Phone: the grid3 shelves as today. ≥ 1120px: no rail. The watchlist has no
 genuine secondary content (CLAUDE.md).
@@ -939,7 +948,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 5d | **Marketing `/` signed out** (§5.2) — done 2026-11-05 | Pitch, three steps, Start a club, Sign in, TMDB footer. No third-party anything. | None |
 | ✓ 5e | **Invite link previews** (§5.1) — done 2026-11-05 | Free plan: static image + text tags. `metadataBase` from the request host; one static `public/og-default.png` (made by `scripts/og-image.mjs`) for every page; per-invite `og:title`/`og:description` for a valid invite, generic otherwise (`lib/inviteShare.ts`); `noindex` on `/invite`. CI fails the Check job over 2.6 MiB gzipped (1.41 MiB on 2026-11-05). Switching to a generated image later is one added file (`opengraph-image.tsx`), measured at +823 KiB gzipped. | None |
 | ✓ 5f | **History** (§5.10) — done 2026-11-05 | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. Built: `app/clubs/[clubId]/historyRead.ts`, enforced by `lib/attributionAccess.test.ts`. No time limit on history: analysis-v1's free-tier history cap doesn't apply. | None |
-| 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. | Destructive (test data only by then; no usage data at risk) |
+| 6 | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. **Split 6a–6e, expand then contract instead of a rename** (which avoids drizzle-kit's rename prompt): 6a adds nullable `user_id`, dual-writes it, and ships the backfill script (`scripts/sql/6a-backfill-watchlist-user-id.sql`, run by hand); 6b moves reads to `user_id` through one visibility function, with the overlap fix; 6c the global `/watchlist` with Seen from; 6d `/clubs/[id]/list` → `/watchlist?seen=`; 6e drops `membership_id` and makes `user_id` NOT NULL. | Additive (6a, 6b), then destructive (6e: test data only by then; no usage data at risk) |
 | 7 | **Settings** (§5.9) | The rest of §5.9: name, email change, notifications, Sign out everywhere. (Sign out itself shipped in 5a.) | Additive |
 
 **Step 5 rulings** (made while planning it):
