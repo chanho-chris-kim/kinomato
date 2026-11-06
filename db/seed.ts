@@ -55,6 +55,7 @@ import {
   DISPLAY_NAME_8,
   DISPLAY_NAME_HISTORY,
   DISPLAY_NAME_HOME,
+  DISPLAY_NAME_RATING,
   FULL_CLUB_INVITE,
   FILM,
   HISTORY_CLUB_ID,
@@ -71,6 +72,7 @@ import {
   MEMBERSHIP_8,
   MEMBERSHIP_HISTORY,
   MEMBERSHIP_HOME,
+  MEMBERSHIP_RATING,
   MEMBER_USER,
   NIGHT_3_ID,
   NIGHT_4_ID,
@@ -78,6 +80,8 @@ import {
   NIGHT_6_ID,
   NIGHT_ID,
   NOMINATION,
+  RATING_CLUB_ID,
+  RATING_NIGHT_ID,
   USER,
 } from "./seed-fixtures";
 import { tmdbMovieToFilmRow } from "../lib/tmdb";
@@ -140,6 +144,7 @@ async function main() {
     ...DISPLAY_NAME_8,
     ...DISPLAY_NAME_HOME,
     ...DISPLAY_NAME_HISTORY,
+    ...DISPLAY_NAME_RATING,
   };
   await db.insert(users).values([
     { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
@@ -847,6 +852,40 @@ async function main() {
     .values({ clubId: HISTORY_CLUB_ID, name: "rainy", displayName: "Rainy" })
     .returning({ id: tags.id });
   await db.insert(ratingTags).values({ ratingId: raeRating.id, tagId: rainy.id });
+
+  // Rating and tag upserts (seed-fixtures.ts RATING_CLUB_ID).
+  console.log("Seeding a club for rating and tag upserts...");
+  const RT = MEMBERSHIP_RATING;
+  await db.insert(clubs).values({
+    id: RATING_CLUB_ID,
+    name: "Rating Club",
+    cadence: "weekly",
+    defaultDay: 6,
+    defaultTime: "20:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+  await db.insert(memberships).values([
+    { id: RT.pia, clubId: RATING_CLUB_ID, userId: MEMBER_USER.pia, role: "owner", joinedAt: day(1) },
+    { id: RT.quin, clubId: RATING_CLUB_ID, userId: MEMBER_USER.quin, role: "member", joinedAt: day(2) },
+    { id: RT.rex, clubId: RATING_CLUB_ID, userId: MEMBER_USER.rex, role: "member", joinedAt: day(3) },
+  ]);
+  await db.insert(nights).values({
+    id: RATING_NIGHT_ID,
+    clubId: RATING_CLUB_ID,
+    scheduledAt: daysAgo(3),
+    pickerMembershipId: RT.pia,
+    state: "watched",
+    winningFilmId: arrivalId,
+    lockedAt: daysAgo(4),
+    confirmedAt: daysAgo(2),
+    confirmedBy: RT.pia,
+  });
+  await db.insert(rsvps).values([
+    { nightId: RATING_NIGHT_ID, membershipId: RT.pia, status: "yes" },
+    { nightId: RATING_NIGHT_ID, membershipId: RT.quin, status: "yes" },
+    { nightId: RATING_NIGHT_ID, membershipId: RT.rex, status: "yes" },
+  ]);
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

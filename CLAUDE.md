@@ -611,6 +611,17 @@ Kinoma (former Marvell division) are the nearest existing marks.
   code that no longer uses them **first**, then push. The step-4 cutover
   is the one destructive case so far, and `docs/onboarding-spec.md` §8.6
   spells out its order.
+- **The schema must round-trip: a second push changes nothing.** Every
+  E2E run checks it right after global setup's push, before seeding
+  (`e2e/schemaRoundTrip.ts`, drizzle-kit's own diff, never applied), and
+  fails with "schema doesn't round-trip: …". Otherwise every production
+  push carries noise that buries the change it was meant to make. Two
+  drizzle-kit 0.31 limits shape `db/schema.ts`: **multi-column uniqueness
+  is `uniqueIndex()`, never `unique()`** (it reads a constraint's columns
+  back in no fixed order), and **empty text-array defaults** read back
+  as `'{""}'`, so the guard allows exactly the five `SET DEFAULT '{}'`
+  lines they produce (`films.genres/directors/cast/keywords`,
+  `watchlist_items.tags`) and nothing else.
 - **Neon branches, and which is which.**
   - **`production`** backs `dev.kinomato.com` (the Worker's
     `DATABASE_URL` secret). Its data is real clubs.
