@@ -606,6 +606,19 @@ button {
   }
 }
 
+/* Seen from chips on /watchlist (§6.4): the chosen club is aria-pressed,
+   and styled to match the current tab. */
+.seen-from .chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.seen-from .chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Club cards on the signed-in / (Ruling A). The dot marks an action for
    you; "Needs you" in visually hidden text says it in words too. */
 .clubcard {

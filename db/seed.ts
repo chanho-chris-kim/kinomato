@@ -56,6 +56,7 @@ import {
   DISPLAY_NAME_HISTORY,
   DISPLAY_NAME_HOME,
   DISPLAY_NAME_RATING,
+  DISPLAY_NAME_SEEN,
   FULL_CLUB_INVITE,
   FILM,
   HISTORY_CLUB_ID,
@@ -73,6 +74,7 @@ import {
   MEMBERSHIP_HISTORY,
   MEMBERSHIP_HOME,
   MEMBERSHIP_RATING,
+  MEMBERSHIP_SEEN,
   MEMBER_USER,
   NIGHT_3_ID,
   NIGHT_4_ID,
@@ -82,6 +84,8 @@ import {
   NOMINATION,
   RATING_CLUB_ID,
   RATING_NIGHT_ID,
+  SEEN_CLUB,
+  SEEN_CLUB_NAME,
   USER,
 } from "./seed-fixtures";
 import { tmdbMovieToFilmRow } from "../lib/tmdb";
@@ -145,6 +149,7 @@ async function main() {
     ...DISPLAY_NAME_HOME,
     ...DISPLAY_NAME_HISTORY,
     ...DISPLAY_NAME_RATING,
+    ...DISPLAY_NAME_SEEN,
   };
   await db.insert(users).values([
     { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
@@ -886,6 +891,47 @@ async function main() {
     { nightId: RATING_NIGHT_ID, membershipId: RT.quin, status: "yes" },
     { nightId: RATING_NIGHT_ID, membershipId: RT.rex, status: "yes" },
   ]);
+
+  // Seen from on the global watchlist (seed-fixtures.ts SEEN_CLUB).
+  console.log("Seeding Apple and Birch clubs for Seen from...");
+  const SN = MEMBERSHIP_SEEN;
+  await db.insert(clubs).values(
+    (Object.keys(SEEN_CLUB) as (keyof typeof SEEN_CLUB)[]).map((key) => ({
+      id: SEEN_CLUB[key],
+      name: SEEN_CLUB_NAME[key],
+      cadence: "weekly" as const,
+      defaultDay: 6,
+      defaultTime: "20:00",
+      timezone: "America/New_York",
+      mode: "in_person" as const,
+    })),
+  );
+  await db.insert(memberships).values([
+    { id: SN.skyApple, clubId: SEEN_CLUB.apple, userId: MEMBER_USER.sky, role: "owner", joinedAt: day(1) },
+    { id: SN.ava, clubId: SEEN_CLUB.apple, userId: MEMBER_USER.ava, role: "member", joinedAt: day(2) },
+    { id: SN.cal, clubId: SEEN_CLUB.apple, userId: MEMBER_USER.cal, role: "member", joinedAt: day(3) },
+    { id: SN.skyBirch, clubId: SEEN_CLUB.birch, userId: MEMBER_USER.sky, role: "owner", joinedAt: day(1) },
+    { id: SN.ben, clubId: SEEN_CLUB.birch, userId: MEMBER_USER.ben, role: "member", joinedAt: day(2) },
+  ]);
+  await db.insert(watchlistItems).values([
+    { userId: MEMBER_USER.sky, filmId: hereditaryId },
+    { userId: MEMBER_USER.sky, filmId: zodiacId },
+    { membershipId: SN.ava, userId: MEMBER_USER.ava, filmId: hereditaryId },
+    { membershipId: SN.ava, userId: MEMBER_USER.ava, filmId: zodiacId },
+    { membershipId: SN.cal, userId: MEMBER_USER.cal, filmId: hereditaryId },
+    { membershipId: SN.cal, userId: MEMBER_USER.cal, filmId: zodiacId },
+    { membershipId: SN.ben, userId: MEMBER_USER.ben, filmId: whiplashId },
+  ]);
+  await db.insert(nights).values({
+    clubId: SEEN_CLUB.apple,
+    scheduledAt: daysAgo(10),
+    pickerMembershipId: SN.ava,
+    state: "watched",
+    winningFilmId: FILM.thief,
+    lockedAt: daysAgo(11),
+    confirmedAt: daysAgo(9),
+    confirmedBy: SN.ava,
+  });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);
   process.exit(0);

@@ -15,7 +15,12 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = join(__dirname, "..");
 const LOADER = "app/watchlistRead.ts";
-const OWN_LIST = ["app/clubs/[clubId]/list/page.tsx", "app/clubs/[clubId]/list/actions.ts"];
+const OWN_LIST = [
+  "app/clubs/[clubId]/list/page.tsx",
+  "app/clubs/[clubId]/list/actions.ts",
+  "app/watchlist/page.tsx",
+  "app/watchlist/actions.ts",
+];
 const RULING =
   'CLAUDE.md "Which films a club can see goes through one function": only ' +
   `${LOADER} reads other people's watchlist_items (own-list files: ${OWN_LIST.join(", ")})`;

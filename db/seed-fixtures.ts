@@ -41,6 +41,10 @@ export const MEMBER_USER = {
   pia: "dddddddd-0000-0000-0000-000000000023",
   quin: "dddddddd-0000-0000-0000-000000000024",
   rex: "dddddddd-0000-0000-0000-000000000025",
+  sky: "dddddddd-0000-0000-0000-000000000026",
+  ava: "dddddddd-0000-0000-0000-000000000027",
+  cal: "dddddddd-0000-0000-0000-000000000028",
+  ben: "dddddddd-0000-0000-0000-000000000029",
 } as const;
 
 export const MEMBERSHIP = {
@@ -327,4 +331,37 @@ export const DISPLAY_NAME_RATING: Record<keyof typeof MEMBERSHIP_RATING, string>
   pia: "Pia L.",
   quin: "Quin M.",
   rex: "Rex N.",
+};
+
+// The global watchlist's Seen from (e2e/global-watchlist.spec.ts). Sky is
+// in Apple Club (with Ava and Cal) and Birch Club (with Ben).
+// - Sky, Ava and Cal all want Hereditary and Zodiac: seen from Apple, both
+//   are on three lists, so "Everyone wants these" shows; a search for
+//   Hereditary says "2 others in Apple Club want this". Apple watched Thief.
+// - Ben wants Whiplash: seen from Birch, "1 other in Birch Club wants this",
+//   and no smart shelf.
+// No other spec uses these clubs.
+export const SEEN_CLUB = {
+  apple: "99999999-9999-9999-9999-99999999999d",
+  birch: "99999999-9999-9999-9999-99999999999e",
+};
+
+export const SEEN_CLUB_NAME: Record<keyof typeof SEEN_CLUB, string> = {
+  apple: "Apple Club",
+  birch: "Birch Club",
+};
+
+export const MEMBERSHIP_SEEN = {
+  skyApple: "aaaaaaaa-1515-1515-1515-000000000151",
+  ava: "aaaaaaaa-1515-1515-1515-000000000152",
+  cal: "aaaaaaaa-1515-1515-1515-000000000153",
+  skyBirch: "aaaaaaaa-1515-1515-1515-000000000154",
+  ben: "aaaaaaaa-1515-1515-1515-000000000155",
+};
+
+export const DISPLAY_NAME_SEEN = {
+  sky: "Sky O.",
+  ava: "Ava P.",
+  cal: "Cal Q.",
+  ben: "Ben R.",
 };
