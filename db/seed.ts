@@ -359,13 +359,13 @@ async function main() {
     // Dana: The Babadook + Get Out (a real 2-film Horror shelf) + Arrival
     // (a singleton, collapses into Everything else) — 94 + 104 + 116 = 314
     // minutes to start.
-    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: babadookId },
-    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: getOutId },
-    { membershipId: MEMBERSHIP.dana, userId: USER.dana, filmId: arrivalId },
+    { userId: USER.dana, filmId: babadookId },
+    { userId: USER.dana, filmId: getOutId },
+    { userId: USER.dana, filmId: arrivalId },
     // Hereditary is on two OTHER members' lists, not Dana's — searching
     // it as Dana should show "2 others in your club want this".
-    { membershipId: MEMBERSHIP.priya, userId: USER.priya, filmId: hereditaryId },
-    { membershipId: MEMBERSHIP.marco, userId: USER.marco, filmId: hereditaryId },
+    { userId: USER.priya, filmId: hereditaryId },
+    { userId: USER.marco, filmId: hereditaryId },
   ]);
 
   // A second, separate club for the nomination flow — see
@@ -406,10 +406,10 @@ async function main() {
   // Films are shared across clubs, cached once — reusing the same rows
   // already inserted above rather than re-fetching or duplicating them.
   await db.insert(watchlistItems).values([
-    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: hereditaryId },
-    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: bladeRunnerId },
-    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: zodiacId },
-    { membershipId: MEMBERSHIP_2.nadia, userId: MEMBER_USER.nadia, filmId: whiplashId },
+    { userId: MEMBER_USER.nadia, filmId: hereditaryId },
+    { userId: MEMBER_USER.nadia, filmId: bladeRunnerId },
+    { userId: MEMBER_USER.nadia, filmId: zodiacId },
+    { userId: MEMBER_USER.nadia, filmId: whiplashId },
   ]);
 
   console.log("Seeding a draft night for Nadia's turn to nominate...");
@@ -576,8 +576,8 @@ async function main() {
   ]);
 
   await db.insert(watchlistItems).values([
-    { membershipId: MEMBERSHIP_5.zoe, userId: MEMBER_USER.zoe, filmId: bladeRunnerId },
-    { membershipId: MEMBERSHIP_5.zoe, userId: MEMBER_USER.zoe, filmId: zodiacId },
+    { userId: MEMBER_USER.zoe, filmId: bladeRunnerId },
+    { userId: MEMBER_USER.zoe, filmId: zodiacId },
   ]);
 
   // 2 days ago, not an hour — see seed-fixtures.ts's comment on why
@@ -916,11 +916,11 @@ async function main() {
   await db.insert(watchlistItems).values([
     { userId: MEMBER_USER.sky, filmId: hereditaryId },
     { userId: MEMBER_USER.sky, filmId: zodiacId },
-    { membershipId: SN.ava, userId: MEMBER_USER.ava, filmId: hereditaryId },
-    { membershipId: SN.ava, userId: MEMBER_USER.ava, filmId: zodiacId },
-    { membershipId: SN.cal, userId: MEMBER_USER.cal, filmId: hereditaryId },
-    { membershipId: SN.cal, userId: MEMBER_USER.cal, filmId: zodiacId },
-    { membershipId: SN.ben, userId: MEMBER_USER.ben, filmId: whiplashId },
+    { userId: MEMBER_USER.ava, filmId: hereditaryId },
+    { userId: MEMBER_USER.ava, filmId: zodiacId },
+    { userId: MEMBER_USER.cal, filmId: hereditaryId },
+    { userId: MEMBER_USER.cal, filmId: zodiacId },
+    { userId: MEMBER_USER.ben, filmId: whiplashId },
   ]);
   await db.insert(nights).values({
     clubId: SEEN_CLUB.apple,

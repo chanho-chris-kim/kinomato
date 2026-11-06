@@ -236,15 +236,11 @@ export const watchlistItems = pgTable(
   "watchlist_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Nullable since step 6b: rows are keyed by the person now. Still
-    // dual-written until 6e drops it.
-    membershipId: uuid("membership_id").references(() => memberships.id),
-    // The person, not the membership: the global watchlist (docs/
-    // onboarding-spec.md §6.1). Step 6a adds it nullable and dual-writes
-    // it; scripts/sql/6a-backfill-watchlist-user-id.sql fills old rows;
-    // reads move to it in 6b; 6e drops membership_id and makes this
-    // NOT NULL (expand, then contract — no drizzle-kit rename prompt).
-    userId: uuid("user_id").references(() => users.id),
+    // One list per person, not per membership (docs/onboarding-spec.md §6.1;
+    // moved from membership to person in rebuild steps 6a–6e).
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
     filmId: uuid("film_id")
       .notNull()
       .references(() => films.id),
@@ -255,18 +251,11 @@ export const watchlistItems = pgTable(
     tags: text("tags").array().notNull().default([]),
   },
   (table) => [
-    index("watchlist_items_membership_id_idx").on(table.membershipId),
     index("watchlist_items_user_id_idx").on(table.userId),
     index("watchlist_items_film_id_idx").on(table.filmId),
-    // Adding the same film twice is a no-op (onConflictDoNothing at the
-    // insert site), not a duplicate row — a duplicate would double-count
-    // this person in every overlap/smart-shelf calculation.
-    uniqueIndex("watchlist_items_membership_id_film_id_unique").on(
-      table.membershipId,
-      table.filmId,
-    ),
-    // One list per person (§6.1): a film is on it once. addFilm's
-    // onConflictDoNothing targets this.
+    // A film is on a person's list once: adding it again is a no-op
+    // (addToWatchlist's onConflictDoNothing targets this), never a second
+    // row that would double-count them in overlap and smart shelves.
     uniqueIndex("watchlist_items_user_id_film_id_unique").on(table.userId, table.filmId),
   ],
 );

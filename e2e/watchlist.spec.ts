@@ -79,16 +79,15 @@ test.describe("watchlist", () => {
     await expect(shelfSection.getByText("The Babadook")).toBeVisible();
     await expect(shelfSection.getByText("Get Out")).toBeVisible();
 
-    // One list per person: the new row is Dana's, keyed by her user and no
-    // membership (added on /watchlist, which has no club).
+    // One list per person: the new row is Dana's, keyed by her user.
     const client = postgres(process.env.E2E_DATABASE_URL!);
     try {
       const rows = await drizzle(client, { schema })
-        .select({ userId: schema.watchlistItems.userId, membershipId: schema.watchlistItems.membershipId })
+        .select({ userId: schema.watchlistItems.userId })
         .from(schema.watchlistItems)
         .innerJoin(schema.films, eq(schema.watchlistItems.filmId, schema.films.id))
         .where(and(eq(schema.watchlistItems.userId, USER.dana), eq(schema.films.title, "Hereditary")));
-      expect(rows).toEqual([{ userId: USER.dana, membershipId: null }]);
+      expect(rows).toEqual([{ userId: USER.dana }]);
     } finally {
       await client.end();
     }
