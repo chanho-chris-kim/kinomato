@@ -325,6 +325,27 @@ Do not quietly change these — they encode decisions that took a while to reach
   club's server actions (`app/clubs/[clubId]/actions.ts`), which import
   them to *write* (cast or move a vote, cast a veto) and may never read
   them.
+- **Which films a club can see goes through one function.** One
+  watchlist per person (`watchlist_items.user_id`, docs/onboarding-spec.md
+  §6), so what each club sees of it is decided in exactly one place:
+  `lib/watchlistVisibility.ts`'s `visibleToClub`. Today it returns every
+  item (§6.2: no per-club hiding in v1), and a test pins that.
+  `app/watchlistRead.ts` is the one loader of other people's
+  `watchlist_items` and passes every result through it:
+  `clubVisibleItems` (active members' lists only), `overlapByFilm` (§6.3:
+  distinct active members, via `lib/watchlistOverlap.ts`; shelves count
+  you, the search badge counts others) and `nominatableFilms` (Tonight's
+  picker and `openVoting`'s server check). **Enforced by a test:**
+  `lib/watchlistAccess.test.ts` fails, naming this ruling, if any file
+  other than the loader and the own-list files
+  (`app/clubs/[clubId]/list/page.tsx` and `actions.ts`, which touch only
+  the viewer's own rows) touches `watchlist_items`. **Per-club lists or
+  folders** (§6.2's later feature, §10) are planned, not built: they add
+  one table, loaded by `app/watchlistRead.ts` into `ClubVisibilityRules`
+  and applied in `visibleToClub`, with no call site changing. A film
+  detail's "who else wants it" (`whoElseWants`) is a named slot in the
+  loader, to build when that panel exists. Adding or removing a film is
+  still never a club-visible event (history ruling).
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite

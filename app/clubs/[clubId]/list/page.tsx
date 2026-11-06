@@ -1,13 +1,13 @@
 import Form from "next/form";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { clubs, films, memberships, nights, watchlistItems } from "@/db/schema";
+import { clubs, films, nights, watchlistItems } from "@/db/schema";
 import { formatRuntime } from "@/lib/format";
 import { getMovieById, isValidFilmRow, searchMovieCandidates, tmdbMovieToFilmRow } from "@/lib/tmdb";
 import { buildShelves, type Shelf, type ShelfFilm } from "@/lib/watchlistShelves";
 import { ClubHeader, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
-import { loadClubMemberships } from "../members";
+import { overlapByFilm } from "@/app/watchlistRead";
 import { Poster } from "../Poster";
 import { addFilm, removeFilm } from "./actions";
 
@@ -41,11 +41,10 @@ export default async function WatchlistPage({
   const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}/list`);
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
 
-  const clubMemberships = await loadClubMemberships(db, clubId);
-  const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
-  const currentMembership = activeMemberships.find((m) => m.id === me.id)!;
-
-  // My list, joined to the cached film data.
+  // Your list, joined to the cached film data. Your one list, by person
+  // (§6.1), the same in every club you're in. An own-list read: it never
+  // touches anyone else's rows (CLAUDE.md "Which films a club can see goes
+  // through one function").
   const myItems = await db
     .select({
       watchlistItemId: watchlistItems.id,
@@ -58,28 +57,16 @@ export default async function WatchlistPage({
     })
     .from(watchlistItems)
     .innerJoin(films, eq(watchlistItems.filmId, films.id))
-    .where(eq(watchlistItems.membershipId, currentMembership.id));
+    .where(eq(watchlistItems.userId, me.userId));
 
   const myFilmIds = myItems.map((item) => item.filmId);
   const myFilmIdSet = new Set(myFilmIds);
 
-  // Club-wide overlap count per film (including the viewer, who's
-  // trivially one of the holders here — this feeds the "everyone wants
-  // these" threshold, a different count than the search-result badge
-  // below, which excludes the viewer).
-  const clubOverlapRows = myFilmIds.length
-    ? await db
-        .select({ filmId: watchlistItems.filmId })
-        .from(watchlistItems)
-        .innerJoin(memberships, eq(watchlistItems.membershipId, memberships.id))
-        .where(
-          and(inArray(watchlistItems.filmId, myFilmIds), eq(memberships.clubId, clubId)),
-        )
-    : [];
-  const clubOverlapCountByFilmId = new Map<string, number>();
-  for (const row of clubOverlapRows) {
-    clubOverlapCountByFilmId.set(row.filmId, (clubOverlapCountByFilmId.get(row.filmId) ?? 0) + 1);
-  }
+  // Club overlap per film, including you (you're trivially one of the
+  // holders): feeds the "Everyone wants these" threshold. Distinct active
+  // members, through app/watchlistRead.ts (§6.3). The search badge below
+  // counts others instead.
+  const clubOverlapCountByFilmId = await overlapByFilm(db, clubId, myFilmIds);
 
   const shelfFilms: ShelfFilm[] = myItems.map((item) => ({
     id: item.filmId,
@@ -153,23 +140,11 @@ export default async function WatchlistPage({
 
     const existingFilmIds = [...filmByTmdbId.values()].map((f) => f.id);
 
-    const otherMemberRows = existingFilmIds.length
-      ? await db
-          .select({ filmId: watchlistItems.filmId, membershipId: watchlistItems.membershipId })
-          .from(watchlistItems)
-          .innerJoin(memberships, eq(watchlistItems.membershipId, memberships.id))
-          .where(
-            and(
-              inArray(watchlistItems.filmId, existingFilmIds),
-              eq(memberships.clubId, clubId),
-            ),
-          )
-      : [];
-    const otherCountByFilmId = new Map<string, number>();
-    for (const row of otherMemberRows) {
-      if (row.membershipId === currentMembership.id) continue;
-      otherCountByFilmId.set(row.filmId, (otherCountByFilmId.get(row.filmId) ?? 0) + 1);
-    }
+    // "N others in your club want this": distinct active members other
+    // than you (§6.3), through app/watchlistRead.ts.
+    const otherCountByFilmId = await overlapByFilm(db, clubId, existingFilmIds, {
+      excludeUserId: me.userId,
+    });
 
     const watchedNights = existingFilmIds.length
       ? await db
@@ -212,6 +187,14 @@ export default async function WatchlistPage({
 
   return (
     <GlobalShell current="watchlist" header={<ClubHeader club={club} />}>
+      <h2 className="h-display mt14" style={{ fontSize: 22 }}>
+        Your watchlist
+      </h2>
+      {/* What one list across clubs means for privacy (§6.2), where a
+          first-time user reads it: under the heading, in every state. */}
+      <p className="small muted" style={{ margin: "4px 0 0" }}>
+        Your clubs can see which films you&apos;ve added, one film at a time, never your whole list.
+      </p>
 
       {/* next/form, not a plain <form>: a GET submit becomes a client-side
           navigation to ?q= instead of a full page load. */}
@@ -294,7 +277,7 @@ function ShelfSection({ shelf, clubId }: { shelf: Shelf; clubId: string }) {
             <div className="tiny">
               {f.title} <span className="dim">({f.year})</span>
             </div>
-            <form action={removeFilm.bind(null, clubId, f.watchlistItemId)}>
+            <form action={removeFilm.bind(null, clubId, f.id)}>
               <button type="submit" className="tiny underline">
                 Remove
               </button>

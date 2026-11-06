@@ -16,8 +16,9 @@ import {
   tags,
   votes,
   vetoes,
-  watchlistItems,
 } from "@/db/schema";
+import { getSessionUserId } from "@/app/session";
+import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
@@ -111,7 +112,7 @@ export async function setRsvp(
 // CLAUDE.md's "the picker never loses their turn, only which film"
 // ruling only makes sense because every nominee is theirs. Never
 // trusts the client-submitted film ids without checking them against
-// the picker's actual watchlist_items server-side.
+// the picker's actual watchlist server-side (app/watchlistRead.ts).
 //
 // SEAM for lib/constraints.ts: hard limits aren't wired up yet. Once
 // they are, filterEligibleFilms() belongs right here — filtering the
@@ -148,11 +149,10 @@ export async function openVoting(clubId: string, nightId: string, formData: Form
     throw new Error("Pick at least one film.");
   }
 
-  const pickerItems = await db
-    .select({ filmId: watchlistItems.filmId })
-    .from(watchlistItems)
-    .where(eq(watchlistItems.membershipId, membershipId));
-  const ownedFilmIds = new Set(pickerItems.map((item) => item.filmId));
+  // The picker's list as this club can see it (app/watchlistRead.ts) —
+  // the same set Tonight's picker was offered.
+  const userId = (await getSessionUserId())!;
+  const ownedFilmIds = new Set((await nominatableFilms(db, clubId, userId)).map((f) => f.id));
   const filmIds = requestedFilmIds.filter((id) => ownedFilmIds.has(id));
   if (filmIds.length === 0) {
     throw new Error("None of the selected films are on your watchlist.");

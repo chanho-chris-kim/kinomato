@@ -51,33 +51,32 @@ export async function addFilm(clubId: string, tmdbId: number) {
     }
   }
 
-  // Dual-write (rebuild step 6a): the session's user alongside the
-  // membership, so the global watchlist (§6.1) has every new row's owner.
-  // Reads still go by membership until 6b. requireCurrentMembershipId
+  // Your one list (§6.1): keyed by the session's user. membership_id is
+  // still dual-written until step 6e drops it. requireCurrentMembershipId
   // above already proved there's a session.
-  const userId = await getSessionUserId();
+  const userId = (await getSessionUserId())!;
 
-  // Adding a film already on this member's list is a harmless no-op —
-  // see the unique constraint on (membership_id, film_id).
-  await db.insert(watchlistItems).values({ membershipId, userId, filmId }).onConflictDoNothing();
+  // A film already on your list — added here or in any other club — is a
+  // harmless no-op: the unique (user_id, film_id).
+  await db
+    .insert(watchlistItems)
+    .values({ membershipId, userId, filmId })
+    .onConflictDoNothing({ target: [watchlistItems.userId, watchlistItems.filmId] });
 
   revalidatePath(`/clubs/${clubId}/list`);
 }
 
-export async function removeFilm(clubId: string, watchlistItemId: string) {
-  const membershipId = await requireCurrentMembershipId(clubId);
+// Removing a film takes it off your one list, everywhere (§6.1). Scoped to
+// the session's user, so nobody can remove a film from someone else's list
+// with a crafted request.
+export async function removeFilm(clubId: string, filmId: string) {
+  await requireCurrentMembershipId(clubId);
+  const userId = (await getSessionUserId())!;
   const db = getDb();
 
-  // Scoped to the current membership so one member can't remove a film
-  // off someone else's list via a crafted request.
   await db
     .delete(watchlistItems)
-    .where(
-      and(
-        eq(watchlistItems.id, watchlistItemId),
-        eq(watchlistItems.membershipId, membershipId),
-      ),
-    );
+    .where(and(eq(watchlistItems.userId, userId), eq(watchlistItems.filmId, filmId)));
 
   revalidatePath(`/clubs/${clubId}/list`);
 }

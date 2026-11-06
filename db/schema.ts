@@ -227,9 +227,9 @@ export const watchlistItems = pgTable(
   "watchlist_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    membershipId: uuid("membership_id")
-      .notNull()
-      .references(() => memberships.id),
+    // Nullable since step 6b: rows are keyed by the person now. Still
+    // dual-written until 6e drops it.
+    membershipId: uuid("membership_id").references(() => memberships.id),
     // The person, not the membership: the global watchlist (docs/
     // onboarding-spec.md §6.1). Step 6a adds it nullable and dual-writes
     // it; scripts/sql/6a-backfill-watchlist-user-id.sql fills old rows;
@@ -256,6 +256,9 @@ export const watchlistItems = pgTable(
       table.membershipId,
       table.filmId,
     ),
+    // One list per person (§6.1): a film is on it once. addFilm's
+    // onConflictDoNothing targets this.
+    unique("watchlist_items_user_id_film_id_unique").on(table.userId, table.filmId),
   ],
 );
 
