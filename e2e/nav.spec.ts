@@ -94,11 +94,19 @@ test.describe("global shell", () => {
     await expect(bar.getByRole("link", { name: "Clubs" })).toHaveAttribute("aria-current", "page");
   });
 
-  test("Watchlist with one club goes straight to that club's list", async ({ page }) => {
+  // Rebuild step 6c: the global watchlist is its own page, no longer a
+  // redirect into a club's list.
+  test("Watchlist goes to /watchlist: current, no club header or tabs, your own films", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto("/");
     await nav(page).getByRole("link", { name: "Watchlist" }).click();
-    await expect(page).toHaveURL(`${CLUB_URL}/list`);
+    await expect(page).toHaveURL("/watchlist");
+    await expect(nav(page).getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
+    await expect(nav(page).getByRole("link", { name: "Clubs" })).not.toHaveAttribute("aria-current");
+    await expect(page.getByRole("heading", { level: 1, name: "Your watchlist" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Club" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toHaveCount(0);
+    await expect(page.locator(".watchlist-item", { hasText: "The Babadook" })).toHaveCount(1);
   });
 
   test("clicking Watchlist, and searching the list, never reload the page", async ({ page }) => {
@@ -107,7 +115,7 @@ test.describe("global shell", () => {
     await expectClientSideNavigation(
       page,
       () => nav(page).getByRole("link", { name: "Watchlist" }).click(),
-      `${CLUB_URL}/list`,
+      "/watchlist",
     );
     await expect(page.getByPlaceholder("Search films")).toBeVisible();
     // The search box was a plain GET <form>: every search was a full load.
@@ -117,30 +125,26 @@ test.describe("global shell", () => {
         await page.getByPlaceholder("Search films").fill("Arrival");
         await page.getByRole("button", { name: "Search", exact: true }).click();
       },
-      `${CLUB_URL}/list?q=Arrival`,
+      "/watchlist?q=Arrival",
     );
     await expect(page.getByRole("heading", { name: 'Results for "Arrival"' })).toBeVisible();
   });
 
-  test("Watchlist with no clubs explains itself; with several it lists them by name", async ({ page }) => {
+  test("Watchlist with no clubs works on its own; with several, Seen from lists them by name", async ({ page }) => {
     await signUp(page, "nav-watchlist@example.com", "Wren", "T");
 
     await page.goto("/watchlist");
     await expect(nav(page).getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
-    await expect(
-      page.getByText(
-        "Your watchlist lives in your clubs for now. Start a club, or join one with the invite link a friend sends you.",
-      ),
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start a club" })).toHaveAttribute("href", "/new");
+    await expect(page.getByText("Your list is empty.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Nav Club/ })).toHaveCount(0);
 
-    const second = await createClub(page, "Nav Club B");
-    const first = await createClub(page, "Nav Club A");
+    await createClub(page, "Nav Club B");
+    await createClub(page, "Nav Club A");
     await page.goto("/watchlist");
-    const links = page.locator('main a[href$="/list"]');
-    await expect(links).toHaveText(["Nav Club A", "Nav Club B"]);
-    await expect(links.nth(0)).toHaveAttribute("href", `${new URL(first).pathname}/list`);
-    await expect(links.nth(1)).toHaveAttribute("href", `${new URL(second).pathname}/list`);
+    const chips = page.locator("form.seen-from button");
+    await expect(chips).toHaveText(["Nav Club A", "Nav Club B"]);
+    await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "true");
+    await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "false");
   });
 
   test("Sign out on /settings ends the session", async ({ page }) => {
