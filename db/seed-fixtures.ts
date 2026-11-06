@@ -38,6 +38,9 @@ export const MEMBER_USER = {
   rae: "dddddddd-0000-0000-0000-000000000020",
   sol: "dddddddd-0000-0000-0000-000000000021",
   tib: "dddddddd-0000-0000-0000-000000000022",
+  pia: "dddddddd-0000-0000-0000-000000000023",
+  quin: "dddddddd-0000-0000-0000-000000000024",
+  rex: "dddddddd-0000-0000-0000-000000000025",
 } as const;
 
 export const MEMBERSHIP = {
@@ -306,4 +309,22 @@ export const DISPLAY_NAME_HISTORY: Record<keyof typeof MEMBERSHIP_HISTORY, strin
 export const HISTORY_TAKE = {
   revealed: "Tears in rain, every time.",
   hidden: "Hidden until everyone rates.",
+};
+
+// Rating and tag upserts (e2e/rating-upserts.spec.ts): a watched night that
+// Pia, Quin and Rex all said yes to, nobody has rated yet. Three attendees,
+// so ratings stay hidden while two of them rate. No other spec uses it.
+export const RATING_CLUB_ID = "99999999-9999-9999-9999-99999999999c";
+export const RATING_NIGHT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbc1";
+
+export const MEMBERSHIP_RATING = {
+  pia: "aaaaaaaa-1414-1414-1414-000000000141",
+  quin: "aaaaaaaa-1414-1414-1414-000000000142",
+  rex: "aaaaaaaa-1414-1414-1414-000000000143",
+};
+
+export const DISPLAY_NAME_RATING: Record<keyof typeof MEMBERSHIP_RATING, string> = {
+  pia: "Pia L.",
+  quin: "Quin M.",
+  rex: "Rex N.",
 };
