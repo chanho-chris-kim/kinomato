@@ -19,8 +19,7 @@ export async function addToWatchlist(tmdbId: number) {
   const user = await requireUser("/watchlist");
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const filmId = await ensureFilm(db, tmdbId);
-  // No membership here: user_id only (membership_id is nullable since 6b).
-  // Already on your list, from here or any club: a no-op.
+  // Already on your list: a no-op.
   await db
     .insert(watchlistItems)
     .values({ userId: user.id, filmId })

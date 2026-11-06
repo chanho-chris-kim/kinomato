@@ -104,7 +104,7 @@ test.describe("one watchlist per person", () => {
         });
         await db
           .insert(schema.watchlistItems)
-          .values({ membershipId: LEFT_MEMBERSHIP, userId: MEMBER_USER.lou, filmId: hereditary.id });
+          .values({ userId: MEMBER_USER.lou, filmId: hereditary.id });
       });
     });
     test.afterAll(async () => {
