@@ -45,6 +45,10 @@ export const MEMBER_USER = {
   ava: "dddddddd-0000-0000-0000-000000000027",
   cal: "dddddddd-0000-0000-0000-000000000028",
   ben: "dddddddd-0000-0000-0000-000000000029",
+  fay: "dddddddd-0000-0000-0000-000000000030",
+  gus: "dddddddd-0000-0000-0000-000000000031",
+  eli: "dddddddd-0000-0000-0000-000000000032",
+  dot: "dddddddd-0000-0000-0000-000000000033",
 } as const;
 
 export const MEMBERSHIP = {
@@ -365,3 +369,38 @@ export const DISPLAY_NAME_SEEN = {
   cal: "Cal Q.",
   ben: "Ben R.",
 };
+
+// Consent (e2e/consent.spec.ts, e2e/legal-bump.spec.ts). Every other seeded
+// account has accepted the current versions and is 18 or older, so no
+// other spec is sent to /consent. These two have neither, as an account
+// from before consent existed would:
+// - Gus is sent to /consent once, and then not again.
+// - Fay, owner of Consent Club, answers "Under 13" there and is anonymised
+//   (docs/onboarding-spec.md §11.4). She has something for every row of
+//   that table: a watchlist film, a hard limit, a watched night she picked
+//   with her nomination and vote, a rating with a hot take and a tag, a
+//   pending invite she created (for Hal J.), a sign-in code and a session.
+// Eli and Dot are consented, in no club, and only the version-bump spec
+// signs in as them.
+export const CONSENT_CLUB_ID = "99999999-9999-9999-9999-99999999999f";
+export const CONSENT_NIGHT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbf1";
+export const CONSENT_INVITE = {
+  id: "eeeeeeee-1616-1616-1616-000000000161",
+  token: "consent-club-pending-invite-token-hal",
+  inviteeName: "Hal J.",
+};
+
+export const MEMBERSHIP_CONSENT = {
+  fay: "aaaaaaaa-1616-1616-1616-000000000161",
+  gus: "aaaaaaaa-1616-1616-1616-000000000162",
+};
+
+export const DISPLAY_NAME_CONSENT = {
+  fay: "Fay S.",
+  gus: "Gus T.",
+  eli: "Eli U.",
+  dot: "Dot V.",
+};
+
+// Accounts seeded with no consent and no age.
+export const UNCONSENTED_USERS: string[] = [MEMBER_USER.fay, MEMBER_USER.gus];

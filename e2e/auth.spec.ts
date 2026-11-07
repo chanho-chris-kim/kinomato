@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { CLUB_7_ID, DISPLAY_NAME_7 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
-import { finishCodeSignIn, latestSignInRow, setKnownSignIn } from "./signIn";
+import { agreeToTerms, finishCodeSignIn, latestSignInRow, setKnownSignIn } from "./signIn";
 import { expectYouAre } from "./identity";
 
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
@@ -89,6 +89,7 @@ test.describe("auth — sign-in codes and links", () => {
     await expect(page).toHaveURL(/\/welcome/);
     await page.getByLabel("First name").fill("Link");
     await page.getByLabel("Last initial").fill("u");
+    await agreeToTerms(page);
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByText("You're not in a club yet.")).toBeVisible();

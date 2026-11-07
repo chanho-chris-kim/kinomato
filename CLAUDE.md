@@ -25,10 +25,10 @@ another month over the thing that picks a film faster.
   code + link sign-in, per-person invites, global watchlists, the public/
   signed-in route split, two-level navigation. Supersedes analysis-v2.md
   §5.1's three tiers and reverses analysis-v1.md §7.1's no-account invite
-  loop. Build order is its §8.5; steps 1–5 are built (the cutover
-  removed guests; step 5 was the shell, navigation, History and the
-  marketing page), step 6 (global watchlist, split 6a–6e) is in
-  progress, and 7 (settings) is next.
+  loop. Build order is its §8.5; steps 1–7 are all built (the cutover
+  removed guests). Launch foundations (§11) follow: (a) legal pages,
+  (b) consent, (c) data licensing and (d) age are built; (e) export and
+  (f) deletion are next, with housekeeping (§11.6) alongside.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than
@@ -373,6 +373,20 @@ Do not quietly change these — they encode decisions that took a while to reach
     code; blocked while you're the sole owner of a club with others.
   - **Export** is your own data only, as JSON, never anyone else's names
     or votes; your own votes come through the history-read module.
+  - **Built: (a)–(d).** The gate is inside `app/auth.ts`'s
+    `requireUser` (so `requireNamedUser`, `requireClubMember` and the club
+    actions' `requireCurrentMembershipId` all carry it): an account
+    missing a current acceptance or its age goes to `/consent`, or
+    `/welcome` if unnamed. Exempt: `/terms`, `/privacy`, `/consent`,
+    `/welcome`, sign-in, the invite landing, `/age-limit` and both sign-outs
+    (`requireSignedInIgnoringConsent`, nowhere else).
+    `lib/consentGate.test.ts` fails any page, route or server action that
+    skips it. `consent_events` and `data_licensing_consents` are
+    append-only; status is the newest row (`lib/consent.ts`). An opt-in
+    counts only for the wording version it was given against. Under 13 on
+    `/welcome` hard-deletes the new account and un-redeems its invite
+    (`app/consent.ts` `discardNewAccount`); on `/consent` it runs §11.4's
+    anonymisation (`app/anonymise.ts`), the module (f) reuses.
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite

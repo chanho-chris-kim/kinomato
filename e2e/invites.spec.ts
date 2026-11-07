@@ -15,7 +15,7 @@ import {
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
-import { setKnownSignIn } from "./signIn";
+import { agreeToTerms, setKnownSignIn } from "./signIn";
 import { expectYouAre, memberNames } from "./identity";
 
 // Per-person invites (docs/onboarding-spec.md §7, rebuild step 3), on club
@@ -123,6 +123,7 @@ test.describe("per-person invites", () => {
       await expect(page.getByLabel("First name")).toHaveValue("Marco");
       await expect(page.getByLabel("Last initial")).toHaveValue("R");
       await page.getByLabel("First name").fill("Marcus");
+      await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
 
       await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));

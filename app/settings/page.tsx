@@ -1,19 +1,25 @@
 import { getDb } from "@/db";
 import { requireUser } from "@/app/auth";
 import { pendingEmailChange } from "@/app/emailChange";
+import { licensingStatusFor } from "@/app/consent";
+import { canOptInToLicensing, isLicensingActive } from "@/lib/consent";
+import { currentLegal } from "@/lib/legal";
 import { GlobalShell } from "@/app/shell";
 import { parseInviteeName } from "@/lib/invites";
 import {
   cancelEmailChangeAction,
   confirmEmailChangeAction,
+  optInToLicensingAction,
   requestEmailChangeAction,
   signOut,
   signOutEverywhere,
   updateName,
+  withdrawFromLicensingAction,
 } from "./actions";
 
-// Settings (docs/onboarding-spec.md §5.9): your name, your email, and both
-// sign outs (rebuild steps 7a and 7b). Notifications wait for the
+// Settings (docs/onboarding-spec.md §5.9): your name, your email, data
+// sharing for 18 or older (§11.2), and both sign outs (rebuild steps 7a and
+// 7b, launch foundations (c)). Notifications wait for the
 // notifications feature, and the Privacy and Terms links for those pages
 // (§5.9 rulings). Nothing else goes here until it's built — no "coming
 // soon".
@@ -27,12 +33,18 @@ export default async function SettingsPage({
     saved?: string;
     email?: string;
     emailError?: string;
+    sharing?: string;
   }>;
 }) {
-  const { error, first, initial, saved, email: emailStatus, emailError } = await searchParams;
+  const { error, first, initial, saved, email: emailStatus, emailError, sharing } = await searchParams;
   const user = await requireUser("/settings");
   // eslint-disable-next-line react-hooks/purity -- a Server Component, once per request
   const pending = await pendingEmailChange(getDb(), user.id, new Date(Date.now()));
+  // 13–17 never sees Data sharing at all (§11.2).
+  const canShare = canOptInToLicensing(user.ageBracket);
+  const licensing = canShare ? await licensingStatusFor(getDb(), user.id) : null;
+  const sharingNow =
+    canShare && licensing ? isLicensingActive(licensing.rows, user.ageBracket, currentLegal().licensing.version) : false;
   // After a mistake, the form shows what was typed; otherwise the saved name.
   const current = parseInviteeName(user.displayName ?? "");
   const firstName = error ? (first ?? "") : current.firstName;
@@ -154,6 +166,48 @@ export default async function SettingsPage({
           </button>
         </form>
       </section>
+
+      {canShare && licensing && (
+        <section className="mt20" aria-labelledby="data-sharing">
+          <h2 id="data-sharing" className="sec">
+            Data sharing
+          </h2>
+          {sharing && (
+            <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+              {sharing === "on" ? "You're sharing." : "Withdrawn."}
+            </p>
+          )}
+          <p className="small data-sharing-status" style={{ margin: "4px 0 0" }}>
+            {sharingNow
+              ? "You're sharing, in anonymous aggregates only."
+              : licensing.status.withdrawnAt
+                ? "You're not sharing. You withdrew, so nothing new of yours goes into an aggregate."
+                : "You're not sharing."}
+          </p>
+          <p className="tiny dim" style={{ margin: "8px 0 0" }}>
+            {currentLegal().licensing.text}
+          </p>
+          {sharingNow ? (
+            <>
+              <form action={withdrawFromLicensingAction} className="mt14">
+                <button type="submit" className="btn" style={{ width: "auto" }}>
+                  Withdraw
+                </button>
+              </form>
+              <p className="tiny dim" style={{ margin: "8px 0 0" }}>
+                Withdrawing applies from now on: your data stops going into new aggregates, but ones
+                already made can&apos;t be recalled.
+              </p>
+            </>
+          ) : (
+            <form action={optInToLicensingAction} className="mt14">
+              <button type="submit" className="btn" style={{ width: "auto" }}>
+                Opt in
+              </button>
+            </form>
+          )}
+        </section>
+      )}
 
       <section className="mt20" aria-labelledby="signing-out">
         <h2 id="signing-out" className="sec">

@@ -160,3 +160,10 @@ export async function cancelEmailChange(db: Db, userId: string, now: Date): Prom
     .set({ cancelledAt: now })
     .where(and(eq(emailChanges.userId, userId), isNull(emailChanges.consumedAt), isNull(emailChanges.cancelledAt)));
 }
+
+// Every email change of an account, deleted: for the §11.4 anonymisation
+// (app/anonymise.ts) and the "Under 13" removal (app/consent.ts). Returned
+// unrun, for the caller's db.batch, so email_changes stays this module's.
+export function deleteEmailChangesOf(db: Db, userId: string) {
+  return db.delete(emailChanges).where(eq(emailChanges.userId, userId));
+}

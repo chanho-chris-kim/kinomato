@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { LegalPage, PendingSection } from "@/app/legalPage";
-import { LEGAL } from "@/lib/legal";
+import { currentLegal, LEGAL } from "@/lib/legal";
 
 // Draft legal text isn't for search engines.
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ const PROCESSORS: { name: string; role: string }[] = [
 // factual.
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy" document={LEGAL.privacy}>
+    <LegalPage title="Privacy" document={currentLegal().privacy}>
       <PendingSection title="What we collect" />
       <PendingSection title="How we use it" />
       <PendingSection title="Who we share it with">

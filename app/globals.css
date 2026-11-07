@@ -640,6 +640,52 @@ button {
   font-weight: 600;
 }
 
+/* The consent controls (app/consentFields.tsx). The data-sharing box that
+   depends on the age shows only while "18 or older" is chosen; for 13–17
+   (or nothing chosen yet) it isn't there at all. */
+.consent-age {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.consent-age legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.consent-choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fg);
+}
+.consent-choice input {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+}
+.consent-choice a {
+  color: var(--accent);
+}
+.consent-optional {
+  font-weight: 600;
+}
+.licensing-optin {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.licensing-optin[data-when="adult"] {
+  display: none;
+}
+.consent-form:has(input[name="age"][value="18_plus"]:checked) .licensing-optin[data-when="adult"] {
+  display: block;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

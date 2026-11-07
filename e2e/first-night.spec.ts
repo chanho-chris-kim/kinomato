@@ -2,7 +2,7 @@ import type { Browser, BrowserContext, Page } from "@playwright/test";
 import postgres from "postgres";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { agreeToTerms, finishCodeSignIn, nameYourself } from "./signIn";
 import { expectYouAre } from "./identity";
 
 // The real deliverable this spec proves: a club that didn't exist when the
@@ -90,6 +90,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
       await finishCodeSignIn(page, email);
       // Prefilled from Priya's invite; he keeps it.
       await expect(page.getByLabel("First name")).toHaveValue("Owen");
+      await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
       await expectYouAre(page, "Owen R.");
       owen = await context.storageState();
