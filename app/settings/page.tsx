@@ -19,7 +19,8 @@ import {
 } from "./actions";
 
 // Settings (docs/onboarding-spec.md §5.9): your name, your email, data
-// sharing for 18 or older (§11.2), and both sign outs (rebuild steps 7a and
+// sharing for 18 or older (§11.2), Download my data (§11.5), and both sign
+// outs (rebuild steps 7a and
 // 7b, launch foundations (c)). Notifications wait for the
 // notifications feature, and the Privacy and Terms links for those pages
 // (§5.9 rulings). Nothing else goes here until it's built — no "coming
@@ -210,6 +211,22 @@ export default async function SettingsPage({
           )}
         </section>
       )}
+
+      <section className="mt20" aria-labelledby="your-data">
+        <h2 id="your-data" className="sec">
+          Your data
+        </h2>
+        <p className="small muted" style={{ margin: "4px 0 0" }}>
+          Everything Kinomato holds that&apos;s yours, as one JSON file: your account, clubs, watchlist,
+          ratings, nominations, RSVPs, limits and preferences, and your own votes and vetoes. Never anyone
+          else&apos;s.
+        </p>
+        {/* A plain link, not next/link: it's a file download from a route
+            handler (app/settings/export/route.ts), never prefetched. */}
+        <a href="/settings/export" download className="btn mt14" style={{ display: "inline-block", width: "auto" }}>
+          Download my data
+        </a>
+      </section>
 
       <section className="mt20" aria-labelledby="signing-out">
         <h2 id="signing-out" className="sec">
