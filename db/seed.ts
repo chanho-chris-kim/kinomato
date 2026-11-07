@@ -19,6 +19,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 import {
   clubs,
+  emailChanges,
   films,
   invites,
   magicLinks,
@@ -128,6 +129,7 @@ async function main() {
   await db.delete(magicLinks);
   await db.delete(invites);
   await db.delete(sessions);
+  await db.delete(emailChanges);
   await db.delete(memberships);
   await db.delete(seasons);
   await db.delete(tags);

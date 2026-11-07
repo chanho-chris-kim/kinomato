@@ -77,3 +77,86 @@ describe("sendSignInEmail (BREVO_API_KEY set)", () => {
     ).rejects.toThrow(/401.*Key not found/);
   });
 });
+
+// Email change (docs/onboarding-spec.md §5.9; rebuild step 7b).
+describe("email-change emails", () => {
+  const sentBodies = (fetchSpy: ReturnType<typeof vi.fn>) =>
+    fetchSpy.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+
+  it("the code goes to the new address, and only there; no link", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { sendEmailChangeCode } = await import("./email");
+    await sendEmailChangeCode("new@example.com", "246810");
+    const [body] = sentBodies(fetchSpy);
+    expect(body.to).toEqual([{ email: "new@example.com" }]);
+    expect(body.subject).toContain("246810");
+    expect(body.htmlContent).toContain("246810");
+    expect(body.htmlContent).not.toContain("href");
+  });
+
+  it("the taken-address notice carries no code", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { sendEmailTakenNotice } = await import("./email");
+    await sendEmailTakenNotice("taken@example.com");
+    const [body] = sentBodies(fetchSpy);
+    expect(body.to).toEqual([{ email: "taken@example.com" }]);
+    expect(body.htmlContent).toContain("You already have one, so nothing changed.");
+    expect(body.htmlContent).not.toMatch(/\d{6}/);
+  });
+
+  it("the old-address notice shows only the masked new address, with Reply-To from SUPPORT_EMAIL", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "support@kinomato.com");
+    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { sendEmailChangedNotice } = await import("./email");
+    await sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
+    const [body] = sentBodies(fetchSpy);
+    expect(body.to).toEqual([{ email: "old@example.com" }]);
+    expect(body.replyTo).toEqual({ email: "support@kinomato.com" });
+    expect(body.htmlContent).toContain("Your Kinomato email was changed to n•••@gmail.com.");
+    expect(body.htmlContent).toContain("If this wasn't you, reply to this email.");
+  });
+
+  it("SUPPORT_EMAIL unset: throws a clear error and sends nothing", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { sendEmailChangedNotice } = await import("./email");
+    await expect(sendEmailChangedNotice("old@example.com", "n•••@gmail.com")).rejects.toThrow(/SUPPORT_EMAIL is not set/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("without a key, a test outbox file (if set) records the message, and nothing is fetched", async () => {
+    const { mkdtempSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const file = join(mkdtempSync(join(tmpdir(), "outbox-")), "outbox.jsonl");
+    vi.stubEnv("BREVO_API_KEY", "");
+    vi.stubEnv("EMAIL_OUTBOX_FILE", file);
+    vi.stubEnv("SUPPORT_EMAIL", "support@kinomato.com");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const { sendEmailChangedNotice } = await import("./email");
+    await sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
+    const [line] = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(line).toMatchObject({ kind: "email-changed-notice", to: "old@example.com", replyTo: "support@kinomato.com" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("with a key, the outbox is never written", async () => {
+    const { existsSync } = await import("node:fs");
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("EMAIL_OUTBOX_FILE", "/nonexistent-dir/should-not-be-written.jsonl");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 201 })));
+    const { sendEmailTakenNotice } = await import("./email");
+    await sendEmailTakenNotice("taken@example.com");
+    expect(existsSync("/nonexistent-dir/should-not-be-written.jsonl")).toBe(false);
+  });
+});

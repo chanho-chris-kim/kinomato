@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sessions } from "@/db/schema";
 import { hashToken } from "@/lib/authCredentials";
@@ -66,6 +66,19 @@ export async function getSessionUserId(): Promise<string | null> {
 export async function endAllSessions(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId));
   (await cookies()).delete(SESSION_COOKIE_NAME);
+}
+
+// After an email change (§5.9): every other session for the user ends;
+// this browser's stays signed in.
+export async function endOtherSessions(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  await db
+    .delete(sessions)
+    .where(
+      token
+        ? and(eq(sessions.userId, userId), ne(sessions.tokenHash, hashToken(token)))
+        : eq(sessions.userId, userId),
+    );
 }
 
 // Signs this browser out: deletes its session row and clears the cookie.

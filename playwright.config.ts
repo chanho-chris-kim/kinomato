@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { EMAIL_OUTBOX_FILE } from "./e2e/outbox";
 
 // Sign-in codes are HMAC-signed with AUTH_SECRET (lib/authCredentials.ts),
 // and CI's production build refuses to run without one. E2E brings its own
@@ -71,6 +72,14 @@ export default defineConfig({
       // Same reasoning: without this, a local run would send real magic
       // links through Brevo to the seeded @example.com addresses.
       BREVO_API_KEY: "",
+      // With no Brevo key, lib/email.ts also appends each message here, so
+      // specs can check what would have been sent (e2e/outbox.ts). Emptied
+      // by global setup at the start of every run.
+      EMAIL_OUTBOX_FILE: EMAIL_OUTBOX_FILE,
+      // The email-change notice's Reply-To (lib/email.ts fails loud
+      // without it). A test value unless one is already set; production's
+      // is a Worker secret.
+      SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || "support@kinomato.test",
     },
   },
 });

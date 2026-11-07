@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { requireUser } from "@/app/auth";
 import { endAllSessions, endSession } from "@/app/session";
+import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
 import { validateMemberName } from "@/lib/memberName";
 
 // Settings (docs/onboarding-spec.md §5.9).
@@ -43,4 +44,27 @@ export async function signOutEverywhere() {
   const user = await requireUser("/settings");
   await endAllSessions(getDb(), user.id);
   redirect("/");
+}
+
+// Email change (§5.9 rulings; rebuild step 7b): the logic is in
+// app/emailChange.ts, the only code that touches email_changes. Every
+// outcome comes back to /settings; the request's screen is the same
+// whether or not the new address already has an account.
+export async function requestEmailChangeAction(formData: FormData) {
+  const user = await requireUser("/settings");
+  const result = await requestEmailChange(getDb(), user, String(formData.get("newEmail") ?? ""), new Date());
+  redirect(result.ok ? "/settings?email=sent" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+}
+
+export async function confirmEmailChangeAction(formData: FormData) {
+  const user = await requireUser("/settings");
+  const result = await confirmEmailChange(getDb(), user, String(formData.get("code") ?? ""), new Date());
+  if (result.ok) revalidatePath("/", "layout");
+  redirect(result.ok ? "/settings?email=changed" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+}
+
+export async function cancelEmailChangeAction() {
+  const user = await requireUser("/settings");
+  await cancelEmailChange(getDb(), user.id, new Date());
+  redirect("/settings");
 }

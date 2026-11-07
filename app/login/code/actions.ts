@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { magicLinks } from "@/db/schema";
 import { completeSignIn, latestSignInFor } from "@/app/signIn";
+import { normaliseEmail } from "@/lib/emailAddress";
 import {
   CODE_MAX_ATTEMPTS,
   codeMatches,
@@ -16,7 +17,7 @@ import {
 // code sent to an address counts. Every outcome that isn't success lands
 // back on the code screen with a message, via the ?error= convention.
 export async function submitCode(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = normaliseEmail(String(formData.get("email") ?? ""));
   const code = String(formData.get("code") ?? "");
   const returnTo = String(formData.get("returnTo") ?? "").trim() || undefined;
   const back = (error: string, extra: Record<string, string> = {}) => {

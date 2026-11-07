@@ -1,15 +1,12 @@
 // Pure. No DB calls.
 //
-// display_name stays the one stored column (CLAUDE.md: "not eight
-// nullable fields," same reasoning as clubs.settings) — composed from
-// two required fields, first name and last initial, rather than stored
-// separately. Mandatory, not a form nicety: the join page lets someone
-// claim a name the owner pre-added, and if the owner wrote "Priya S."
-// while Priya typed just "Priya," she'd create a second membership
-// instead of claiming her own. Both entry points call this, so the
-// same (first name, last initial) pair always composes to the exact
-// same string — that's what makes "claim an existing name" actually
-// work, not a coincidence of matching free-text input.
+// A person's name, as every club sees it: first name + last initial
+// ("Chris K."), composed into the one stored column, users.display_name
+// (CLAUDE.md: one column, not several nullable fields). It lives on the
+// account, so it's the same in every club. Entered in three places, all
+// validated here: the name step (/welcome), Settings, and an owner adding
+// someone to invite (where it's only a greeting; the person sets their own).
+// The initial is uppercased so "k" and "K" can't read as two people.
 
 export function composeDisplayName(firstName: string, lastInitial: string): string {
   return `${firstName} ${lastInitial}.`;

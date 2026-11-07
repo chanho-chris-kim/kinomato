@@ -154,6 +154,36 @@ export const sessions = pgTable(
   (table) => [index("sessions_user_id_idx").on(table.userId)],
 );
 
+// An email change in progress (docs/onboarding-spec.md §5.9 rulings;
+// rebuild step 7b): a code sent to the new address, entered on /settings
+// in the signed-in session. Its own table on purpose: sign-in
+// (/login/code, /verify, app/signIn.ts) never reads it, so a change code
+// can never create or sign in to an account. Only app/emailChange.ts
+// touches it (lib/emailChangeAccess.test.ts). The code is stored only as
+// an HMAC, like sign-in codes.
+export const emailChanges = pgTable(
+  "email_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    newEmail: text("new_email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("email_changes_user_id_idx").on(table.userId),
+    index("email_changes_new_email_idx").on(table.newEmail),
+  ],
+);
+
 export const memberships = pgTable(
   "memberships",
   {

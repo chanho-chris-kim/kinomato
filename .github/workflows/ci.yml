@@ -107,6 +107,9 @@ jobs:
         run: npm run test:e2e
         env:
           E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          # The email-change notice's Reply-To; a test value (no email is
+          # really sent in E2E). Production's is a Worker secret.
+          SUPPORT_EMAIL: support@kinomato.test
 
       # Playwright's trace files (retain-on-failure) live inside this
       # report — download it from the failed run's Summary page for a
