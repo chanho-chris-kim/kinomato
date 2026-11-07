@@ -104,8 +104,16 @@ another month over the thing that picks a film faster.
   6-digit code is cracked in milliseconds). 5 wrong codes kill that
   code; sends are limited to one per 30s and 5 an hour per address.
   `AUTH_SECRET` falls back to a fixed dev value outside production and
-  **throws in production when unset** — set it as a Worker secret. No
-  passwords, no social login. See `docs/onboarding-spec.md` §4 and the
+  **throws in production when unset** — set it as a Worker secret.
+  **Changing your email** (Settings, `docs/onboarding-spec.md` §5.9) is a
+  code to the new address, entered on `/settings`, held in
+  `email_changes`: only `app/emailChange.ts` touches that table, and
+  sign-in never reads it (`lib/emailChangeAccess.test.ts`), so a change
+  code can never create or sign in to an account. The old address is told,
+  with the new one masked and a Reply-To from `SUPPORT_EMAIL`, which
+  **throws when unset, everywhere** (no dev fallback): set it as a Worker
+  secret; E2E sets a test value. Emails are normalised in one place,
+  `lib/emailAddress.ts`. No passwords, no social login. See `docs/onboarding-spec.md` §4 and the
   identity and invite rulings below.
 - Web Push (VAPID) with email fallback. No native app.
 
@@ -569,7 +577,7 @@ Do not quietly change these — they encode decisions that took a while to reach
 - Don't add third-party tracking pixels anywhere near a film page (VPPA exposure).
 - Don't fetch streaming availability on browse. Nomination and lock only, 24h TTL.
   Film metadata caches indefinitely; availability does not.
-- Don't put the Brevo key or `AUTH_SECRET` in a `NEXT_PUBLIC_` variable.
+- Don't put the Brevo key, `AUTH_SECRET` or `SUPPORT_EMAIL` in a `NEXT_PUBLIC_` variable.
   Server-side only, same as the TMDB token.
 - Don't build password reset or social login, or any account page
   beyond Settings (`docs/onboarding-spec.md` §5.9 — exactly what it

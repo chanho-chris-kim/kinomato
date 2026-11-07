@@ -25,6 +25,7 @@
 import { execFileSync } from "node:child_process";
 import postgres from "postgres";
 import { KNOWN_DRIZZLE_KIT_NOISE, schemaRoundTripStatements } from "./schemaRoundTrip";
+import { clearOutbox } from "./outbox";
 
 export default async function globalSetup() {
   const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
@@ -71,4 +72,5 @@ export default async function globalSetup() {
   }
 
   execFileSync("npx", ["tsx", "db/seed.ts"], { env, stdio: "inherit" });
+  clearOutbox();
 }

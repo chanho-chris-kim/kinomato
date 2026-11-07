@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { issueSignIn } from "@/app/signIn";
+import { normaliseEmail } from "@/lib/emailAddress";
 
 // Plain sign-in/recovery. This is what "identity survives a cleared cookie
 // or a new device" (CLAUDE.md) runs on: the same users row is found again
@@ -14,7 +15,7 @@ import { issueSignIn } from "@/app/signIn";
 // never reveals whether an account exists (docs/onboarding-spec.md §4.3).
 // Also the code screen's "Resend".
 export async function requestLogin(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = normaliseEmail(String(formData.get("email") ?? ""));
   const returnTo = String(formData.get("returnTo") ?? "").trim() || undefined;
 
   if (!email || !email.includes("@")) {

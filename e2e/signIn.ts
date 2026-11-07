@@ -71,3 +71,30 @@ export async function nameYourself(page: Page, firstName: string, lastInitial: s
   await page.getByLabel("Last initial").fill(lastInitial);
   await page.getByRole("button", { name: "Continue" }).click();
 }
+
+// An email change (rebuild step 7b) stores its code only as a hash too:
+// overwrite the person's newest change request (or the one to `newEmail`)
+// with a known code, then type it on /settings. A direct write to the E2E
+// database, never an app route.
+export async function setKnownEmailChangeCode(userEmail: string, newEmail?: string): Promise<string> {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client, { schema });
+  try {
+    const [user] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, userEmail));
+    if (!user) throw new Error(`setKnownEmailChangeCode: no account for ${userEmail}`);
+    const rows = await db
+      .select({ id: schema.emailChanges.id, newEmail: schema.emailChanges.newEmail })
+      .from(schema.emailChanges)
+      .where(eq(schema.emailChanges.userId, user.id))
+      .orderBy(desc(schema.emailChanges.createdAt));
+    const row = newEmail ? rows.find((r) => r.newEmail === newEmail) : rows[0];
+    if (!row) throw new Error(`setKnownEmailChangeCode: no change request for ${userEmail}`);
+    await db
+      .update(schema.emailChanges)
+      .set({ codeHash: hashCode(KNOWN_CODE, getAuthSecret()) })
+      .where(eq(schema.emailChanges.id, row.id));
+    return KNOWN_CODE;
+  } finally {
+    await client.end();
+  }
+}

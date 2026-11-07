@@ -53,3 +53,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# E2E's record of emails that would have been sent (e2e/outbox.ts).
+/.e2e-email-outbox.jsonl

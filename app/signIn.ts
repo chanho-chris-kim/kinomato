@@ -4,6 +4,7 @@ import { magicLinks, users } from "@/db/schema";
 import { getBaseUrl, safePath } from "@/app/baseUrl";
 import { redeemDestination, redeemInvite } from "@/app/invites";
 import { createSession, setSessionCookie } from "@/app/session";
+import { recentEmailChangeSendsTo } from "@/app/emailChange";
 import {
   checkSendAllowed,
   generateSignInCode,
@@ -50,8 +51,10 @@ export async function issueSignIn(
         gt(magicLinks.createdAt, new Date(now.getTime() - 3600_000)),
       ),
     );
+  // Shared with email changes (§5.9): their sends to this address count too.
+  const changeSends = await recentEmailChangeSendsTo(db, params.email, new Date(now.getTime() - 3600_000));
   const allowed = checkSendAllowed(
-    recent.map((r) => r.createdAt),
+    [...recent.map((r) => r.createdAt), ...changeSends],
     now,
   );
   if (!allowed.ok) return { sent: false, retryAfterSeconds: allowed.retryAfterSeconds };

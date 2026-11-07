@@ -14,6 +14,7 @@ import {
 import { issueSignIn } from "@/app/signIn";
 import { endSession, getSessionUserId } from "@/app/session";
 import { resolveInviteView } from "@/lib/invites";
+import { normaliseEmail } from "@/lib/emailAddress";
 
 // The invite landing page's three actions (docs/onboarding-spec.md §5.3,
 // §7.4). Each re-checks the invite server-side: a Server Action is
@@ -23,7 +24,7 @@ import { resolveInviteView } from "@/lib/invites";
 // the invite (app/signIn.ts). started_at is set here, on the first email
 // submitted, never on GET: chat apps' link previews open every URL.
 export async function startInvite(token: string, formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = normaliseEmail(String(formData.get("email") ?? ""));
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const row = await loadInviteByToken(db, token);
   const view = resolveInviteView({
