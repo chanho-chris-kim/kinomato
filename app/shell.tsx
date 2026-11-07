@@ -58,7 +58,8 @@ export function GlobalShell({
   reserveRail = false,
   children,
 }: {
-  current: GlobalSection;
+  // null: no global section is current (the legal pages, signed in).
+  current: GlobalSection | null;
   // Above the page's own content, inside the capped column (ClubHeader).
   header?: ReactNode;
   // Club pages only, and only real data (CLAUDE.md theming ruling).
