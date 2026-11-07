@@ -40,9 +40,12 @@ test.describe("home page, signed out", () => {
     await expect(page.locator(`a[href="/clubs/${CLUB_ID}"]`)).toHaveCount(0);
     await expect(page.locator(`a[href="/clubs/${CLUB_2_ID}"]`)).toHaveCount(0);
 
-    // No Privacy or Terms links until those pages exist (§8.5).
-    await expect(page.locator('a[href*="/privacy"], a[href*="/terms"]')).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /privacy|terms/i })).toHaveCount(0);
+    // Privacy and Terms in the footer, and nowhere else (onboarding-spec
+    // §11.1; launch-foundations step (a)).
+    const legal = page.getByRole("navigation", { name: "Legal" });
+    await expect(legal.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    await expect(legal.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+    await expect(page.locator('a[href*="/privacy"], a[href*="/terms"]')).toHaveCount(2);
   });
 
   test("nothing third-party: every script and every request is same-origin", async ({ page }) => {

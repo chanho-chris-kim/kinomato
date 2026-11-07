@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { getBaseUrl } from "@/app/baseUrl";
 import { DEFAULT_DESCRIPTION, DEFAULT_OPEN_GRAPH, OG_IMAGE } from "@/app/metadata";
@@ -47,6 +48,15 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <div className="flex-1">{children}</div>
         <footer className="tiny dim p-4">
+          <nav aria-label="Legal" className="row gap8" style={{ marginBottom: 4 }}>
+            <Link href="/privacy" className="underline">
+              Privacy
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/terms" className="underline">
+              Terms
+            </Link>
+          </nav>
           This product uses the TMDB API but is not endorsed or certified by
           TMDB.
         </footer>

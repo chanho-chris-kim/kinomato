@@ -423,8 +423,10 @@ settings page"):
   "coming soon".
 - **Sign out** (this browser), and **Sign out everywhere** (every session
   for the account, this browser's included; §4.4).
-- Footer: Privacy, Terms. **Omitted until those pages exist** (§8.5's
-  step-5 ruling; they wait on the legal review).
+- Footer: Privacy, Terms (every page, site-wide; launch-foundations step
+  (a), §11).
+- **Download my data** and **Delete account** (§11's export and deletion
+  rulings).
 
 **Rulings for step 7 (2026-11-06):**
 - **Renames are retroactive everywhere.** Names live on the account
@@ -449,11 +451,12 @@ settings page"):
   - **One shared email-normalisation function** for every place an email
     is entered.
 - **Account deletion and data export** are deferred to the launch-
-  foundations pass with the legal review (§10, which holds the agenda).
+  foundations pass with the legal review, and since ruled there (§11.4,
+  §11.5).
 
 Not here: passwords (none exist), connected accounts (none exist), hard
-limits (per club, §5.10), leaving a club (per club, §5.10), data export and
-account deletion (§10).
+limits (per club, §5.10), leaving a club (per club, §5.10). (Data export
+and account deletion moved here from §10 out-of-scope: ruled in §11.)
 
 Phone: single column. ≥ 900px: the capped content column. No rail.
 
@@ -980,7 +983,7 @@ between, and would have broken `main`'s CI on the shared E2E database.
 | ✓ 5e | **Invite link previews** (§5.1) — done 2026-11-05 | Free plan: static image + text tags. `metadataBase` from the request host; one static `public/og-default.png` (made by `scripts/og-image.mjs`) for every page; per-invite `og:title`/`og:description` for a valid invite, generic otherwise (`lib/inviteShare.ts`); `noindex` on `/invite`. CI fails the Check job over 2.6 MiB gzipped (1.41 MiB on 2026-11-05). Switching to a generated image later is one added file (`opengraph-image.tsx`), measured at +823 KiB gzipped. | None |
 | ✓ 5f | **History** (§5.10) — done 2026-11-05 | The history-read module first (CLAUDE.md's attribution ruling), then `/clubs/[id]/history` and the tag page under it. A new feature with privacy rulings, not pure UI. Built: `app/clubs/[clubId]/historyRead.ts`, enforced by `lib/attributionAccess.test.ts`. No time limit on history: analysis-v1's free-tier history cap doesn't apply. | None |
 | ✓ 6 (6a–6d 2026-11-05, 6e 2026-11-06 — step 6 complete) | **Global watchlist** (§6) | `watchlist_items.user_id`, `/watchlist` with Seen from, the overlap fix, `/clubs/[id]/list` → `/watchlist?seen=`. Needs every member to be a user, so it comes after 4. **Split 6a–6e, expand then contract instead of a rename** (which avoids drizzle-kit's rename prompt): 6a adds nullable `user_id`, dual-writes it, and ships the backfill script (`scripts/sql/6a-backfill-watchlist-user-id.sql`, run by hand); 6b moves reads to `user_id` through one visibility function, with the overlap fix; 6c the global `/watchlist` with Seen from; 6d `/clubs/[id]/list` → `/watchlist?seen=`; 6e drops `membership_id` and makes `user_id` NOT NULL. | Additive (6a, 6b), then destructive (6e: test data only by then; no usage data at risk) |
-| ✓ 7 | **Settings** (§5.9) — done 2026-11-06 | The rest of §5.9: **7a** name and Sign out everywhere (done 2026-11-06); **7b** email change (§5.9's rulings; done 2026-11-06). Notifications are deferred to the notifications feature; Privacy and Terms wait for those pages. (Sign out itself shipped in 5a.) | None (7a), additive (7b: `email_changes`) |
+| ✓ 7 | **Settings** (§5.9) — done 2026-11-06 | The rest of §5.9: **7a** name and Sign out everywhere (done 2026-11-06); **7b** email change (§5.9's rulings; done 2026-11-06). Notifications are deferred to the notifications feature. (Sign out itself shipped in 5a.) | None (7a), additive (7b: `email_changes`) |
 
 **Step 5 rulings** (made while planning it):
 - **No History tab until 5f.** There's no history page or history-read
@@ -988,8 +991,9 @@ between, and would have broken `main`'s CI on the shared E2E database.
   added it: Tonight · History · Members.)
 - **The Members tab holds only Invite people and the member list** until
   limits, club settings and leaving a club are built.
-- **Privacy and Terms links are omitted** until those pages exist (they
-  wait on the legal review).
+- **Privacy and Terms links**: shipped with the draft pages in
+  launch-foundations step (a) (§11); the reviewed text replaces the drafts
+  as a version change.
 - **Settings ships in 5a with Sign out only.** Sign out everywhere and the
   rest of §5.9 are step 7. No "coming soon" anywhere.
 - **`/watchlist` with no clubs** shows an empty state: "Your watchlist
@@ -1154,19 +1158,20 @@ data-flow section of the privacy policy lists, at minimum:
 - **Neon** — hosts the database, which is all of it.
 - **Cloudflare** — hosts the app and sees every request.
 
-TMDB receives no personal data. Calls are server-side and carry no user
-information.
+- **Cloudflare also stores request logs** (Workers Logs are persisted:
+  request URLs, status, timing). They stay on and are disclosed (§11).
+- **TMDB** receives film lookups and the **search text people type**, sent
+  server-side and never linked to anyone: no account, email, cookie or IP
+  of the person goes with it. Posters are fetched by our server too
+  (`next/image`), so a browser never contacts TMDB.
 
-Two known gaps this spec does not close on its own (CLAUDE.md Open
-Questions):
+Session tokens, sign-in link tokens and codes are stored only as hashes
+(since rebuild step 2). Invite tokens are deliberately not hashed (§7.1
+step 2).
 
-- **Session and magic-link tokens are stored in plaintext.** The fix is
-  hashing. The new sign-in code is built hashed from the start, and §8.5
-  step 2 hashes the existing tokens too. (Invite tokens are deliberately
-  not hashed: §7.1 step 2.)
-- **Adding any managed auth provider later means a new sub-processor
-  disclosure**, which has to be weighed against the convenience when the
-  time comes.
+One known gap this spec does not close on its own: **adding any managed
+auth provider later means a new sub-processor disclosure**, which has to be
+weighed against the convenience when the time comes.
 
 ---
 
@@ -1176,8 +1181,9 @@ Questions):
   another (§6.2). Not built. Revisit only if people ask.
 - **Data export and account deletion.** `analysis-v2.md` §10 wants one-click
   export on free accounts, and PIPEDA likely requires a deletion path. Both
-  belong with the legal review, not this spec (ruled 2026-11-06: deferred
-  to the launch-foundations pass). The agenda that pass has to decide:
+  belong with the legal review, not this spec (deferred 2026-11-06 to the
+  launch-foundations pass, **and ruled there: §11.4 deletion, §11.5
+  export**; the agenda below is what those rulings answer). The agenda that pass has to decide:
   - **Delete or anonymize the account.** A `users` row can't simply be
     deleted: `memberships.user_id` is NOT NULL, and memberships are
     referenced by votes and vetoes (attribution retained, never deleted),
@@ -1207,3 +1213,85 @@ Questions):
 - **Two members with the same display name in one club.** It can now happen
   (two "Chris K."s), and nothing breaks because identity is by user, but it's
   confusing. Not handled. Revisit if it happens.
+
+---
+
+## 11. Launch foundations — rulings, 2026-11-06
+
+Consent, legal pages, age, deletion, export and housekeeping, ruled before
+any of it is built so each step builds on the same decisions. Build order:
+(a) legal pages and versions → (b) consent at sign-up and for existing
+accounts → (c) data-licensing opt-in → (d) age → (e) export → (f) deletion,
+with housekeeping alongside. **No public sign-ups until a lawyer has signed
+off the Terms and Privacy text.**
+
+### 11.1 Terms and Privacy
+
+- **Versioned, in one place** (`lib/legal.ts`): each document has a version
+  (a date) and a draft flag. The owner decides when a version changes; a
+  typo fix doesn't change it.
+- **Acceptance is an explicit checkbox naming the current versions.**
+- **Any version change of either document blocks every signed-in page
+  until it's re-accepted.** No banner-and-continue.
+- **Gating starts with the draft texts.** The reviewed text arrives as a
+  version change, so everyone re-accepts it.
+- Public pages, `/terms` and `/privacy`, with Privacy · Terms links in the
+  footer of every page.
+
+### 11.2 Data licensing (`analysis-v2.md` §1.5)
+
+- **A separate checkbox, never bundled into the Terms. Default unchecked.**
+- Its wording names **ratings, watchlist additions and what my clubs pick**,
+  in **anonymous aggregates only**. The wording is versioned.
+- **Withdrawal is future-only**, and the wording says so: it stops future
+  inclusion, it can't recall aggregates already produced.
+- **13–17s can't opt in.**
+
+### 11.3 Age (`analysis-v2.md` §9)
+
+- A **self-attested bracket**: "13–17", "18 or older", "Under 13". No
+  birthdates. **Existing accounts are asked once.**
+- **Under 13: nothing persists.** The account, its sessions and any
+  membership an invite has just created are removed; the screen says
+  Kinomato is for 13 and up. **No record of the attempt is kept.**
+
+### 11.4 Deletion (anonymise, per `analysis-v1.md` §1.3)
+
+| Data | What happens |
+|---|---|
+| Name | "Former member" |
+| Email | Released (a tombstone), so a fresh sign-up with it is possible |
+| Watchlist, hard limits and preferences | Deleted |
+| Ratings | Scores kept; hot takes and rating tags removed |
+| Pending invites the person created | Revoked, `invitee_name` cleared |
+| Memberships | Marked left (kept: attribution, rotation and History reference them) |
+| Sessions, sign-in codes, email changes | Deleted |
+| Votes, vetoes, nominations, picks | Kept (attribution retained; the history-read module keeps voters unreachable) |
+
+- **Confirmed by a code sent to the account's email.**
+- **Blocked while the person is the sole owner of a club with other
+  members**, with a message saying why (ownership transfer doesn't exist
+  yet).
+- A turn the person was holding shows "Former member", consistent with the
+  departed-picker ruling.
+
+### 11.5 Export
+
+- **One JSON download of your own data only**: account, clubs, watchlist,
+  ratings, nominations, RSVPs, limits and preferences, and your own votes
+  and vetoes (read through the history-read module). **Never other
+  people's names or votes.**
+- Export and Delete account live in **Settings** (§5.9 amended).
+
+### 11.6 Housekeeping
+
+- **Emails out of URLs** (`/login/code?email=`, `/login?email=`): the step
+  after consent.
+- **Retention**, by a scheduled job: expired `magic_links` and
+  `email_changes` deleted 7 days after expiry; expired `sessions` 7 days
+  after expiry; revoked invites' `invitee_name` cleared after 90 days.
+- **Cloudflare logs stay on and are disclosed** (§9).
+- **`users.avatar` is dropped later** (destructive, so last).
+- **No cookie banner for now**: both cookies (`kinomato_session`,
+  `kinomato_seen_from`) are strictly functional. To be confirmed at the
+  legal review.

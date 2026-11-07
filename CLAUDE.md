@@ -354,6 +354,25 @@ Do not quietly change these — they encode decisions that took a while to reach
   detail's "who else wants it" (`whoElseWants`) is a named slot in the
   loader, to build when that panel exists. Adding or removing a film is
   still never a club-visible event (history ruling).
+- **Launch foundations are ruled (`docs/onboarding-spec.md` §11,
+  2026-11-06), and nothing public launches without them.**
+  - **Terms and Privacy** are versioned in one place, `lib/legal.ts`.
+    Acceptance is an explicit checkbox naming the current versions; **any
+    version change blocks every signed-in page until re-accepted**. Gating
+    starts with the draft texts; the reviewed text is a version change.
+    **No public sign-ups until a lawyer has signed off the text.**
+  - **Data licensing** is a separate checkbox, default unchecked, never
+    bundled into the Terms; aggregates only; withdrawal is future-only;
+    **13–17s can't opt in.**
+  - **Age** is a self-attested bracket, never a birthdate. **Under 13,
+    nothing persists**: the account, its sessions and any just-created
+    membership are removed, and no record of the attempt is kept.
+  - **Deletion anonymises** (§11.4's table): "Former member", email
+    released, personal lists deleted, scores kept but takes and tags
+    removed, memberships marked left, attribution kept. Confirmed by a
+    code; blocked while you're the sole owner of a club with others.
+  - **Export** is your own data only, as JSON, never anyone else's names
+    or votes; your own votes come through the history-read module.
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite
@@ -581,7 +600,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   Server-side only, same as the TMDB token.
 - Don't build password reset or social login, or any account page
   beyond Settings (`docs/onboarding-spec.md` §5.9 — exactly what it
-  lists, nothing password-shaped). Auth is email sign-in and nothing
+  lists, which now includes Download my data and Delete account per
+  §11; nothing password-shaped). Auth is email sign-in and nothing
   else. Everything except the marketing page, the invite landing, the
   sign-in flow and the legal pages needs a session; there are no guests
   (§0 explains why).
