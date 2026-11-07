@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { LegalPage, PendingSection } from "@/app/legalPage";
-import { LEGAL } from "@/lib/legal";
+import { currentLegal, LEGAL } from "@/lib/legal";
 
 // Draft legal text isn't for search engines.
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // legal prose until it's written and reviewed.
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" document={LEGAL.terms}>
+    <LegalPage title="Terms" document={currentLegal().terms}>
       <PendingSection title="Using Kinomato" />
       <PendingSection title="Your account" />
       <PendingSection title="What you add" />

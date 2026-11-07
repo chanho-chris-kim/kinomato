@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
-import { requireUser } from "@/app/auth";
+import { requireSignedInIgnoringConsent, requireUser } from "@/app/auth";
 import { endAllSessions, endSession } from "@/app/session";
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
+import { optInToLicensing, withdrawFromLicensing } from "@/app/consent";
 import { validateMemberName } from "@/lib/memberName";
 
 // Settings (docs/onboarding-spec.md §5.9).
@@ -39,9 +40,10 @@ export async function signOut() {
 }
 
 // Sign out everywhere: every session for this account, this browser's
-// included (§4.4).
+// included (§4.4). Reachable with consent pending (/consent's Sign out is
+// the plain signOut above; neither may trap anyone).
 export async function signOutEverywhere() {
-  const user = await requireUser("/settings");
+  const user = await requireSignedInIgnoringConsent("/settings");
   await endAllSessions(getDb(), user.id);
   redirect("/");
 }
@@ -67,4 +69,19 @@ export async function cancelEmailChangeAction() {
   const user = await requireUser("/settings");
   await cancelEmailChange(getDb(), user.id, new Date());
   redirect("/settings");
+}
+
+// Data sharing (docs/onboarding-spec.md §11.2): 18 or older only, checked
+// again in app/consent.ts whatever the page showed. Opting in writes a
+// row; withdrawing sets that row's withdrawn_at, from now on only.
+export async function optInToLicensingAction() {
+  const user = await requireUser("/settings");
+  await optInToLicensing(getDb(), user.id);
+  redirect("/settings?sharing=on#data-sharing");
+}
+
+export async function withdrawFromLicensingAction() {
+  const user = await requireUser("/settings");
+  await withdrawFromLicensing(getDb(), user.id);
+  redirect("/settings?sharing=off#data-sharing");
 }

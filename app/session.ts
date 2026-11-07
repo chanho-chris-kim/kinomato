@@ -63,6 +63,12 @@ export async function getSessionUserId(): Promise<string | null> {
 // session row for the user, this browser's included, and clears this
 // browser's cookie. Any other device's cookie now matches no row, so its
 // next request is signed out.
+// Drops this browser's cookie only; the caller has already removed the
+// rows (app/consent.ts, app/anonymise.ts).
+export async function clearSessionCookie(): Promise<void> {
+  (await cookies()).delete(SESSION_COOKIE_NAME);
+}
+
 export async function endAllSessions(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId));
   (await cookies()).delete(SESSION_COOKIE_NAME);

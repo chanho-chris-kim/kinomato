@@ -1225,6 +1225,15 @@ accounts → (c) data-licensing opt-in → (d) age → (e) export → (f) deleti
 with housekeeping alongside. **No public sign-ups until a lawyer has signed
 off the Terms and Privacy text.**
 
+| Step | Status |
+|---|---|
+| ✓ (a) Legal pages | Done 2026-11-06. `/terms`, `/privacy`, versions and draft flags in `lib/legal.ts`, footer links. Text pending legal review. |
+| ✓ (b) Consent | Done 2026-11-06. `consent_events` (append-only). `/welcome` asks new accounts; `/consent` asks existing ones (`signup` the first time, `reconsent` after a version change). The gate is in `app/auth.ts`'s `requireUser`; `lib/consentGate.test.ts` fails any signed-in route that skips it. |
+| ✓ (c) Data licensing | Done 2026-11-06. `data_licensing_consents` (append-only; withdrawal sets `withdrawn_at`). Wording and its version in `lib/legal.ts`. Offered on `/welcome` and `/consent` to 18 or older only; Settings' Data sharing opts in and withdraws. |
+| ✓ (d) Age | Done 2026-11-06. `users.age_bracket` and `age_attested_at`, null until asked. Under 13 on `/welcome`: the new account is deleted and its invite un-redeemed (`app/consent.ts` `discardNewAccount`). On `/consent`: §11.4's anonymisation (`app/anonymise.ts`). |
+| (e) Export | Next. |
+| (f) Deletion | After (e). Reuses `app/anonymise.ts` as is; adds the email code and the sole-owner block. |
+
 ### 11.1 Terms and Privacy
 
 - **Versioned, in one place** (`lib/legal.ts`): each document has a version
@@ -1237,6 +1246,11 @@ off the Terms and Privacy text.**
   version change, so everyone re-accepts it.
 - Public pages, `/terms` and `/privacy`, with Privacy · Terms links in the
   footer of every page.
+- *Built (b):* the gate covers every signed-in page and server action,
+  except `/terms`, `/privacy`, `/consent`, `/welcome`, sign-in, the invite
+  landing, `/age-limit` and both sign-outs. `/consent` always has Sign
+  out, and the legal links open in a new tab, so nobody is trapped and no
+  answers are lost.
 
 ### 11.2 Data licensing (`analysis-v2.md` §1.5)
 
@@ -1246,6 +1260,14 @@ off the Terms and Privacy text.**
 - **Withdrawal is future-only**, and the wording says so: it stops future
   inclusion, it can't recall aggregates already produced.
 - **13–17s can't opt in.**
+- *Built (c):* the wording and its version live in `lib/legal.ts` next to
+  the documents. An opt-in counts only for the wording version it was
+  given against (`lib/consent.ts` `isLicensingActive`); after a wording
+  change, Settings offers it again. What a wording change should do to
+  existing opt-ins hasn't been ruled; this is the cautious reading.
+  The age check is server-side: a 13–17 opt-in is dropped whatever the
+  form sent. Anonymisation also withdraws any open opt-in (not in the
+  §11.4 table).
 
 ### 11.3 Age (`analysis-v2.md` §9)
 
@@ -1254,6 +1276,14 @@ off the Terms and Privacy text.**
 - **Under 13: nothing persists.** The account, its sessions and any
   membership an invite has just created are removed; the screen says
   Kinomato is for 13 and up. **No record of the attempt is kept.**
+- *Built (d):* a brand-new account on `/welcome` is deleted, with its
+  sessions, sign-in codes and any invite-made membership. The invite goes
+  back to unredeemed, and a night Tonight drafted for the newcomer is
+  removed too (a new member is first in the rotation). An existing
+  account on `/consent` has data others' history references, so it's
+  anonymised per §11.4 instead, with no sole-owner block. Either way the
+  session ends and the person lands on `/age-limit`, which knows nothing
+  about who arrived. "Under 13" is never stored.
 
 ### 11.4 Deletion (anonymise, per `analysis-v1.md` §1.3)
 
@@ -1274,6 +1304,11 @@ off the Terms and Privacy text.**
   yet).
 - A turn the person was holding shows "Former member", consistent with the
   departed-picker ruling.
+- *Built for (d), reused by (f):* the table is `app/anonymise.ts`'s
+  `anonymiseAccount`, one `db.batch`. The released email is a tombstone
+  (`deleted-<id>@deleted.kinomato.invalid`). "invitee_name cleared" is the
+  empty string, since the column is `NOT NULL`. (f) adds the code and the
+  sole-owner block in front of it.
 
 ### 11.5 Export
 

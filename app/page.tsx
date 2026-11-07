@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
 import { GlobalShell } from "@/app/shell";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
 import { getSessionUserId } from "@/app/session";
+import { requireUser } from "@/app/auth";
 import { loadClubCards } from "@/app/clubCards";
 import { Marketing } from "@/app/marketing";
 import { DEFAULT_TITLE } from "@/app/metadata";
@@ -26,17 +25,17 @@ export default async function Home() {
   const userId = await getSessionUserId();
   if (!userId) return <Marketing />;
 
+  // Signed in, through the same gate as every signed-in page: current
+  // consent and an age, or off to /consent or /welcome (app/auth.ts).
+  const user = await requireUser("/");
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity targets client components the React Compiler might
   // memoize; this Server Component runs once per request.
   // eslint-disable-next-line react-hooks/purity
   const now = new Date(Date.now());
-  const [[user], cards] = await Promise.all([
-    db.select({ displayName: users.displayName }).from(users).where(eq(users.id, userId)),
-    loadClubCards(db, userId, now),
-  ]);
+  const cards = await loadClubCards(db, user.id, now);
   // "Chris K." → "Chris". An account always has a name past /welcome.
-  const firstName = user?.displayName?.split(" ")[0];
+  const firstName = user.displayName?.split(" ")[0];
 
   return (
     <GlobalShell current="clubs">

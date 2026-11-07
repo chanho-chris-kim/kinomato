@@ -93,6 +93,12 @@ export const clubs = pgTable("clubs", {
     .defaultNow(),
 });
 
+// Consent and age (docs/onboarding-spec.md §11.1–§11.3). "Under 13" is a
+// form answer, never a stored value: nothing about that person persists.
+export const ageBracketEnum = pgEnum("age_bracket", ["13_17", "18_plus"]);
+export const legalDocumentEnum = pgEnum("legal_document", ["terms", "privacy"]);
+export const consentMethodEnum = pgEnum("consent_method", ["signup", "reconsent"]);
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
@@ -104,6 +110,9 @@ export const users = pgTable("users", {
   // reads this yet. Non-null = trusted, same "nullable timestamp as a
   // flag" shape as memberships.postponed_at/left_at, clubs.paused_at.
   trustedAt: timestamp("trusted_at", { withTimezone: true }),
+  // Self-attested, asked once (§11.3). Null = not asked yet; no birthdate.
+  ageBracket: ageBracketEnum("age_bracket"),
+  ageAttestedAt: timestamp("age_attested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -182,6 +191,42 @@ export const emailChanges = pgTable(
     index("email_changes_user_id_idx").on(table.userId),
     index("email_changes_new_email_idx").on(table.newEmail),
   ],
+);
+
+// Every acceptance of the Terms or the Privacy policy, append-only
+// (§11.1). An account's current status is each document's newest row
+// (lib/consent.ts needsConsent); a version change in lib/legal.ts makes
+// that row stale, and the gate in app/auth.ts asks again.
+export const consentEvents = pgTable(
+  "consent_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    document: legalDocumentEnum("document").notNull(),
+    version: text("version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    method: consentMethodEnum("method").notNull(),
+  },
+  (table) => [index("consent_events_user_id_idx").on(table.userId)],
+);
+
+// The data-licensing opt-in (§11.2), append-only: opting in inserts a
+// row, withdrawing sets its withdrawn_at, and no row is ever deleted. The
+// newest row is the current status (lib/consent.ts currentLicensing).
+export const dataLicensingConsents = pgTable(
+  "data_licensing_consents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    wordingVersion: text("wording_version").notNull(),
+    optedInAt: timestamp("opted_in_at", { withTimezone: true }).notNull().defaultNow(),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  },
+  (table) => [index("data_licensing_consents_user_id_idx").on(table.userId)],
 );
 
 export const memberships = pgTable(

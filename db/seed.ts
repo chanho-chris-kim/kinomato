@@ -17,8 +17,12 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { LEGAL } from "../lib/legal";
 import {
   clubs,
+  consentEvents,
+  constraints,
+  dataLicensingConsents,
   emailChanges,
   films,
   invites,
@@ -88,6 +92,12 @@ import {
   SEEN_CLUB,
   SEEN_CLUB_NAME,
   USER,
+  CONSENT_CLUB_ID,
+  CONSENT_INVITE,
+  CONSENT_NIGHT_ID,
+  DISPLAY_NAME_CONSENT,
+  MEMBERSHIP_CONSENT,
+  UNCONSENTED_USERS,
 } from "./seed-fixtures";
 import { tmdbMovieToFilmRow } from "../lib/tmdb";
 // Always the fixture, never lib/tmdb.ts's real client — these ids
@@ -130,6 +140,9 @@ async function main() {
   await db.delete(invites);
   await db.delete(sessions);
   await db.delete(emailChanges);
+  await db.delete(consentEvents);
+  await db.delete(dataLicensingConsents);
+  await db.delete(constraints);
   await db.delete(memberships);
   await db.delete(seasons);
   await db.delete(tags);
@@ -152,8 +165,12 @@ async function main() {
     ...DISPLAY_NAME_HISTORY,
     ...DISPLAY_NAME_RATING,
     ...DISPLAY_NAME_SEEN,
+    ...DISPLAY_NAME_CONSENT,
   };
-  await db.insert(users).values([
+  // Everyone has accepted the current Terms and Privacy and is 18 or
+  // older, except the consent spec's two (seed-fixtures.ts
+  // UNCONSENTED_USERS), so no other spec is sent to /consent.
+  const seededUsers = [
     { id: USER.chris, email: "chris@example.com", displayName: NAME.chris },
     { id: USER.priya, email: "priya@example.com", displayName: NAME.priya },
     { id: USER.marco, email: "marco@example.com", displayName: NAME.marco },
@@ -165,7 +182,25 @@ async function main() {
       email: `${name}@example.com`,
       displayName: NAME[name],
     })),
-  ]);
+  ];
+  const consented = seededUsers.filter((u) => !UNCONSENTED_USERS.includes(u.id));
+  const attested = new Date(Date.UTC(2026, 0, 1));
+  await db.insert(users).values(
+    seededUsers.map((u) =>
+      UNCONSENTED_USERS.includes(u.id) ? u : { ...u, ageBracket: "18_plus" as const, ageAttestedAt: attested },
+    ),
+  );
+  await db.insert(consentEvents).values(
+    consented.flatMap((u) =>
+      (["terms", "privacy"] as const).map((document) => ({
+        userId: u.id,
+        document,
+        version: LEGAL[document].version,
+        acceptedAt: attested,
+        method: "signup" as const,
+      })),
+    ),
+  );
 
   console.log("Seeding club...");
   await db.insert(clubs).values({
@@ -933,6 +968,68 @@ async function main() {
     lockedAt: daysAgo(11),
     confirmedAt: daysAgo(9),
     confirmedBy: SN.ava,
+  });
+
+  // Consent (seed-fixtures.ts CONSENT_CLUB_ID): Fay has a row of every
+  // kind the §11.4 anonymisation touches or keeps.
+  console.log("Seeding Consent Club...");
+  const CS = MEMBERSHIP_CONSENT;
+  await db.insert(clubs).values({
+    id: CONSENT_CLUB_ID,
+    name: "Consent Club",
+    cadence: "weekly",
+    defaultDay: 6,
+    defaultTime: "20:00",
+    timezone: "America/New_York",
+    mode: "in_person",
+  });
+  await db.insert(memberships).values([
+    { id: CS.fay, clubId: CONSENT_CLUB_ID, userId: MEMBER_USER.fay, role: "owner", joinedAt: day(1) },
+    { id: CS.gus, clubId: CONSENT_CLUB_ID, userId: MEMBER_USER.gus, role: "member", joinedAt: day(2) },
+  ]);
+  await db.insert(watchlistItems).values({ userId: MEMBER_USER.fay, filmId: zodiacId });
+  await db.insert(constraints).values({
+    membershipId: CS.fay,
+    kind: "hard",
+    ruleType: "genre",
+    value: "27",
+    label: "Horror",
+  });
+  await db.insert(nights).values({
+    id: CONSENT_NIGHT_ID,
+    clubId: CONSENT_CLUB_ID,
+    scheduledAt: daysAgo(5),
+    pickerMembershipId: CS.fay,
+    state: "watched",
+    winningFilmId: arrivalId,
+    lockedAt: daysAgo(6),
+    confirmedAt: daysAgo(4),
+    confirmedBy: CS.fay,
+  });
+  const [fayNomination] = await db
+    .insert(nominations)
+    .values({ nightId: CONSENT_NIGHT_ID, filmId: arrivalId, membershipId: CS.fay })
+    .returning({ id: nominations.id });
+  await db.insert(votes).values({ nominationId: fayNomination.id, membershipId: CS.fay });
+  await db.insert(rsvps).values([
+    { nightId: CONSENT_NIGHT_ID, membershipId: CS.fay, status: "yes" },
+    { nightId: CONSENT_NIGHT_ID, membershipId: CS.gus, status: "yes" },
+  ]);
+  const [fayRating] = await db
+    .insert(ratings)
+    .values({ nightId: CONSENT_NIGHT_ID, membershipId: CS.fay, scoreQuality: "8.0", scoreFun: "7.5", hotTake: "Fay's take" })
+    .returning({ id: ratings.id });
+  const [fayTag] = await db
+    .insert(tags)
+    .values({ clubId: CONSENT_CLUB_ID, name: "heady", displayName: "Heady" })
+    .returning({ id: tags.id });
+  await db.insert(ratingTags).values({ ratingId: fayRating.id, tagId: fayTag.id });
+  await db.insert(invites).values({
+    id: CONSENT_INVITE.id,
+    clubId: CONSENT_CLUB_ID,
+    token: CONSENT_INVITE.token,
+    inviteeName: CONSENT_INVITE.inviteeName,
+    invitedByMembershipId: CS.fay,
   });
 
   console.log(`Done. Club id: ${CLUB_ID}, second club id: ${CLUB_2_ID}`);

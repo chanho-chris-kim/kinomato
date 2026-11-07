@@ -98,3 +98,10 @@ export async function nominatableFilms(
   const addedAt = new Map(items.map((i) => [i.filmId, i.addedAt.getTime()]));
   return rows.sort((a, b) => addedAt.get(a.id)! - addedAt.get(b.id)!);
 }
+
+// An account's own watchlist, deleted whole: the §11.4 anonymisation
+// (app/anonymise.ts). Returned unrun, for the caller's db.batch, so
+// watchlist_items stays in this module and the own-list files.
+export function deleteWatchlistOf(db: ReturnType<typeof getDb>, userId: string) {
+  return db.delete(watchlistItems).where(eq(watchlistItems.userId, userId));
+}

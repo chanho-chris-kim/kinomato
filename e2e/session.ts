@@ -30,9 +30,20 @@ export async function signInAs(page: Page, membershipId: string): Promise<void> 
     if (!membership) {
       throw new Error(`signInAs: no membership ${membershipId} in the E2E database.`);
     }
+    await signInAsUser(page, membership.userId);
+  } finally {
+    await client.end();
+  }
+}
+
+// The same, for a seeded account in no club (seed-fixtures.ts Eli, Dot).
+export async function signInAsUser(page: Page, userId: string): Promise<void> {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  const db = drizzle(client, { schema });
+  try {
     const token = crypto.randomUUID();
     await db.insert(schema.sessions).values({
-      userId: membership.userId,
+      userId,
       tokenHash: hashToken(token),
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
