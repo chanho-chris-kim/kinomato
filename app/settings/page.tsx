@@ -5,6 +5,7 @@ import { licensingStatusFor } from "@/app/consent";
 import { canOptInToLicensing, isLicensingActive } from "@/lib/consent";
 import { currentLegal } from "@/lib/legal";
 import { GlobalShell } from "@/app/shell";
+import { readFormEcho } from "@/app/formEcho";
 import { parseInviteeName } from "@/lib/invites";
 import {
   cancelEmailChangeAction,
@@ -28,15 +29,16 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{
     error?: string;
-    first?: string;
-    initial?: string;
     saved?: string;
-    email?: string;
+    emailChange?: string;
     emailError?: string;
     sharing?: string;
   }>;
 }) {
-  const { error, first, initial, saved, email: emailStatus, emailError, sharing } = await searchParams;
+  const { error, saved, emailChange: emailStatus, emailError, sharing } = await searchParams;
+  // After a mistake, what was typed comes back from the form-echo cookie,
+  // never the URL (app/formEcho.ts, §11.6).
+  const { first, initial } = error ? await readFormEcho() : {};
   const user = await requireUser("/settings");
   // eslint-disable-next-line react-hooks/purity -- a Server Component, once per request
   const pending = await pendingEmailChange(getDb(), user.id, new Date(Date.now()));

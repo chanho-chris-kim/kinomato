@@ -7,6 +7,7 @@ import { requireSignedInIgnoringConsent } from "@/app/auth";
 import { safePath } from "@/app/baseUrl";
 import { consentGapsFor, recordConsent } from "@/app/consent";
 import { clearSessionCookie } from "@/app/session";
+import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { readConsentForm } from "@/lib/consent";
 
 // /consent's form (docs/onboarding-spec.md §11.1–§11.3): an existing
@@ -30,11 +31,12 @@ export async function submitConsent(formData: FormData) {
     await clearSessionCookie();
     redirect("/age-limit");
   }
+  await clearFormEcho("/consent");
   if (consent.kind === "error") {
-    const qs = new URLSearchParams({ next, error: consent.error });
+    // The age chosen comes back through the form-echo cookie, not the URL.
     const age = formData.get("age");
-    if (typeof age === "string" && age) qs.set("age", age);
-    redirect(`/consent?${qs.toString()}`);
+    if (typeof age === "string" && age) await setFormEcho("/consent", { age });
+    redirect(`/consent?${new URLSearchParams({ next, error: consent.error })}`);
   }
   await recordConsent(db, user.id, { age: consent.age, licensing: consent.licensing });
   redirect(next);

@@ -11,7 +11,9 @@ import {
   getAuthSecret,
   hashCode,
   hashToken,
+  SIGN_IN_DURATION_MS,
 } from "@/lib/authCredentials";
+import { clearSignInEmailCookie } from "@/app/signInCookie";
 import { sendSignInEmail } from "@/lib/email";
 
 // Email sign-in (docs/onboarding-spec.md §4). One magic_links row per
@@ -24,9 +26,6 @@ import { sendSignInEmail } from "@/lib/email";
 // Two ways in: plain sign-in/recovery, and from an invite (inviteId set —
 // completing sign-in redeems it).
 
-// 15 minutes — short-lived on purpose, unlike the session it produces
-// (app/session.ts). It's a one-time credential sitting in an inbox.
-const SIGN_IN_DURATION_MS = 15 * 60 * 1000;
 
 export type IssueResult = { sent: true } | { sent: false; retryAfterSeconds: number };
 
@@ -111,6 +110,8 @@ export async function completeSignIn(
   const user = existingUser ?? (await db.insert(users).values({ email: link.email }).returning())[0];
 
   await setSessionCookie(await createSession(db, user.id));
+  // Signed in: the address the code screen was holding is done with.
+  await clearSignInEmailCookie();
 
   const withNameStep = (destination: string, inviteId?: string) => {
     if (user.displayName) return destination;

@@ -387,6 +387,12 @@ Do not quietly change these — they encode decisions that took a while to reach
     `/welcome` hard-deletes the new account and un-redeems its invite
     (`app/consent.ts` `discardNewAccount`); on `/consent` it runs §11.4's
     anonymisation (`app/anonymise.ts`), the module (f) reuses.
+  - **No personal data in URLs (§11.6, built (g)).** Workers Logs keep
+    every request URL. The sign-in address rides in `kinomato_signin_email`
+    (`app/signInCookie.ts`, `/login` only, 15 minutes); a form's typed
+    values come back after an error through `kinomato_form_echo`
+    (`app/formEcho.ts`). `?error=` messages and `returnTo` paths stay in
+    URLs. `lib/noPersonalDataInUrls.test.ts` fails anything else.
 - **Every rating is a verified member's.** There are no guests since the
   step-4 cutover: every rating comes from an account behind a verified
   email, and every non-founder arrived by a personal invite

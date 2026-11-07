@@ -4,6 +4,7 @@ import { safePath } from "@/app/baseUrl";
 import { consentEventsFor, licensingStatusFor } from "@/app/consent";
 import { ConsentFields } from "@/app/consentFields";
 import { PublicShell } from "@/app/shell";
+import { readFormEcho } from "@/app/formEcho";
 import { signOut } from "@/app/settings/actions";
 import { acceptanceMethod, canOptInToLicensing, isLicensingActive, needsConsent } from "@/lib/consent";
 import { currentLegal } from "@/lib/legal";
@@ -18,9 +19,10 @@ import { submitConsent } from "./actions";
 export default async function ConsentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string; age?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next: rawNext, error, age } = await searchParams;
+  const { next: rawNext, error } = await searchParams;
+  const { age } = error ? await readFormEcho() : {};
   const next = safePath(rawNext);
   const user = await requireSignedInIgnoringConsent(`/consent?${new URLSearchParams({ next })}`);
   if (!user.displayName) redirect(`/welcome?${new URLSearchParams({ next })}`);

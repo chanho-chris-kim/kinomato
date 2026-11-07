@@ -4,13 +4,12 @@ import { PublicShell } from "@/app/shell";
 // Email in, code out (docs/onboarding-spec.md §5.4). Reached directly
 // (recovering on a new device) or from a gated page — returnTo (a
 // same-origin path) is where the code screen sends them afterwards.
-// `email` prefills the field when a stale link sends someone here.
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; returnTo?: string; email?: string }>;
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
 }) {
-  const { error, returnTo, email } = await searchParams;
+  const { error, returnTo } = await searchParams;
 
   return (
     <PublicShell>
@@ -32,7 +31,7 @@ export default async function LoginPage({
           <label className="small muted">
             Email
             <div className="search mt-1">
-              <input type="email" name="email" required autoFocus defaultValue={email} />
+              <input type="email" name="email" required autoFocus />
             </div>
           </label>
           {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}

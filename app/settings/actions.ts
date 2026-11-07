@@ -10,6 +10,7 @@ import { endAllSessions, endSession } from "@/app/session";
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
 import { optInToLicensing, withdrawFromLicensing } from "@/app/consent";
 import { validateMemberName } from "@/lib/memberName";
+import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 
 // Settings (docs/onboarding-spec.md §5.9).
 
@@ -22,10 +23,13 @@ export async function updateName(formData: FormData) {
   const user = await requireUser("/settings");
   const firstName = String(formData.get("firstName") ?? "");
   const lastInitial = String(formData.get("lastInitial") ?? "");
+  await clearFormEcho("/settings");
   const result = validateMemberName(firstName, lastInitial);
   if ("error" in result) {
-    const qs = new URLSearchParams({ error: result.error, first: firstName, initial: lastInitial });
-    redirect(`/settings?${qs}`);
+    // What was typed goes back through the form-echo cookie, never the
+    // URL (§11.6).
+    await setFormEcho("/settings", { first: firstName, initial: lastInitial });
+    redirect(`/settings?${new URLSearchParams({ error: result.error })}`);
   }
   await getDb().update(users).set({ displayName: result.displayName }).where(eq(users.id, user.id));
   revalidatePath("/", "layout");
@@ -55,14 +59,14 @@ export async function signOutEverywhere() {
 export async function requestEmailChangeAction(formData: FormData) {
   const user = await requireUser("/settings");
   const result = await requestEmailChange(getDb(), user, String(formData.get("newEmail") ?? ""), new Date());
-  redirect(result.ok ? "/settings?email=sent" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+  redirect(result.ok ? "/settings?emailChange=sent" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
 }
 
 export async function confirmEmailChangeAction(formData: FormData) {
   const user = await requireUser("/settings");
   const result = await confirmEmailChange(getDb(), user, String(formData.get("code") ?? ""), new Date());
   if (result.ok) revalidatePath("/", "layout");
-  redirect(result.ok ? "/settings?email=changed" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+  redirect(result.ok ? "/settings?emailChange=changed" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
 }
 
 export async function cancelEmailChangeAction() {

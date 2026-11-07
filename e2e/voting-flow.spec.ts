@@ -117,7 +117,14 @@ test.describe("voting flow", () => {
       await nomineeRow(joPage, FILM_TITLE.theThing)
         .getByRole("button", { name: /Vote/ })
         .click();
+      // Each vote has landed before reloading: a reload straight after the
+      // click can abort the server action still in flight.
+      await expect
+        .poll(() => voteCount(chrisPage, FILM_TITLE.chungkingExpress))
+        .toBe(chungkingBefore + 1);
+      await expect.poll(() => voteCount(joPage, FILM_TITLE.theThing)).toBe(theThingBefore + 1);
 
+      // And they persisted.
       await chrisPage.reload();
       await joPage.reload();
 
