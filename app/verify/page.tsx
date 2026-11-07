@@ -27,7 +27,6 @@ export default async function VerifyPage({
   const state = link ? evaluateSignIn(link, new Date()) : "expired";
 
   if (!link || state === "consumed" || state === "expired") {
-    const retry = link ? `/login?email=${encodeURIComponent(link.email)}` : "/login";
     return (
       <PublicShell>
         <main className="p-4" style={{ maxWidth: 480, margin: "0 auto" }}>
@@ -36,7 +35,7 @@ export default async function VerifyPage({
           </h1>
           <p className="small muted mt-1">Sign-in links work once, for 15 minutes.</p>
           <p className="mt20">
-            <Link href={retry} className="btn primary" style={{ display: "block", textAlign: "center" }}>
+            <Link href="/login" className="btn primary" style={{ display: "block", textAlign: "center" }}>
               Request a new one
             </Link>
           </p>

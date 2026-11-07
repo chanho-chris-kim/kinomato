@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { requestLogin } from "../actions";
 import { submitCode } from "./actions";
+import { redirect } from "next/navigation";
 import { PublicShell } from "@/app/shell";
+import { getSignInEmail, loginAgainUrl } from "@/app/signInCookie";
+import { maskEmail } from "@/lib/emailAddress";
 
 // "Check your email" (docs/onboarding-spec.md §5.5): the code leads,
 // because it's typed into the tab that asked for it. One field, not six
@@ -19,14 +22,17 @@ export default async function CodePage({
   searchParams,
 }: {
   searchParams: Promise<{
-    email?: string;
     returnTo?: string;
     error?: string;
     left?: string;
     notice?: string;
   }>;
 }) {
-  const { email = "", returnTo, error, left, notice } = await searchParams;
+  const { returnTo, error, left, notice } = await searchParams;
+  // The address comes from the sign-in cookie, never the URL (§11.6), and
+  // is shown masked: the person knows which one they typed.
+  const email = await getSignInEmail();
+  if (!email) redirect(loginAgainUrl(returnTo));
   const deadEnd = error === "locked" || error === "expired" || error === "consumed";
   const differentEmail = returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login";
 
@@ -37,7 +43,7 @@ export default async function CodePage({
           Check your email
         </h1>
         <p className="small muted mt-1">
-          We sent a 6-digit code to <strong>{email}</strong>. It expires in 15 minutes.
+          We sent a 6-digit code to <strong className="masked-email">{maskEmail(email)}</strong>. It expires in 15 minutes.
         </p>
 
         {notice === "wait" && (
@@ -66,7 +72,6 @@ export default async function CodePage({
                 />
               </div>
             </label>
-            <input type="hidden" name="email" value={email} />
             {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
             <button type="submit" className="btn primary">
               Sign in
@@ -78,7 +83,6 @@ export default async function CodePage({
         )}
 
         <form action={requestLogin} className="mt20">
-          <input type="hidden" name="email" value={email} />
           {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
           <button type="submit" className={deadEnd ? "btn primary" : "btn ghost"}>
             {deadEnd ? "Send a new code" : "Resend"}

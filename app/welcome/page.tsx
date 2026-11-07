@@ -9,6 +9,7 @@ import { saveWelcome } from "./actions";
 import { consentGapsFor } from "@/app/consent";
 import { ConsentFields } from "@/app/consentFields";
 import { PublicShell } from "@/app/shell";
+import { readFormEcho } from "@/app/formEcho";
 
 // Runs once, the first time an account with no name signs in
 // (docs/onboarding-spec.md §5.6): the name, then the consent controls
@@ -23,12 +24,12 @@ export default async function WelcomePage({
     next?: string;
     invite?: string;
     error?: string;
-    first?: string;
-    initial?: string;
-    age?: string;
   }>;
 }) {
-  const { next: rawNext, invite: inviteId, error, first, initial, age } = await searchParams;
+  const { next: rawNext, invite: inviteId, error } = await searchParams;
+  // After a mistake, what was typed comes back from the form-echo cookie,
+  // never the URL (app/formEcho.ts, §11.6).
+  const { first, initial, age } = error ? await readFormEcho() : {};
   const next = safePath(rawNext);
   const userId = await getSessionUserId();
   if (!userId) redirect("/login");

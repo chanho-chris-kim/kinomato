@@ -1,9 +1,10 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
 import { getAuthSecret, hashCode, hashToken } from "../lib/authCredentials";
+import { maskEmail } from "../lib/emailAddress";
 
 // The code and link token are stored only as hashes, so a test can't read
 // them back (docs/onboarding-spec.md §8.3). Instead, after asking for a
@@ -56,9 +57,12 @@ export async function latestSignInRow(email: string) {
 
 // On the code screen (after asking for a code by any route): set a known
 // code on the newest row, type it, submit.
+// The address is masked on the page and never in the URL (§11.6).
 export async function finishCodeSignIn(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/login\/code/);
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.locator(".masked-email")).toHaveText(maskEmail(email));
+  expect(page.url()).not.toContain(encodeURIComponent(email));
+  expect(page.url()).not.toContain(email);
   const { code } = await setKnownSignIn(email);
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -108,5 +112,43 @@ export async function setKnownEmailChangeCode(userEmail: string, newEmail?: stri
     return KNOWN_CODE;
   } finally {
     await client.end();
+  }
+}
+
+// Must match app/signInCookie.ts. Not imported: that module pulls in
+// next/headers.
+const SIGN_IN_EMAIL_COOKIE = "kinomato_signin_email";
+
+// What the code screen would hold after someone asked for a code to
+// `email`, without sending one: for tests that type a code at /login/code
+// for an address that was never sent one.
+export async function holdSignInAddress(page: Page, email: string): Promise<void> {
+  const { origin } = new URL(test.info().project.use.baseURL!);
+  await page.context().addCookies([
+    { name: SIGN_IN_EMAIL_COOKIE, value: email, domain: new URL(origin).hostname, path: "/login", httpOnly: true },
+  ]);
+}
+
+// Every URL a page requests from here on — navigations, RSC fetches and
+// server-action posts alike — for asserting nothing personal is in any.
+export function recordRequestUrls(page: Page): string[] {
+  const urls: string[] = [];
+  page.on("request", (request) => urls.push(request.url()));
+  return urls;
+}
+
+export function expectNoneContain(urls: string[], ...values: string[]): void {
+  expect(urls.length).toBeGreaterThan(0);
+  for (const value of values) {
+    const hits = urls.filter((url) => {
+      let decoded = url;
+      try {
+        decoded = decodeURIComponent(url.replace(/\+/g, " "));
+      } catch {
+        // A malformed escape: check the raw URL.
+      }
+      return decoded.toLowerCase().includes(value.toLowerCase());
+    });
+    expect(hits, `URLs containing "${value}"`).toEqual([]);
   }
 }

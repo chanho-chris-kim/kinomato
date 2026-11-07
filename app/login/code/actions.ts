@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { magicLinks } from "@/db/schema";
 import { completeSignIn, latestSignInFor } from "@/app/signIn";
-import { normaliseEmail } from "@/lib/emailAddress";
+import { getSignInEmail, loginAgainUrl } from "@/app/signInCookie";
 import {
   CODE_MAX_ATTEMPTS,
   codeMatches,
@@ -17,17 +17,20 @@ import {
 // code sent to an address counts. Every outcome that isn't success lands
 // back on the code screen with a message, via the ?error= convention.
 export async function submitCode(formData: FormData) {
-  const email = normaliseEmail(String(formData.get("email") ?? ""));
   const code = String(formData.get("code") ?? "");
   const returnTo = String(formData.get("returnTo") ?? "").trim() || undefined;
+  // The address is the sign-in cookie's, never the form's or the URL's
+  // (§11.6). Gone means the 15 minutes are up: start again at /login.
+  const email = await getSignInEmail();
+  if (!email) redirect(loginAgainUrl(returnTo));
   const back = (error: string, extra: Record<string, string> = {}) => {
-    const qs = new URLSearchParams({ email, error, ...extra });
+    const qs = new URLSearchParams({ error, ...extra });
     if (returnTo) qs.set("returnTo", returnTo);
     redirect(`/login/code?${qs.toString()}`);
   };
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const link = await latestSignInFor(db, email);
+  const link = await latestSignInFor(db, email!);
   if (!link) back("expired");
   const state = evaluateSignIn(link!, new Date());
   if (state !== "usable") back(state);

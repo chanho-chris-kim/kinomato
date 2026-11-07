@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { safePath } from "@/app/baseUrl";
 import { discardNewAccount, recordConsent } from "@/app/consent";
 import { clearSessionCookie, getSessionUserId } from "@/app/session";
+import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { readConsentForm } from "@/lib/consent";
 import { validateMemberName } from "@/lib/memberName";
 
@@ -39,17 +40,24 @@ export async function saveWelcome(formData: FormData) {
     redirect("/age-limit");
   }
 
-  const back = (error: string) => {
-    const qs = new URLSearchParams({ next, error, first: firstName, initial: lastInitial });
+  // What was typed goes back through the form-echo cookie, never the URL
+  // (§11.6); only the fixed message and the paths ride in it.
+  const back = async (error: string): Promise<never> => {
     const age = formData.get("age");
-    if (typeof age === "string" && age) qs.set("age", age);
+    await setFormEcho("/welcome", {
+      first: firstName,
+      initial: lastInitial,
+      ...(typeof age === "string" && age ? { age } : {}),
+    });
+    const qs = new URLSearchParams({ next, error });
     if (invite) qs.set("invite", invite);
     redirect(`/welcome?${qs.toString()}`);
   };
+  await clearFormEcho("/welcome");
   const name = validateMemberName(firstName, lastInitial);
-  if ("error" in name) back(name.error);
-  if (consent.kind === "error") back(consent.error);
-  if (consent.kind !== "ok" || "error" in name) return;
+  if ("error" in name) return back(name.error);
+  if (consent.kind === "error") return back(consent.error);
+  if (consent.kind !== "ok") return;
 
   await recordConsent(db, userId, { age: consent.age, licensing: consent.licensing, displayName: name.displayName });
   redirect(next);

@@ -1231,6 +1231,7 @@ off the Terms and Privacy text.**
 | ✓ (b) Consent | Done 2026-11-06. `consent_events` (append-only). `/welcome` asks new accounts; `/consent` asks existing ones (`signup` the first time, `reconsent` after a version change). The gate is in `app/auth.ts`'s `requireUser`; `lib/consentGate.test.ts` fails any signed-in route that skips it. |
 | ✓ (c) Data licensing | Done 2026-11-06. `data_licensing_consents` (append-only; withdrawal sets `withdrawn_at`). Wording and its version in `lib/legal.ts`. Offered on `/welcome` and `/consent` to 18 or older only; Settings' Data sharing opts in and withdraws. |
 | ✓ (d) Age | Done 2026-11-06. `users.age_bracket` and `age_attested_at`, null until asked. Under 13 on `/welcome`: the new account is deleted and its invite un-redeemed (`app/consent.ts` `discardNewAccount`). On `/consent`: §11.4's anonymisation (`app/anonymise.ts`). |
+| ✓ (g) No personal data in URLs | Done 2026-11-06 (§11.6). The sign-in address rides in a 15-minute cookie, not `?email=`; typed names and ages come back after an error through a one-minute form-echo cookie. `lib/noPersonalDataInUrls.test.ts` fails any URL built with a personal key or value. |
 | (e) Export | Next. |
 | (f) Deletion | After (e). Reuses `app/anonymise.ts` as is; adds the email code and the sole-owner block. |
 
@@ -1260,14 +1261,13 @@ off the Terms and Privacy text.**
 - **Withdrawal is future-only**, and the wording says so: it stops future
   inclusion, it can't recall aggregates already produced.
 - **13–17s can't opt in.**
+- **An opt-in counts only for the wording version it was given under. A
+  wording change asks again** (ruled 2026-11-06).
 - *Built (c):* the wording and its version live in `lib/legal.ts` next to
-  the documents. An opt-in counts only for the wording version it was
-  given against (`lib/consent.ts` `isLicensingActive`); after a wording
-  change, Settings offers it again. What a wording change should do to
-  existing opt-ins hasn't been ruled; this is the cautious reading.
-  The age check is server-side: a 13–17 opt-in is dropped whatever the
-  form sent. Anonymisation also withdraws any open opt-in (not in the
-  §11.4 table).
+  the documents. `lib/consent.ts` `isLicensingActive` applies the wording
+  ruling; after a wording change, `/consent` and Settings offer the box
+  again. The age check is server-side: a 13–17 opt-in is dropped whatever
+  the form sent.
 
 ### 11.3 Age (`analysis-v2.md` §9)
 
@@ -1296,6 +1296,7 @@ off the Terms and Privacy text.**
 | Pending invites the person created | Revoked, `invitee_name` cleared |
 | Memberships | Marked left (kept: attribution, rotation and History reference them) |
 | Sessions, sign-in codes, email changes | Deleted |
+| An open data-sharing opt-in | Withdrawn (`withdrawn_at` set; the row is kept, as every withdrawal is) |
 | Votes, vetoes, nominations, picks | Kept (attribution retained; the history-read module keeps voters unreachable) |
 
 - **Confirmed by a code sent to the account's email.**
@@ -1320,13 +1321,23 @@ off the Terms and Privacy text.**
 
 ### 11.6 Housekeeping
 
-- **Emails out of URLs** (`/login/code?email=`, `/login?email=`): the step
-  after consent.
+- ✓ **Emails out of URLs** — done 2026-11-06, with names. Workers Logs
+  keep every request URL, so nothing personal rides in one. The sign-in
+  address is held in `kinomato_signin_email` (httpOnly, `/login` only, 15
+  minutes, deleted on sign-in; `app/signInCookie.ts`), and the code screen
+  shows it masked. What was typed into a form comes back after an error
+  through `kinomato_form_echo` (httpOnly, that page only, one minute;
+  `app/formEcho.ts`). `?error=` stays: it's a fixed message.
+  `lib/noPersonalDataInUrls.test.ts` enforces it. **Still in URLs by
+  design, to be disclosed in the Privacy text:** sign-in link tokens
+  (`/verify?token=`, single-use and dead after 15 minutes) and search
+  terms (`?q=`, the text alone, never linked to an account in the URL).
 - **Retention**, by a scheduled job: expired `magic_links` and
   `email_changes` deleted 7 days after expiry; expired `sessions` 7 days
   after expiry; revoked invites' `invitee_name` cleared after 90 days.
 - **Cloudflare logs stay on and are disclosed** (§9).
 - **`users.avatar` is dropped later** (destructive, so last).
-- **No cookie banner for now**: both cookies (`kinomato_session`,
-  `kinomato_seen_from`) are strictly functional. To be confirmed at the
-  legal review.
+- **No cookie banner for now**: every cookie (`kinomato_session`,
+  `kinomato_seen_from`, `kinomato_signin_email`, `kinomato_form_echo`) is
+  strictly functional, and the Privacy page lists them. To be confirmed at
+  the legal review.

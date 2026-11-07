@@ -13,6 +13,10 @@
 // under nodejs_compat (wrangler.jsonc).
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
+// 15 minutes — short-lived on purpose, unlike the session it produces
+// (app/session.ts). It's a one-time credential sitting in an inbox. The
+// sign-in cookie (app/signInCookie.ts) lives exactly as long.
+export const SIGN_IN_DURATION_MS = 15 * 60 * 1000;
 export const CODE_MAX_ATTEMPTS = 5;
 export const SEND_COOLDOWN_SECONDS = 30;
 export const SENDS_PER_HOUR = 5;

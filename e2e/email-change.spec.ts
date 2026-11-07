@@ -6,7 +6,7 @@ import * as schema from "../db/schema";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { signInAs } from "./session";
-import { finishCodeSignIn, nameYourself, setKnownEmailChangeCode } from "./signIn";
+import { finishCodeSignIn, holdSignInAddress, nameYourself, setKnownEmailChangeCode } from "./signIn";
 
 // Email change (docs/onboarding-spec.md §5.9 rulings; rebuild step 7b).
 // Every account here is made fresh through the real code sign-in, so no
@@ -84,7 +84,7 @@ test.describe("email change", () => {
     await signUpWithClub(page, old, "Ann", "Ann's Club");
 
     await requestChange(page, next);
-    await expect(page).toHaveURL("/settings?email=sent");
+    await expect(page).toHaveURL("/settings?emailChange=sent");
     await expect(pendingCard(page)).toContainText("Code sent to e•••@example.com.");
     await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
@@ -149,7 +149,7 @@ test.describe("email change", () => {
 
     await requestChange(page, next);
     await enterCode(page, await setKnownEmailChangeCode(old));
-    await expect(page).toHaveURL("/settings?email=changed");
+    await expect(page).toHaveURL("/settings?emailChange=changed");
     await expect(page.locator("main").getByRole("status")).toContainText("Email changed.");
     await expect(page.locator(".current-email")).toHaveText(next);
     await expect(pendingCard(page)).toHaveCount(0);
@@ -245,7 +245,7 @@ test.describe("email change", () => {
 
     await requestChange(page, taken);
     // Exactly what a free address shows.
-    await expect(page).toHaveURL("/settings?email=sent");
+    await expect(page).toHaveURL("/settings?emailChange=sent");
     await expect(pendingCard(page)).toContainText("Code sent to k•••@example.com.");
     await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
@@ -272,7 +272,8 @@ test.describe("email change", () => {
     const code = await setKnownEmailChangeCode(me);
 
     const s = await freshContext(browser);
-    await s.page.goto(`/login/code?${new URLSearchParams({ email: next })}`);
+    await holdSignInAddress(s.page, next);
+    await s.page.goto("/login/code");
     await s.page.getByLabel("6-digit code").fill(code);
     await s.page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(s.page).toHaveURL(/\/login\/code\?.*error=expired/);
@@ -288,7 +289,7 @@ test.describe("email change", () => {
     await signUpWithClub(page, me, "Gus", "Gus's Club");
     for (const to of ["a-gus@example.com", "b-gus@example.com", "c-gus@example.com"]) {
       await requestChange(page, to);
-      await expect(page).toHaveURL("/settings?email=sent");
+      await expect(page).toHaveURL("/settings?emailChange=sent");
     }
     await requestChange(page, "d-gus@example.com");
     await expect(alertText(page)).toHaveText("You can ask to change your email 3 times a day. Try again tomorrow.");

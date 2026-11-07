@@ -13,6 +13,7 @@ import {
 } from "@/app/invites";
 import { issueSignIn } from "@/app/signIn";
 import { endSession, getSessionUserId } from "@/app/session";
+import { codeScreenUrl, setSignInEmailCookie } from "@/app/signInCookie";
 import { resolveInviteView } from "@/lib/invites";
 import { normaliseEmail } from "@/lib/emailAddress";
 
@@ -41,9 +42,9 @@ export async function startInvite(token: string, formData: FormData) {
     await db.update(invites).set({ startedAt: new Date() }).where(eq(invites.id, row.invite.id));
   }
   const result = await issueSignIn(db, { email, inviteId: row.invite.id });
-  const qs = new URLSearchParams({ email });
-  if (!result.sent) qs.set("notice", "wait");
-  redirect(`/login/code?${qs.toString()}`);
+  // The address goes in the sign-in cookie, never the URL (§11.6).
+  await setSignInEmailCookie(email);
+  redirect(codeScreenUrl(undefined, result.sent ? undefined : "wait"));
 }
 
 // Ruling B, primary: the safe choice protects the person named on the link.
