@@ -1,5 +1,6 @@
 // Email via Brevo's transactional API (docs/onboarding-spec.md §4, §5.9):
-// the sign-in code and link, and the email-change code and notices.
+// the sign-in code and link, the email-change code and notices, and the
+// account-deletion code and receipt (§11.4).
 // Mirrors lib/tmdb.ts's fallback shape: BREVO_API_KEY unset (always true in
 // E2E/CI, on purpose) means no real send and no network access. Codes are
 // stored only as hashes, so E2E never reads them back from here either: it
@@ -13,7 +14,13 @@ const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
 const SENDER = { email: "hello@kinomato.com", name: "Kinomato" };
 
 interface Message {
-  kind: "sign-in" | "email-change-code" | "email-taken-notice" | "email-changed-notice";
+  kind:
+    | "sign-in"
+    | "email-change-code"
+    | "email-taken-notice"
+    | "email-changed-notice"
+    | "account-deletion-code"
+    | "account-deleted-receipt";
   to: string;
   subject: string;
   html: string;
@@ -137,5 +144,35 @@ export async function sendEmailChangedNotice(oldEmail: string, maskedNewEmail: s
     html:
       `<p>Your Kinomato email was changed to ${maskedNewEmail}. ` +
       `If this wasn't you, reply to this email.</p>`,
+  });
+}
+
+// To the account's own address: the code that confirms deleting it
+// (§11.4). Entered in Settings, where it was asked for; sign-in never
+// accepts it.
+export async function sendAccountDeletionCode(email: string, code: string): Promise<void> {
+  if (!process.env.BREVO_API_KEY) {
+    console.log(`[email:account-deletion-code] (no BREVO_API_KEY, not sent) ${email} code ${code}`);
+  }
+  await send({
+    kind: "account-deletion-code",
+    to: email,
+    subject: `${code} is your code to delete your Kinomato account`,
+    html:
+      `<p>Your code to delete your Kinomato account:</p>` +
+      `<p style="font-size:28px;letter-spacing:4px;font-weight:600">${code}</p>` +
+      `<p>Enter it in Settings, where you asked for it. It works once and expires in 15 minutes.</p>` +
+      `<p>If you didn't ask for this, ignore this email. Nothing is deleted without the code.</p>`,
+  });
+}
+
+// To the old address, once the account is deleted: the receipt, and
+// nothing else (§11.4).
+export async function sendAccountDeletedReceipt(email: string): Promise<void> {
+  await send({
+    kind: "account-deleted-receipt",
+    to: email,
+    subject: "Your Kinomato account was deleted",
+    html: `<p>Your Kinomato account was deleted.</p>`,
   });
 }

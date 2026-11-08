@@ -27,9 +27,9 @@ another month over the thing that picks a film faster.
   §5.1's three tiers and reverses analysis-v1.md §7.1's no-account invite
   loop. Build order is its §8.5; steps 1–7 are all built (the cutover
   removed guests). Launch foundations (§11) follow: (a) legal pages,
-  (b) consent, (c) data licensing, (d) age, (e) export and (g) no
-  personal data in URLs are built; (f) deletion is next, with the rest
-  of housekeeping (§11.6) alongside.
+  (b) consent, (c) data licensing, (d) age, (e) export, (f) deletion and
+  (g) no personal data in URLs are built; the rest of housekeeping
+  (§11.6) remains.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than
@@ -333,7 +333,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   namespace import, or names them in SQL. The one exception is the
   club's server actions (`app/clubs/[clubId]/actions.ts`), which import
   them to *write* (cast or move a vote, cast a veto) and may never read
-  them.
+  them. **One recorded exception (2026-11-07, `docs/onboarding-spec.md`
+  §11.4):** deleting the account of a club's last active member deletes
+  that club whole, its votes and vetoes included. With no member left
+  there's no one to audit for, and people who left the club earlier lose
+  its history too. That delete is `historyRead.ts`'s
+  `deleteVotesAndVetoesOfClubs`, run only by Delete account.
 - **Which films a club can see goes through one function.** One
   watchlist per person (`watchlist_items.user_id`, docs/onboarding-spec.md
   §6), so what each club sees of it is decided in exactly one place:
@@ -371,10 +376,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   - **Deletion anonymises** (§11.4's table): "Former member", email
     released, personal lists deleted, scores kept but takes and tags
     removed, memberships marked left, attribution kept. Confirmed by a
-    code; blocked while you're the sole owner of a club with others.
+    code to the account's address. A club you own with others left passes
+    to its earliest admin, else its earliest member; a club you're the
+    last active member of is deleted whole (the attribution exception
+    above).
   - **Export** is your own data only, as JSON, never anyone else's names
     or votes; your own votes come through the history-read module.
-  - **Built: (a)–(e) and (g).** The gate is inside `app/auth.ts`'s
+  - **Built: (a)–(g).** The gate is inside `app/auth.ts`'s
     `requireUser` (so `requireNamedUser`, `requireClubMember` and the club
     actions' `requireCurrentMembershipId` all carry it): an account
     missing a current acceptance or its age goes to `/consent`, or
@@ -388,6 +396,12 @@ Do not quietly change these — they encode decisions that took a while to reach
     `/welcome` hard-deletes the new account and un-redeems its invite
     (`app/consent.ts` `discardNewAccount`); on `/consent` it runs §11.4's
     anonymisation (`app/anonymise.ts`), the module (f) reuses.
+  - **Delete account (§11.4, built (f)).** `app/accountDeletion.ts`, the
+    only code touching `account_deletion_requests`
+    (`lib/accountDeletionAccess.test.ts`); `lib/accountDeletion.ts`'s
+    `planDeletion` decides leave, transfer or delete per club. One batch:
+    transfers, last-member club deletion, then `anonymisationStatements`.
+    The receipt goes to the old address after the batch lands.
   - **Download my data (§11.5, built (e)).** `GET /settings/export`,
     gated by `requireUser`, no query string. `app/dataExport.ts`
     assembles the file from queries filtered to the person; own votes and

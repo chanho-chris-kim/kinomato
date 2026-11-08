@@ -193,6 +193,28 @@ export const emailChanges = pgTable(
   ],
 );
 
+// A request to delete the account (docs/onboarding-spec.md §11.4; launch
+// foundations (f)): a 6-digit code sent to the account's own address,
+// stored only as an HMAC like sign-in codes. Sign-in never reads this
+// table, so a deletion code can never sign anyone in. Only
+// app/accountDeletion.ts touches it (lib/accountDeletionAccess.test.ts).
+export const accountDeletionRequests = pgTable(
+  "account_deletion_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("account_deletion_requests_user_id_idx").on(table.userId)],
+);
+
 // Every acceptance of the Terms or the Privacy policy, append-only
 // (§11.1). An account's current status is each document's newest row
 // (lib/consent.ts needsConsent); a version change in lib/legal.ts makes

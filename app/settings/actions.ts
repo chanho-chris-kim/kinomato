@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { requireSignedInIgnoringConsent, requireUser } from "@/app/auth";
-import { endAllSessions, endSession } from "@/app/session";
+import { clearSessionCookie, endAllSessions, endSession } from "@/app/session";
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
 import { optInToLicensing, withdrawFromLicensing } from "@/app/consent";
+import { cancelAccountDeletion, confirmAccountDeletion, requestAccountDeletion } from "@/app/accountDeletion";
 import { validateMemberName } from "@/lib/memberName";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 
@@ -88,4 +89,32 @@ export async function withdrawFromLicensingAction() {
   const user = await requireUser("/settings");
   await withdrawFromLicensing(getDb(), user.id);
   redirect("/settings?sharing=off#data-sharing");
+}
+
+// Delete account (docs/onboarding-spec.md §11.4; launch foundations (f)).
+// The logic is in app/accountDeletion.ts. A code to the account's own
+// address, entered on /settings/delete-account, which lists what happens
+// to each club. Mistakes come back there with ?error= (fixed messages).
+export async function requestAccountDeletionAction() {
+  const user = await requireUser("/settings");
+  const result = await requestAccountDeletion(getDb(), user, new Date());
+  redirect(
+    result.ok ? "/settings/delete-account" : `/settings?${new URLSearchParams({ deleteError: result.error })}#delete-account`,
+  );
+}
+
+export async function confirmAccountDeletionAction(formData: FormData) {
+  const user = await requireUser("/settings/delete-account");
+  const result = await confirmAccountDeletion(getDb(), user, String(formData.get("code") ?? ""), new Date());
+  if (!result.ok) redirect(`/settings/delete-account?${new URLSearchParams({ error: result.error })}`);
+  // Every session is already gone (the anonymisation); this browser's
+  // cookie goes too.
+  await clearSessionCookie();
+  redirect("/account-deleted");
+}
+
+export async function cancelAccountDeletionAction() {
+  const user = await requireUser("/settings/delete-account");
+  await cancelAccountDeletion(getDb(), user.id, new Date());
+  redirect("/settings");
 }

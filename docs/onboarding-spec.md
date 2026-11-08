@@ -426,7 +426,8 @@ settings page"):
 - Footer: Privacy, Terms (every page, site-wide; launch-foundations step
   (a), §11).
 - **Download my data** (built 2026-11-07, launch foundations (e), §11.5)
-  and **Delete account** (§11.4, not yet built).
+  and **Delete account** (built 2026-11-07, launch foundations (f),
+  §11.4).
 
 **Rulings for step 7 (2026-11-06):**
 - **Renames are retroactive everywhere.** Names live on the account
@@ -1233,7 +1234,7 @@ off the Terms and Privacy text.**
 | ✓ (d) Age | Done 2026-11-06. `users.age_bracket` and `age_attested_at`, null until asked. Under 13 on `/welcome`: the new account is deleted and its invite un-redeemed (`app/consent.ts` `discardNewAccount`). On `/consent`: §11.4's anonymisation (`app/anonymise.ts`). |
 | ✓ (g) No personal data in URLs | Done 2026-11-06 (§11.6). The sign-in address rides in a 15-minute cookie, not `?email=`; typed names and ages come back after an error through a one-minute form-echo cookie. `lib/noPersonalDataInUrls.test.ts` fails any URL built with a personal key or value. |
 | ✓ (e) Export | Done 2026-11-07. Settings' Download my data: `GET /settings/export` (no query string, behind `requireUser`), one JSON attachment, `no-store`. Assembled in `app/dataExport.ts`, shaped by `lib/dataExport.ts`. |
-| (f) Deletion | Next. Reuses `app/anonymise.ts` as is; adds the email code and the sole-owner block. |
+| ✓ (f) Deletion | Done 2026-11-07. Settings' Delete account: a code to the account's address (`account_deletion_requests`), a confirmation screen saying what happens to each club, then one batch: ownership transfers, last-member clubs deleted, §11.4's anonymisation. `app/accountDeletion.ts`; `lib/accountDeletion.ts` `planDeletion`. |
 
 ### 11.1 Terms and Privacy
 
@@ -1299,17 +1300,54 @@ off the Terms and Privacy text.**
 | An open data-sharing opt-in | Withdrawn (`withdrawn_at` set; the row is kept, as every withdrawal is) |
 | Votes, vetoes, nominations, picks | Kept (attribution retained; the history-read module keeps voters unreachable) |
 
-- **Confirmed by a code sent to the account's email.**
-- **Blocked while the person is the sole owner of a club with other
-  members**, with a message saying why (ownership transfer doesn't exist
-  yet).
+- **Rulings for Delete account, 2026-11-07** (replacing the earlier
+  sole-owner block):
+  - **Confirmed by a 6-digit code emailed to the account's address**: 15
+    minutes, 5 wrong tries lock it, hashed with the same HMAC as sign-in
+    codes, at most 3 requests per person in any rolling 24 hours. Held in
+    its own table, `account_deletion_requests`, which sign-in can never
+    consume.
+  - **A club the person owns, with other active members left: ownership
+    passes automatically** to the earliest-joined admin if there is one,
+    else the earliest-joined member, in the same batch as the
+    anonymisation. The confirmation screen names the new owner per club
+    ("Sam K. will become the owner of Saturday Club").
+  - **A club the person is the last active member of (pending invites
+    don't count) is deleted completely**: nights, nominations, votes,
+    vetoes, RSVPs, ratings, rating tags, tags, invites (pending ones stop
+    working), limits and preferences, memberships, seasons, the club row.
+    The confirmation screen says so per club, by name. This is a recorded
+    exception to "attribution is retained, never deleted": with no member
+    left, there's no one to audit for. **People who left such a club
+    earlier lose its history too.**
+  - Everything else per the table above, through `app/anonymise.ts`.
+  - **Before the address is released, it gets a receipt**: "Your Kinomato
+    account was deleted." Nothing else.
 - A turn the person was holding shows "Former member", consistent with the
   departed-picker ruling.
 - *Built for (d), reused by (f):* the table is `app/anonymise.ts`'s
-  `anonymiseAccount`, one `db.batch`. The released email is a tombstone
+  `anonymiseAccount`, one `db.batch` (`anonymisationStatements` hands the
+  same statements to Delete account's batch). The released email is a tombstone
   (`deleted-<id>@deleted.kinomato.invalid`). "invitee_name cleared" is the
-  empty string, since the column is `NOT NULL`. (f) adds the code and the
-  sole-owner block in front of it.
+  empty string, since the column is `NOT NULL`.
+- ✓ *Built (f), 2026-11-07:* Settings → Delete account → "Send me a code"
+  → `/settings/delete-account`, which lists per club "You'll leave X",
+  "Sam K. will become the owner of X" or "X will be deleted…", then the
+  code, Confirm and Cancel. `app/accountDeletion.ts` is the only code that
+  touches `account_deletion_requests` (`lib/accountDeletionAccess.test.ts`);
+  `lib/accountDeletion.ts` holds the request state, the daily cap and
+  `planDeletion` (a tie on joined_at goes to the lower membership id; an
+  owner alongside another active owner just leaves). Confirming consumes
+  the code conditionally, then one `db.batch`: ownership transfers (the
+  departing owner's own row becomes `member`), the last-member clubs'
+  rows in foreign-key order (votes and vetoes through the history-read
+  module's `deleteVotesAndVetoesOfClubs`; a sign-in started from one of
+  their invites keeps working but joins nothing), the person's deletion
+  requests, then the anonymisation. The receipt goes to the old address,
+  captured before it's released, straight after that batch lands rather
+  than ahead of it: a batch that failed after a receipt was sent would
+  tell someone their account was deleted when it wasn't. Then the cookie is cleared and they
+  land on `/account-deleted`, which knows nothing about who arrived.
 
 ### 11.5 Export
 

@@ -9,6 +9,7 @@ import { readFormEcho } from "@/app/formEcho";
 import { parseInviteeName } from "@/lib/invites";
 import {
   cancelEmailChangeAction,
+  requestAccountDeletionAction,
   confirmEmailChangeAction,
   optInToLicensingAction,
   requestEmailChangeAction,
@@ -19,8 +20,8 @@ import {
 } from "./actions";
 
 // Settings (docs/onboarding-spec.md §5.9): your name, your email, data
-// sharing for 18 or older (§11.2), Download my data (§11.5), and both sign
-// outs (rebuild steps 7a and
+// sharing for 18 or older (§11.2), Download my data (§11.5), both sign
+// outs, and Delete account (§11.4) (rebuild steps 7a and
 // 7b, launch foundations (c)). Notifications wait for the
 // notifications feature, and the Privacy and Terms links for those pages
 // (§5.9 rulings). Nothing else goes here until it's built — no "coming
@@ -34,9 +35,10 @@ export default async function SettingsPage({
     emailChange?: string;
     emailError?: string;
     sharing?: string;
+    deleteError?: string;
   }>;
 }) {
-  const { error, saved, emailChange: emailStatus, emailError, sharing } = await searchParams;
+  const { error, saved, emailChange: emailStatus, emailError, sharing, deleteError } = await searchParams;
   // After a mistake, what was typed comes back from the form-echo cookie,
   // never the URL (app/formEcho.ts, §11.6).
   const { first, initial } = error ? await readFormEcho() : {};
@@ -250,6 +252,31 @@ export default async function SettingsPage({
             Signs out every device and browser you&apos;re signed in on, this one included.
           </p>
         </div>
+      </section>
+
+      <section className="mt20" aria-labelledby="delete-account-heading" id="delete-account">
+        <h2 id="delete-account-heading" className="sec">
+          Delete account
+        </h2>
+        <p className="small muted" style={{ margin: "4px 0 0" }}>
+          Your name, email, watchlist and limits are removed, and your past picks, votes and rating scores
+          stay in your clubs as &ldquo;Former member&rdquo;. A club you own passes to another member, and a
+          club you&apos;re the last member of is deleted.
+        </p>
+        {deleteError && (
+          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+            {deleteError}
+          </p>
+        )}
+        <form action={requestAccountDeletionAction} className="mt14">
+          <button type="submit" className="btn ghost" style={{ width: "auto" }}>
+            Send me a code
+          </button>
+        </form>
+        <p className="tiny dim" style={{ margin: "8px 0 0" }}>
+          We email a code to your address. Next you&apos;ll see what happens to each of your clubs before
+          anything is deleted.
+        </p>
       </section>
     </GlobalShell>
   );
