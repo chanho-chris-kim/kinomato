@@ -28,8 +28,8 @@ another month over the thing that picks a film faster.
   loop. Build order is its §8.5; steps 1–7 are all built (the cutover
   removed guests). Launch foundations (§11) follow: (a) legal pages,
   (b) consent, (c) data licensing, (d) age, (e) export, (f) deletion and
-  (g) no personal data in URLs are built; the rest of housekeeping
-  (§11.6) remains.
+  (g) no personal data in URLs and (h) retention are built; what's left
+  of housekeeping (§11.6) is dropping `users.avatar`.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than
@@ -64,7 +64,12 @@ another month over the thing that picks a film faster.
   since OpenNext has to catch up to each one. `next.config.ts` runs
   `initOpenNextCloudflareForDev()` so local dev behaves like the Worker.
   Cloudflare Cron Triggers (`wrangler.jsonc`) replace Vercel Cron for
-  scheduled jobs, once there are any.
+  scheduled jobs. **The Worker's entry is `worker.ts`, not
+  `.open-next/worker.js`:** it re-exports OpenNext's generated `fetch`
+  and adds `scheduled` (OpenNext's custom-worker pattern), which runs the
+  daily retention job. Wrangler bundles `worker.ts`'s imports outside
+  Next's bundle, so anything it imports is a second copy: keep that
+  import graph small.
 - **`next/image` works on this deployment without an `env.IMAGES`
   binding — verified, not assumed.** Confirmed by building with
   `opennextjs-cloudflare build`, running the real bundle under `wrangler
@@ -382,7 +387,7 @@ Do not quietly change these — they encode decisions that took a while to reach
     above).
   - **Export** is your own data only, as JSON, never anyone else's names
     or votes; your own votes come through the history-read module.
-  - **Built: (a)–(g).** The gate is inside `app/auth.ts`'s
+  - **Built: (a)–(h).** The gate is inside `app/auth.ts`'s
     `requireUser` (so `requireNamedUser`, `requireClubMember` and the club
     actions' `requireCurrentMembershipId` all carry it): an account
     missing a current acceptance or its age goes to `/consent`, or
@@ -396,6 +401,11 @@ Do not quietly change these — they encode decisions that took a while to reach
     `/welcome` hard-deletes the new account and un-redeems its invite
     (`app/consent.ts` `discardNewAccount`); on `/consent` it runs §11.4's
     anonymisation (`app/anonymise.ts`), the module (f) reuses.
+  - **Retention (§11.6, built (h)).** A Cron Trigger, `0 10 * * *`,
+    runs `worker.ts`'s `scheduled` handler → `app/retentionCleanup.ts`
+    (one batch; cutoffs in `lib/retention.ts`; guarded tables through
+    their owners). Never reachable over HTTP. One `[retention]` log line
+    of counts per run; failures throw.
   - **Delete account (§11.4, built (f)).** `app/accountDeletion.ts`, the
     only code touching `account_deletion_requests`
     (`lib/accountDeletionAccess.test.ts`); `lib/accountDeletion.ts`'s

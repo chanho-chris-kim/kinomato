@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import {
@@ -240,4 +240,14 @@ export async function confirmAccountDeletion(db: Db, user: User, rawCode: string
 
   await sendAccountDeletedReceipt(user.email);
   return { ok: true };
+}
+
+// Retention (§11.6): every deletion request that expired before `before`,
+// used, cancelled or not. Returned unrun, for the daily cleanup's batch
+// (app/retentionCleanup.ts); `returning` gives only ids, for a count.
+export function deleteExpiredDeletionRequests(db: Db, before: Date) {
+  return db
+    .delete(accountDeletionRequests)
+    .where(lt(accountDeletionRequests.expiresAt, before))
+    .returning({ id: accountDeletionRequests.id });
 }
