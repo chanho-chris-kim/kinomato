@@ -29,14 +29,22 @@ export function tombstoneEmail(userId: string): string {
 }
 
 // docs/onboarding-spec.md §11.4, exactly, in one place: under 13 on
-// /consent today, Delete account (launch-foundations step (f)) later. The
-// users row stays, because attribution, rotation and History reference
-// its memberships. Its callers do the gating (the code by email and the
-// sole-owner block are (f)'s, not this function's). One db.batch, so it
+// /consent, and Delete account (app/accountDeletion.ts). The users row
+// stays, because attribution, rotation and History reference its
+// memberships. Its callers do the gating (Delete account's code by email,
+// ownership transfers and club deletion are its own, not this function's). One db.batch, so it
 // lands whole or not at all (neon-http has no transactions).
 export async function anonymiseAccount(db: Db, userId: string, now = new Date()): Promise<void> {
+  const statements = await anonymisationStatements(db, userId, now);
+  if (statements.length) await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+}
+
+// The same, as statements for a caller's own db.batch: Delete account
+// (app/accountDeletion.ts) runs them after its ownership transfers and
+// club deletions, all in one batch. Empty if there's no such account.
+export async function anonymisationStatements(db: Db, userId: string, now: Date): Promise<BatchItem<"pg">[]> {
   const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId));
-  if (!user) return;
+  if (!user) return [];
   const membershipIds = (
     await db.select({ id: memberships.id }).from(memberships).where(eq(memberships.userId, userId))
   ).map((m) => m.id);
@@ -82,9 +90,9 @@ export async function anonymiseAccount(db: Db, userId: string, now = new Date())
     db.delete(sessions).where(eq(sessions.userId, userId)),
     db.delete(magicLinks).where(eq(magicLinks.email, user.email)),
     deleteEmailChangesOf(db, userId),
-    // Not in the §11.4 table: an anonymised account's opt-in is
-    // withdrawn, so nothing it left behind feeds a future aggregate.
-    // The row is kept, as every withdrawal is.
+    // An open data-sharing opt-in: withdrawn (§11.4), so nothing it left
+    // behind feeds a future aggregate. The row is kept, as every
+    // withdrawal is.
     db
       .update(dataLicensingConsents)
       .set({ withdrawnAt: now })
@@ -93,5 +101,5 @@ export async function anonymiseAccount(db: Db, userId: string, now = new Date())
     db.update(users).set({ displayName: FORMER_MEMBER, email: tombstoneEmail(userId) }).where(eq(users.id, userId)),
   );
   // Votes, vetoes, nominations, picks: kept, untouched.
-  await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+  return statements;
 }

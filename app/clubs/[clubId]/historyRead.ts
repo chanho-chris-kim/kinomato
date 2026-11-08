@@ -36,6 +36,10 @@ import { loadClubMemberships, nameOf } from "./members";
 // - ownVotesAndVetoes: *your own* votes and vetoes, for Download my data
 //   (§11.5). A member reading their own vote back, filtered to the
 //   memberships passed in; nobody else's, no counts.
+// - deleteVotesAndVetoesOfClubs: the one write here. Deleting an account
+//   that was a club's last active member deletes the club whole (§11.4,
+//   ruled 2026-11-07), its votes and vetoes included. Statements only,
+//   unrun, for the caller's batch; nothing is read or returned.
 
 type Db = ReturnType<typeof getDb>;
 
@@ -268,4 +272,21 @@ export async function ownVotesAndVetoes(
       .where(inArray(vetoes.membershipId, ownMembershipIds)),
   ]);
   return { votes: ownVotes, vetoes: ownVetoes };
+}
+
+// Every vote and veto in these clubs, deleted: for an account deletion
+// that leaves a club with no active member (§11.4, the recorded exception
+// to "attribution is retained": with no one left, there's no one to audit
+// for). Returned unrun, for the caller's db.batch, ahead of the nights and
+// nominations they reference.
+export function deleteVotesAndVetoesOfClubs(db: Db, clubIds: string[]) {
+  const clubNights = db.select({ id: nights.id }).from(nights).where(inArray(nights.clubId, clubIds));
+  const clubNominations = db
+    .select({ id: nominations.id })
+    .from(nominations)
+    .where(inArray(nominations.nightId, clubNights));
+  return [
+    db.delete(votes).where(inArray(votes.nominationId, clubNominations)),
+    db.delete(vetoes).where(inArray(vetoes.nightId, clubNights)),
+  ] as const;
 }

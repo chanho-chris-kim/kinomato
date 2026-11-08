@@ -14,8 +14,8 @@ const ROOT = join(__dirname, "..");
 const RULING = "docs/onboarding-spec.md §11.1/§11.3: every signed-in route goes through app/auth.ts's consent gate";
 
 // Reachable with consent pending: the legal pages, the consent screens
-// themselves, the sign-in flow, the invite landing, and where "Under 13"
-// lands.
+// themselves, the sign-in flow, the invite landing, where "Under 13"
+// lands, and where Delete account lands (signed out by then).
 const EXEMPT_ROUTES = [
   "app/terms/",
   "app/privacy/",
@@ -25,6 +25,7 @@ const EXEMPT_ROUTES = [
   "app/verify/",
   "app/invite/",
   "app/age-limit/",
+  "app/account-deleted/",
 ];
 // Sign out works whatever the consent state, so nobody is trapped.
 const EXEMPT_ACTIONS = ["app/settings/actions.ts#signOut", "app/settings/actions.ts#signOutEverywhere"];
