@@ -167,3 +167,18 @@ export async function cancelEmailChange(db: Db, userId: string, now: Date): Prom
 export function deleteEmailChangesOf(db: Db, userId: string) {
   return db.delete(emailChanges).where(eq(emailChanges.userId, userId));
 }
+
+// Your own email changes, for Download my data (docs/onboarding-spec.md
+// §11.5): the new address and when each was asked for, confirmed or
+// cancelled. Never the code hash.
+export async function ownEmailChanges(db: Db, userId: string) {
+  return db
+    .select({
+      newEmail: emailChanges.newEmail,
+      requestedAt: emailChanges.createdAt,
+      confirmedAt: emailChanges.consumedAt,
+      cancelledAt: emailChanges.cancelledAt,
+    })
+    .from(emailChanges)
+    .where(eq(emailChanges.userId, userId));
+}

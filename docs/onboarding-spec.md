@@ -425,8 +425,8 @@ settings page"):
   for the account, this browser's included; §4.4).
 - Footer: Privacy, Terms (every page, site-wide; launch-foundations step
   (a), §11).
-- **Download my data** and **Delete account** (§11's export and deletion
-  rulings).
+- **Download my data** (built 2026-11-07, launch foundations (e), §11.5)
+  and **Delete account** (§11.4, not yet built).
 
 **Rulings for step 7 (2026-11-06):**
 - **Renames are retroactive everywhere.** Names live on the account
@@ -1232,8 +1232,8 @@ off the Terms and Privacy text.**
 | ✓ (c) Data licensing | Done 2026-11-06. `data_licensing_consents` (append-only; withdrawal sets `withdrawn_at`). Wording and its version in `lib/legal.ts`. Offered on `/welcome` and `/consent` to 18 or older only; Settings' Data sharing opts in and withdraws. |
 | ✓ (d) Age | Done 2026-11-06. `users.age_bracket` and `age_attested_at`, null until asked. Under 13 on `/welcome`: the new account is deleted and its invite un-redeemed (`app/consent.ts` `discardNewAccount`). On `/consent`: §11.4's anonymisation (`app/anonymise.ts`). |
 | ✓ (g) No personal data in URLs | Done 2026-11-06 (§11.6). The sign-in address rides in a 15-minute cookie, not `?email=`; typed names and ages come back after an error through a one-minute form-echo cookie. `lib/noPersonalDataInUrls.test.ts` fails any URL built with a personal key or value. |
-| (e) Export | Next. |
-| (f) Deletion | After (e). Reuses `app/anonymise.ts` as is; adds the email code and the sole-owner block. |
+| ✓ (e) Export | Done 2026-11-07. Settings' Download my data: `GET /settings/export` (no query string, behind `requireUser`), one JSON attachment, `no-store`. Assembled in `app/dataExport.ts`, shaped by `lib/dataExport.ts`. |
+| (f) Deletion | Next. Reuses `app/anonymise.ts` as is; adds the email code and the sole-owner block. |
 
 ### 11.1 Terms and Privacy
 
@@ -1318,6 +1318,21 @@ off the Terms and Privacy text.**
   and vetoes (read through the history-read module). **Never other
   people's names or votes.**
 - Export and Delete account live in **Settings** (§5.9 amended).
+- ✓ *Built (e), 2026-11-07:* Settings' "Download my data" links to
+  `GET /settings/export` (no query parameters; `requireUser`, so the
+  consent gate applies), which returns `kinomato-export-YYYY-MM-DD.json` as
+  an attachment with `Cache-Control: no-store`. Sections: meta (format
+  version, generated_at), account, consent (documents and data licensing),
+  clubs, watchlist, ratings (with your tags), nominations, RSVPs, limits
+  and preferences, votes, vetoes, email change requests. Every query is
+  filtered to the person or their own memberships, and
+  `lib/dataExport.ts` copies only named fields, so no hash, token, code or
+  id reaches the file. The guarded tables are read through their owners:
+  `ownWatchlist` (`app/watchlistRead.ts`), `ownEmailChanges`
+  (`app/emailChange.ts`) and `ownVotesAndVetoes` (the history-read
+  module, a member reading their own votes back). No other person's
+  name, email or vote appears: pickers, co-members, inviters and other
+  raters are never joined.
 
 ### 11.6 Housekeeping
 

@@ -33,6 +33,9 @@ import { loadClubMemberships, nameOf } from "./members";
 //   tally that picks the winner at lock.
 // - clubHistory: finished nights' final counts and a veto count. Never who
 //   voted for what, never who vetoed.
+// - ownVotesAndVetoes: *your own* votes and vetoes, for Download my data
+//   (§11.5). A member reading their own vote back, filtered to the
+//   memberships passed in; nobody else's, no counts.
 
 type Db = ReturnType<typeof getDb>;
 
@@ -221,4 +224,48 @@ export async function clubHistory(db: Db, clubId: string): Promise<{ timezone: s
       };
     }),
   };
+}
+
+export interface OwnChoice {
+  clubName: string;
+  nightAt: Date;
+  filmTitle: string;
+  castAt: Date;
+}
+
+// Your own votes and vetoes across every club you've been in (your
+// memberships, left ones included), for Download my data
+// (docs/onboarding-spec.md §11.5). Each row is the film you chose, on
+// which night, in which club. Filtered to `ownMembershipIds` in SQL, so
+// no one else's row is ever read, and nothing returned carries a
+// membership id.
+export async function ownVotesAndVetoes(
+  db: Db,
+  ownMembershipIds: string[],
+): Promise<{ votes: OwnChoice[]; vetoes: OwnChoice[] }> {
+  if (ownMembershipIds.length === 0) return { votes: [], vetoes: [] };
+  const choice = {
+    clubName: clubs.name,
+    nightAt: nights.scheduledAt,
+    filmTitle: films.title,
+  };
+  const [ownVotes, ownVetoes] = await Promise.all([
+    db
+      .select({ ...choice, castAt: votes.createdAt })
+      .from(votes)
+      .innerJoin(nominations, eq(votes.nominationId, nominations.id))
+      .innerJoin(nights, eq(nominations.nightId, nights.id))
+      .innerJoin(clubs, eq(nights.clubId, clubs.id))
+      .innerJoin(films, eq(nominations.filmId, films.id))
+      .where(inArray(votes.membershipId, ownMembershipIds)),
+    db
+      .select({ ...choice, castAt: vetoes.createdAt })
+      .from(vetoes)
+      .innerJoin(nominations, eq(vetoes.nominationId, nominations.id))
+      .innerJoin(nights, eq(vetoes.nightId, nights.id))
+      .innerJoin(clubs, eq(nights.clubId, clubs.id))
+      .innerJoin(films, eq(nominations.filmId, films.id))
+      .where(inArray(vetoes.membershipId, ownMembershipIds)),
+  ]);
+  return { votes: ownVotes, vetoes: ownVetoes };
 }

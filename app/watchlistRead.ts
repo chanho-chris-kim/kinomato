@@ -105,3 +105,19 @@ export async function nominatableFilms(
 export function deleteWatchlistOf(db: ReturnType<typeof getDb>, userId: string) {
   return db.delete(watchlistItems).where(eq(watchlistItems.userId, userId));
 }
+
+// Your own watchlist, for Download my data (docs/onboarding-spec.md §11.5):
+// the viewer's own rows only, by user id, so no club visibility applies.
+export async function ownWatchlist(db: Db, userId: string) {
+  return db
+    .select({
+      title: films.title,
+      year: films.year,
+      addedAt: watchlistItems.addedAt,
+      note: watchlistItems.note,
+      tags: watchlistItems.tags,
+    })
+    .from(watchlistItems)
+    .innerJoin(films, eq(watchlistItems.filmId, films.id))
+    .where(eq(watchlistItems.userId, userId));
+}
