@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { emailChanges, magicLinks, users } from "@/db/schema";
 import { endOtherSessions } from "@/app/session";
@@ -181,4 +181,11 @@ export async function ownEmailChanges(db: Db, userId: string) {
     })
     .from(emailChanges)
     .where(eq(emailChanges.userId, userId));
+}
+
+// Retention (§11.6): every email change that expired before `before`,
+// used, cancelled or not. Returned unrun, for the daily cleanup's batch
+// (app/retentionCleanup.ts); `returning` gives only ids, for a count.
+export function deleteExpiredEmailChanges(db: Db, before: Date) {
+  return db.delete(emailChanges).where(lt(emailChanges.expiresAt, before)).returning({ id: emailChanges.id });
 }

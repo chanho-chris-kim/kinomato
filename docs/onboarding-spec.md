@@ -1232,6 +1232,7 @@ off the Terms and Privacy text.**
 | ✓ (b) Consent | Done 2026-11-06. `consent_events` (append-only). `/welcome` asks new accounts; `/consent` asks existing ones (`signup` the first time, `reconsent` after a version change). The gate is in `app/auth.ts`'s `requireUser`; `lib/consentGate.test.ts` fails any signed-in route that skips it. |
 | ✓ (c) Data licensing | Done 2026-11-06. `data_licensing_consents` (append-only; withdrawal sets `withdrawn_at`). Wording and its version in `lib/legal.ts`. Offered on `/welcome` and `/consent` to 18 or older only; Settings' Data sharing opts in and withdraws. |
 | ✓ (d) Age | Done 2026-11-06. `users.age_bracket` and `age_attested_at`, null until asked. Under 13 on `/welcome`: the new account is deleted and its invite un-redeemed (`app/consent.ts` `discardNewAccount`). On `/consent`: §11.4's anonymisation (`app/anonymise.ts`). |
+| ✓ (h) Retention | Done 2026-11-08 (§11.6). A daily Cron Trigger (`0 10 * * *`) runs `worker.ts`'s `scheduled` handler → `app/retentionCleanup.ts`; cutoffs in `lib/retention.ts`. |
 | ✓ (g) No personal data in URLs | Done 2026-11-06 (§11.6). The sign-in address rides in a 15-minute cookie, not `?email=`; typed names and ages come back after an error through a one-minute form-echo cookie. `lib/noPersonalDataInUrls.test.ts` fails any URL built with a personal key or value. |
 | ✓ (e) Export | Done 2026-11-07. Settings' Download my data: `GET /settings/export` (no query string, behind `requireUser`), one JSON attachment, `no-store`. Assembled in `app/dataExport.ts`, shaped by `lib/dataExport.ts`. |
 | ✓ (f) Deletion | Done 2026-11-07. Settings' Delete account: a code to the account's address (`account_deletion_requests`), a confirmation screen saying what happens to each club, then one batch: ownership transfers, last-member clubs deleted, §11.4's anonymisation. `app/accountDeletion.ts`; `lib/accountDeletion.ts` `planDeletion`. |
@@ -1385,9 +1386,27 @@ off the Terms and Privacy text.**
   design, to be disclosed in the Privacy text:** sign-in link tokens
   (`/verify?token=`, single-use and dead after 15 minutes) and search
   terms (`?q=`, the text alone, never linked to an account in the URL).
-- **Retention**, by a scheduled job: expired `magic_links` and
-  `email_changes` deleted 7 days after expiry; expired `sessions` 7 days
-  after expiry; revoked invites' `invitee_name` cleared after 90 days.
+- ✓ **Retention**, by a scheduled job — done 2026-11-08: expired
+  `magic_links`, `email_changes` and `account_deletion_requests` (added
+  2026-11-08; the table didn't exist when this was ruled) deleted 7 days
+  after expiry, used, cancelled or not; expired `sessions` 7 days after
+  expiry; revoked invites' `invitee_name` cleared (to the empty string,
+  the column is `NOT NULL`) 90 days after revocation. Pending and
+  redeemed invites are never touched. **How it runs:** a Cloudflare Cron
+  Trigger, `0 10 * * *` (10:00 UTC, night in Vancouver), in
+  `wrangler.jsonc`. It calls the `scheduled` handler in `worker.ts`, the
+  Worker's entry, which wraps OpenNext's generated `.open-next/worker.js`
+  (OpenNext's documented custom-worker pattern) and runs
+  `app/retentionCleanup.ts`: one `db.batch`, the cutoffs from
+  `lib/retention.ts`, the guarded tables deleted through their owners
+  (`deleteExpiredEmailChanges`, `deleteExpiredDeletionRequests`). No route
+  reaches it. Each run logs one line, `[retention] {…counts…}`, and
+  nothing else; a failure throws, so the run shows as failed. **Where to
+  see runs:** Workers & Pages → kinomato → Settings → Trigger events
+  (the schedule), and the Cron Events list and Logs (each run's outcome
+  and its `[retention]` line). On the Workers Free plan a Cron run gets
+  10 ms of CPU (30 s on Paid); the job is one HTTP round trip, nearly
+  all wall time.
 - **Cloudflare logs stay on and are disclosed** (§9).
 - **`users.avatar` is dropped later** (destructive, so last).
 - **No cookie banner for now**: every cookie (`kinomato_session`,

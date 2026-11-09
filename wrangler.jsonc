@@ -1,12 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kinomato",
-  "main": ".open-next/worker.js",
+  // worker.ts wraps OpenNext's generated .open-next/worker.js and adds the
+  // Cron Trigger's scheduled handler (docs/onboarding-spec.md §11.6).
+  "main": "worker.ts",
   "compatibility_date": "2026-09-16",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // The daily retention job (docs/onboarding-spec.md §11.6): 10:00 UTC,
+  // night in Vancouver. Runs worker.ts's scheduled handler; no route
+  // reaches it.
+  "triggers": {
+    "crons": ["0 10 * * *"]
   },
   "services": [
     {
