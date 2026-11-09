@@ -29,9 +29,9 @@ export function ConsentFields({
           <legend className="small muted">How old are you?</legend>
           {(
             [
+              ["under_13", "Under 13"],
               ["13_17", "13–17"],
               ["18_plus", "18 or older"],
-              ["under_13", "Under 13"],
             ] as const
           ).map(([value, label]) => (
             <label key={value} className="consent-choice">
