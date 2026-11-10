@@ -3,6 +3,7 @@ import {
   canAddHardLimit,
   countSoftPreferenceConflicts,
   filterEligibleFilms,
+  scopeToActiveMembers,
   type Constraint,
   type ConstraintFilm,
   type Rsvp,
@@ -363,5 +364,38 @@ describe("countSoftPreferenceConflicts", () => {
       [YES("dana")],
     );
     expect(result.map((r) => r.film.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("scopeToActiveMembers (2026-11-09: a member who has left stops counting)", () => {
+  const horror = film("horror", { genreIds: [GENRE_HORROR] });
+  const drama = film("drama", { genreIds: [GENRE_DRAMA] });
+  const goneHard = constraint("gone", { appliesWhenAbsent: true });
+  const goneSoft = constraint("gone", { id: "gone-soft", kind: "soft", value: String(GENRE_DRAMA) });
+  const staysHard = constraint("stays", { id: "stays-hard", value: String(GENRE_SCIFI) });
+  const rsvps: Rsvp[] = [
+    { membershipId: "gone", status: "yes" },
+    { membershipId: "stays", status: "yes" },
+  ];
+
+  it("keeps only active members' limits, preferences and RSVPs", () => {
+    expect(scopeToActiveMembers([goneHard, goneSoft, staysHard], rsvps, ["stays"])).toEqual({
+      constraints: [staysHard],
+      rsvps: [{ membershipId: "stays", status: "yes" }],
+    });
+  });
+
+  it("a departed member's hard limit, even one set to apply when absent, no longer excludes a film", () => {
+    const before = filterEligibleFilms({ films: [horror, drama], constraints: [goneHard, staysHard], rsvps });
+    expect(before.excluded.map((e) => e.film.id)).toEqual(["horror"]);
+    const scoped = scopeToActiveMembers([goneHard, staysHard], rsvps, ["stays"]);
+    const after = filterEligibleFilms({ films: [horror, drama], ...scoped });
+    expect(after.excluded).toEqual([]);
+  });
+
+  it("a departed member's soft preference no longer counts as a conflict", () => {
+    expect(countSoftPreferenceConflicts([drama], [goneSoft], rsvps)[0].conflictCount).toBe(1);
+    const scoped = scopeToActiveMembers([goneSoft], rsvps, ["stays"]);
+    expect(countSoftPreferenceConflicts([drama], scoped.constraints, scoped.rsvps)[0].conflictCount).toBe(0);
   });
 });

@@ -207,3 +207,20 @@ export function countSoftPreferenceConflicts(
     return { film, conflictCount: conflicting.size };
   });
 }
+
+// Who counts at lock (2026-11-09 ruling): a member who has left (left,
+// removed, or deleted their account) stops counting. Their hard limits
+// and soft preferences no longer apply, and their RSVP no longer scopes
+// anything. Votes are not this function's: a departed member's vote still
+// counts, cast while a member (app/clubs/[clubId]/lockNightCore.ts).
+export function scopeToActiveMembers(
+  constraints: Constraint[],
+  rsvps: Rsvp[],
+  activeMembershipIds: Iterable<string>,
+): { constraints: Constraint[]; rsvps: Rsvp[] } {
+  const active = new Set(activeMembershipIds);
+  return {
+    constraints: constraints.filter((c) => active.has(c.membershipId)),
+    rsvps: rsvps.filter((r) => active.has(r.membershipId)),
+  };
+}

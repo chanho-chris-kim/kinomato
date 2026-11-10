@@ -266,7 +266,16 @@ Do not quietly change these — they encode decisions that took a while to reach
   explicitly RSVP'd no** — no answer counts as attending, because silently
   dropping an unanswered person's hard limit is how they end up watching the
   one thing they can't. A soft preference applies only to explicit
-  yes-RSVPs. `applies_when_absent` overrides both.
+  yes-RSVPs. `applies_when_absent` overrides both. **A member who has
+  left stops counting (ruled 2026-11-09):** once `memberships.left_at` is
+  set (leaving, removal, or account deletion), their hard limits and soft
+  preferences no longer apply at lock, and their RSVP no longer scopes
+  anything (`lib/constraints.ts` `scopeToActiveMembers`, used by
+  `lockNightCore`). Their votes, nominations and ratings already cast stay
+  and count: they were cast while a member, and the record keeps them.
+  Hard limits aren't applied anywhere yet (the nomination seam in
+  `app/clubs/[clubId]/actions.ts`); when they are, they take the same
+  scoped input.
 - **Genre and keyword constraints match on TMDB ids, never display strings.**
   `constraints.value` holds the id; `constraints.label` is a UI-only copy,
   never read by matching logic. "Sci-Fi" vs "Science Fiction" must never
@@ -438,7 +447,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   anchoring, since a visible 9/10 biases the next rater as much as a
   written take does. "Attending" means an explicit yes-RSVP, matching the
   constraint scoping asymmetry — someone who never answered didn't
-  necessarily watch. This is a different mechanic from analysis-v1.md's
+  necessarily watch. **Only members still active are waited on (ruled
+  2026-11-09):** a yes-RSVP from someone who has since left (left, removed,
+  or deleted their account) no longer holds the reveal back. One function
+  decides who must rate, `lib/ratingReveal.ts` `mustRateBeforeReveal`,
+  used by Tonight, History (`historyRead.ts`) and the tag page. That set
+  only shrinks (a rejoin is a new membership row), so a revealed night
+  never goes back to hidden. This is a different mechanic from analysis-v1.md's
   "spoilers for absent members" (blurred until *you* mark yourself as
   having watched it) — that one protects someone who missed the night,
   this one protects the group's honesty while everyone's still rating.

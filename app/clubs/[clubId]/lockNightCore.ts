@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import {
   constraints,
@@ -8,6 +8,7 @@ import {
   nominations,
   rsvps,
 } from "@/db/schema";
+import { scopeToActiveMembers } from "@/lib/constraints";
 import { pickWinningNomination } from "@/lib/lockTally";
 import { votesForLock } from "./historyRead";
 
@@ -66,13 +67,17 @@ export async function lockNightCore(
     .from(films)
     .where(inArray(films.id, filmIds));
 
-  const clubMemberships = await db
+  // Limits, preferences and RSVPs from members still active only
+  // (2026-11-09 ruling, lib/constraints.ts scopeToActiveMembers): someone
+  // who has left stops counting. Votes above are untouched: a departed
+  // member's vote was cast while a member, and still counts.
+  const activeMemberships = await db
     .select({ id: memberships.id })
     .from(memberships)
-    .where(eq(memberships.clubId, night.clubId));
-  const clubMembershipIds = clubMemberships.map((m) => m.id);
-  const clubConstraints = clubMembershipIds.length
-    ? await db.select().from(constraints).where(inArray(constraints.membershipId, clubMembershipIds))
+    .where(and(eq(memberships.clubId, night.clubId), isNull(memberships.leftAt)));
+  const activeMembershipIds = activeMemberships.map((m) => m.id);
+  const clubConstraints = activeMembershipIds.length
+    ? await db.select().from(constraints).where(inArray(constraints.membershipId, activeMembershipIds))
     : [];
 
   const nightRsvps = await db
@@ -80,14 +85,16 @@ export async function lockNightCore(
     .from(rsvps)
     .where(eq(rsvps.nightId, nightId));
 
+  const scoped = scopeToActiveMembers(
+    clubConstraints,
+    nightRsvps.filter((r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null),
+    activeMembershipIds,
+  );
   const winningNominationId = pickWinningNomination({
     nominations: nightNominations,
     votes: nightVotes,
     films: nominatedFilms,
-    constraints: clubConstraints,
-    rsvps: nightRsvps.filter(
-      (r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null,
-    ),
+    ...scoped,
   });
   if (!winningNominationId) {
     throw new Error("Nothing to lock — this night has no nominations.");

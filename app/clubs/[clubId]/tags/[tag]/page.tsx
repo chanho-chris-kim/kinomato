@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, films, nights, ratings, ratingTags, rsvps, tags } from "@/db/schema";
-import { areTakesRevealed } from "@/lib/ratingReveal";
+import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
+import { loadClubMemberships } from "../../members";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
 import { Poster } from "../../Poster";
@@ -51,11 +52,11 @@ export default async function TagPage({
     // to the ratings list itself.
     const nightIds = Array.from(new Set(rows.map((r) => r.nightId)));
     const revealedNightIds = new Set<string>();
+    // Who must rate: yes-RSVPs from members still active (2026-11-09).
+    const activeIds = (await loadClubMemberships(db, clubId)).filter((m) => m.leftAt === null).map((m) => m.id);
     for (const nightId of nightIds) {
       const nightRsvps = await db.select().from(rsvps).where(eq(rsvps.nightId, nightId));
-      const attendingMembershipIds = nightRsvps
-        .filter((r) => r.status === "yes")
-        .map((r) => r.membershipId);
+      const attendingMembershipIds = mustRateBeforeReveal(nightRsvps, activeIds);
       const nightRatings = await db
         .select({ membershipId: ratings.membershipId })
         .from(ratings)
