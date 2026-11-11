@@ -11,14 +11,20 @@ import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import type { ConfirmAt } from "@/lib/confirmTiming";
 import {
   createInvite,
+  makeAdmin,
   regenerateInvite,
+  removeAdmin,
   revokeInvite,
   setClubPaused,
+  transferOwnership,
   updateClubDetails,
   updateClubSettings,
 } from "../actions";
 import { COMMON_TIMEZONES, DAY_LABELS } from "@/app/clubFormOptions";
 import { readFormEcho } from "@/app/formEcho";
+import Link from "next/link";
+import { canChangeRole, canTransferOwnership, type RoleMember } from "@/lib/roles";
+import { nameOf, type ClubMembership } from "../members";
 import { describeSchedule } from "@/lib/format";
 import { byJoinedAt, MemberCards } from "../memberViews";
 import { loadClubMemberships } from "../members";
@@ -48,10 +54,22 @@ export default async function MembersPage({
     settingsError?: string;
     detailsError?: string;
     saved?: string;
+    transfer?: string;
+    roles?: string;
+    rolesError?: string;
   }>;
 }) {
   const { clubId } = await params;
-  const { invite: newInviteId, inviteError, settingsError, detailsError, saved } = await searchParams;
+  const {
+    invite: newInviteId,
+    inviteError,
+    settingsError,
+    detailsError,
+    saved,
+    transfer,
+    roles,
+    rolesError,
+  } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
 
@@ -72,6 +90,59 @@ export default async function MembersPage({
     .orderBy(asc(invites.createdAt));
   const baseUrl = await getBaseUrl();
   const seatsTaken = activeMemberships.length + pendingInvites.length;
+
+  // Roles (ruled 2026-11-11): only the owner gets controls, and only where
+  // lib/roles.ts allows; the actions check again.
+  const asRoleMember = (m: Pick<ClubMembership, "id" | "clubId" | "role" | "leftAt">): RoleMember => ({
+    membershipId: m.id,
+    clubId: m.clubId,
+    role: m.role,
+    leftAt: m.leftAt,
+  });
+  const meForRoles = asRoleMember(me);
+  const ownerControls =
+    me.role === "owner"
+      ? (m: ClubMembership) => {
+          const target = asRoleMember(m);
+          const name = nameOf(m);
+          const items = [];
+          if (canChangeRole(meForRoles, target, "admin")) {
+            items.push(
+              <form key="admin" action={makeAdmin.bind(null, clubId, m.id)}>
+                <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Make ${name} an admin`}>
+                  Make admin
+                </button>
+              </form>,
+            );
+          }
+          if (canChangeRole(meForRoles, target, "member")) {
+            items.push(
+              <form key="unadmin" action={removeAdmin.bind(null, clubId, m.id)}>
+                <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Remove ${name} as admin`}>
+                  Remove admin
+                </button>
+              </form>,
+            );
+          }
+          if (canTransferOwnership(meForRoles, target)) {
+            items.push(
+              <Link
+                key="owner"
+                href={`/clubs/${clubId}/members?transfer=${m.id}#roles`}
+                className="btn ghost"
+                style={{ width: "auto" }}
+                aria-label={`Make ${name} the owner`}
+              >
+                Make owner
+              </Link>,
+            );
+          }
+          return items.length ? items : null;
+        }
+      : undefined;
+  const transferCandidate = transfer ? activeMemberships.find((m) => m.id === transfer) : undefined;
+  const transferTarget =
+    transferCandidate && canTransferOwnership(meForRoles, asRoleMember(transferCandidate)) ? transferCandidate : null;
   const nomineesPerTurn = getNomineesPerTurn(club.settings);
   const confirmAt = getConfirmAt(club.settings);
   // After a mistake, the details form shows what was typed (form-echo
@@ -100,8 +171,39 @@ export default async function MembersPage({
         </>
       }
     >
-      <h2 className="sec mt14">Members</h2>
-      <MemberCards members={activeMemberships} meId={me.id} />
+      <h2 id="roles" className="sec mt14">
+        Members
+      </h2>
+      {rolesError && (
+        <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+          {rolesError}
+        </p>
+      )}
+      {roles && !rolesError && (
+        <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+          {roles === "transferred" ? "Done. You're an admin now." : "Saved."}
+        </p>
+      )}
+      {transferTarget && (
+        // The two-tap transfer's confirm (ruled 2026-11-11). The second
+        // POST carries the membership id, never a name.
+        <div className="card mt14 transfer-confirm" style={{ borderColor: "var(--accent)" }}>
+          <p className="small" style={{ margin: 0 }}>
+            Make {nameOf(transferTarget)} the owner of {club.name}? You&apos;ll become an admin.
+          </p>
+          <div className="row gap8 mt14">
+            <form action={transferOwnership.bind(null, clubId, transferTarget.id)}>
+              <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                Make owner
+              </button>
+            </form>
+            <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
+              Cancel
+            </Link>
+          </div>
+        </div>
+      )}
+      <MemberCards members={activeMemberships} meId={me.id} controls={ownerControls} />
 
       {pendingInvites.length > 0 && (
         <>

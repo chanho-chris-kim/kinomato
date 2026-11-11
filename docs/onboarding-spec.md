@@ -543,6 +543,28 @@ button.
   rule above. A mistake comes back with a fixed `?detailsError=` message,
   what was typed through the form-echo cookie (§11.6).
 
+**Rulings for roles and ownership (2026-11-11):**
+- **Only the owner makes or removes admins, and transfers ownership.** One
+  owner per club.
+- **Transfer goes to an active member, through a two-tap confirm**: "Make
+  Sam K. the owner of Saturday Club? You'll become an admin." After it the
+  old owner is an admin; the two role changes are one `db.batch`.
+- **Admins and members can't change anyone's role**, their own included.
+  Every action re-checks server-side.
+- **The leftover `guest` role reads as Member** everywhere; "Make admin" is
+  its only promotion.
+- Removing members and leaving are a later step.
+- *Built (m4), 2026-11-11.* The rules are `lib/roles.ts`
+  (`canChangeRole`, `canTransferOwnership`, `roleLabel`). Actions:
+  `makeAdmin`, `removeAdmin`, `transferOwnership`, behind `requireOwner`.
+  The Members list shows each role in words to everyone; only the owner
+  sees per-member controls. "Make owner" opens a confirm card
+  (`?transfer=<membership id>`, never a name); its button is the second
+  POST. The transfer promotes the target only if still active, and
+  demotes the old owner only if the target is now an active owner, so a
+  club is never left without one. Someone who left in between gets "That
+  person isn't in the club any more."
+
 ### 5.11 Navigation
 
 #### 5.11.1 The wordmark (ruled)

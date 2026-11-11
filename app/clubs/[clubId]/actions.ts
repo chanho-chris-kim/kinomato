@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
@@ -24,6 +24,7 @@ import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
 import { getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
 import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
+import { canChangeRole, canTransferOwnership, type Role, type RoleMember } from "@/lib/roles";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { normalizeTag } from "@/lib/tags";
 import { requireCurrentMembershipId } from "./identity";
@@ -52,6 +53,27 @@ async function requireOwnerOrAdmin(clubId: string, action: string) {
     throw new Error(`Only the club owner or an admin can ${action}.`);
   }
   return { db, membership };
+}
+
+// Owner only: roles and ownership (ruled 2026-11-11). Re-checked on every
+// call, like requireOwnerOrAdmin.
+async function requireOwner(clubId: string, action: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
+  if (!membership || membership.clubId !== clubId) {
+    throw new Error("No identity set for this club — pick a name first.");
+  }
+  if (membership.role !== "owner") throw new Error(`Only the club owner can ${action}.`);
+  return { db, membership };
+}
+
+// A target named by membership id, never by name (§11.6): a uuid, read
+// back from the database, or null.
+async function loadMembership(db: ReturnType<typeof getDb>, membershipId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(membershipId)) return null;
+  const [row] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
+  return row ?? null;
 }
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has
@@ -579,4 +601,74 @@ export async function updateClubDetails(clubId: string, formData: FormData) {
     .where(eq(clubs.id, clubId));
   revalidatePath("/", "layout");
   redirect(`${membersPath}?saved=details#club-details`);
+}
+
+// ---- Roles and ownership (docs/onboarding-spec.md §5.10, ruled 2026-11-11) ----
+// Only the owner makes or removes admins, and hands the club on; the rules
+// are lib/roles.ts's, checked again here on every call. Admins and members
+// change nobody's role: their posts are refused (thrown), as is anything
+// the rules don't allow. Targets are membership ids.
+const membersPath = (clubId: string, query = "") => `/clubs/${clubId}/members${query}`;
+const asRoleMember = (m: { id: string; clubId: string; role: Role; leftAt: Date | null }): RoleMember => ({
+  membershipId: m.id,
+  clubId: m.clubId,
+  role: m.role,
+  leftAt: m.leftAt,
+});
+
+async function setAdmin(clubId: string, targetMembershipId: string, newRole: "admin" | "member") {
+  const { db, membership: actor } = await requireOwner(clubId, "change roles");
+  const target = await loadMembership(db, targetMembershipId);
+  if (!target || !canChangeRole(asRoleMember(actor), asRoleMember(target), newRole)) throw new Error("That role change isn't allowed.");
+  // Conditional on the row still being what the rules saw.
+  await db
+    .update(memberships)
+    .set({ role: newRole })
+    .where(
+      and(
+        eq(memberships.id, target.id),
+        eq(memberships.clubId, clubId),
+        isNull(memberships.leftAt),
+        inArray(memberships.role, newRole === "admin" ? ["member", "guest"] : ["admin"]),
+      ),
+    );
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(membersPath(clubId, "?roles=saved"));
+}
+
+export async function makeAdmin(clubId: string, targetMembershipId: string) {
+  await setAdmin(clubId, targetMembershipId, "admin");
+}
+
+export async function removeAdmin(clubId: string, targetMembershipId: string) {
+  await setAdmin(clubId, targetMembershipId, "member");
+}
+
+// The confirm step's POST (the Members tab's ?transfer= confirm card):
+// the target becomes the owner and the old owner an admin, in one batch.
+// The demotion only happens if the promotion did, so the club can never
+// be left with no owner: if the target left in between, both statements
+// match nothing. That race is expected, so it gets a message, not a throw.
+export async function transferOwnership(clubId: string, targetMembershipId: string) {
+  const { db, membership: actor } = await requireOwner(clubId, "hand the club on");
+  const target = await loadMembership(db, targetMembershipId);
+  if (!target || target.clubId !== clubId) throw new Error("That role change isn't allowed.");
+  if (target.leftAt !== null) {
+    redirect(membersPath(clubId, `?${new URLSearchParams({ rolesError: "That person isn't in the club any more." })}`));
+  }
+  if (!canTransferOwnership(asRoleMember(actor), asRoleMember(target))) throw new Error("That role change isn't allowed.");
+
+  const targetIsNowOwner = sql`exists (select 1 from ${memberships} where ${memberships.id} = ${target.id} and ${memberships.role} = 'owner' and ${memberships.leftAt} is null)`;
+  await db.batch([
+    db
+      .update(memberships)
+      .set({ role: "owner" })
+      .where(and(eq(memberships.id, target.id), eq(memberships.clubId, clubId), isNull(memberships.leftAt))),
+    db
+      .update(memberships)
+      .set({ role: "admin" })
+      .where(and(eq(memberships.id, actor.id), eq(memberships.role, "owner"), targetIsNowOwner)),
+  ]);
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(membersPath(clubId, "?roles=transferred"));
 }

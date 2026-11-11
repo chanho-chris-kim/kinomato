@@ -523,6 +523,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   from the next night; a night in flight keeps its stored
   `scheduled_at`.** "No fixed schedule" isn't offered when editing until
   nights can be scheduled by hand.
+  **Roles, ruled 2026-11-11:** only the owner makes or removes admins and
+  transfers ownership (`requireOwner`, rules in `lib/roles.ts`); admins
+  and members change nobody's role, their own included. One owner per
+  club: a transfer goes to an active member through a two-tap confirm and
+  leaves the old owner an admin, both changes in one `db.batch` that can
+  never leave the club ownerless. `guest` reads as Member.
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5
