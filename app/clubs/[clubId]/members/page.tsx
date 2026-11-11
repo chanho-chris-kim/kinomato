@@ -9,7 +9,17 @@ import { timeAgo } from "@/lib/format";
 import { canCreateInvite } from "@/lib/invites";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import type { ConfirmAt } from "@/lib/confirmTiming";
-import { createInvite, regenerateInvite, revokeInvite, setClubPaused, updateClubSettings } from "../actions";
+import {
+  createInvite,
+  regenerateInvite,
+  revokeInvite,
+  setClubPaused,
+  updateClubDetails,
+  updateClubSettings,
+} from "../actions";
+import { COMMON_TIMEZONES, DAY_LABELS } from "@/app/clubFormOptions";
+import { readFormEcho } from "@/app/formEcho";
+import { describeSchedule } from "@/lib/format";
 import { byJoinedAt, MemberCards } from "../memberViews";
 import { loadClubMemberships } from "../members";
 import { ShareInvite } from "../ShareInvite";
@@ -32,10 +42,16 @@ export default async function MembersPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ invite?: string; inviteError?: string; settingsError?: string; saved?: string }>;
+  searchParams: Promise<{
+    invite?: string;
+    inviteError?: string;
+    settingsError?: string;
+    detailsError?: string;
+    saved?: string;
+  }>;
 }) {
   const { clubId } = await params;
-  const { invite: newInviteId, inviteError, settingsError, saved } = await searchParams;
+  const { invite: newInviteId, inviteError, settingsError, detailsError, saved } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
 
@@ -58,6 +74,18 @@ export default async function MembersPage({
   const seatsTaken = activeMemberships.length + pendingInvites.length;
   const nomineesPerTurn = getNomineesPerTurn(club.settings);
   const confirmAt = getConfirmAt(club.settings);
+  // After a mistake, the details form shows what was typed (form-echo
+  // cookie, never the URL); otherwise the club's current values.
+  const echo = detailsError ? await readFormEcho() : {};
+  const details = {
+    name: echo.name ?? club.name,
+    cadence: echo.cadence ?? club.cadence,
+    defaultDay: echo.defaultDay ?? String(club.defaultDay ?? 6),
+    defaultTime: echo.defaultTime ?? (club.defaultTime ?? "20:00").slice(0, 5),
+    timezone: echo.timezone ?? club.timezone,
+    mode: echo.mode ?? club.mode,
+    firstNightOn: echo.firstNightOn ?? "",
+  };
 
   return (
     <GlobalShell
@@ -194,6 +222,122 @@ export default async function MembersPage({
         )}
         {isOwnerOrAdmin ? (
           <>
+            <h3 id="club-details" className="small mt14" style={{ fontWeight: 600 }}>
+              Club details
+            </h3>
+            {detailsError && (
+              <p className="small mt-1 details-error" role="alert" style={{ color: "var(--warn)" }}>
+                {detailsError}
+              </p>
+            )}
+            {saved === "details" && !detailsError && (
+              <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+                Saved. It applies from the next night; a night already under way keeps its date.
+              </p>
+            )}
+            <form
+              action={updateClubDetails.bind(null, clubId)}
+              className="club-details-form stack gap14 mt14"
+              style={{ maxWidth: 420 }}
+            >
+              <label className="small muted">
+                Club name
+                <div className="search mt-1">
+                  <input type="text" name="name" required defaultValue={details.name} />
+                </div>
+              </label>
+              <label className="small muted">
+                How often
+                {/* No "no fixed schedule" here until nights can be
+                    scheduled by hand (ruled 2026-11-10). A club already
+                    ad hoc sees it selected only until it picks one. */}
+                <select
+                  name="cadence"
+                  defaultValue={details.cadence === "ad_hoc" ? "weekly" : details.cadence}
+                  className="sel mt-1"
+                  style={{ display: "block", width: "100%" }}
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every other week</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </label>
+              <label className="small muted">
+                Day
+                <select
+                  name="defaultDay"
+                  defaultValue={details.defaultDay}
+                  className="sel mt-1"
+                  style={{ display: "block", width: "100%" }}
+                >
+                  {DAY_LABELS.map((label, value) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="small muted">
+                Time
+                <div className="search mt-1">
+                  <input type="time" name="defaultTime" required defaultValue={details.defaultTime} />
+                </div>
+              </label>
+              <label className="small muted">
+                Timezone
+                <div className="search mt-1">
+                  <input type="text" name="timezone" list="club-timezone-options" required defaultValue={details.timezone} />
+                </div>
+                <datalist id="club-timezone-options">
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz} />
+                  ))}
+                </datalist>
+              </label>
+              <div>
+                <span className="small muted">In person or remote</span>
+                <div className="row gap14 mt-1">
+                  <label className="small">
+                    <input type="radio" name="mode" value="in_person" defaultChecked={details.mode === "in_person"} /> In
+                    person
+                  </label>
+                  <label className="small">
+                    <input type="radio" name="mode" value="remote" defaultChecked={details.mode === "remote"} /> Remote
+                  </label>
+                </div>
+              </div>
+              {/* Shown for every other week and monthly (app/globals.css);
+                  required by the server only when the counting would
+                  otherwise come from nowhere anyone chose
+                  (lib/clubDetails.ts firstNightRequired). */}
+              <div className="first-night">
+                <label className="small muted">
+                  First night on
+                  <div className="search mt-1">
+                    <input
+                      type="date"
+                      name="firstNightOn"
+                      defaultValue={details.firstNightOn}
+                      aria-describedby="first-night-hint"
+                    />
+                  </div>
+                </label>
+                <span id="first-night-hint" className="tiny dim" style={{ display: "block", marginTop: 4 }}>
+                  Needed when you change how often the club meets or the day. It has to fall on that day,
+                  and every other week or month counts from it.
+                </span>
+              </div>
+              <p className="tiny dim" style={{ margin: 0 }}>
+                Changes apply from the next night. A night already under way keeps its date.
+              </p>
+              <button type="submit" className="btn" style={{ width: "auto" }}>
+                Save details
+              </button>
+            </form>
+
+            <h3 className="small mt20" style={{ fontWeight: 600 }}>
+              Nights
+            </h3>
             <form action={updateClubSettings.bind(null, clubId)} className="stack gap14 mt14" style={{ maxWidth: 420 }}>
               <label className="small muted">
                 Films each picker nominates
@@ -241,6 +385,10 @@ export default async function MembersPage({
           </>
         ) : (
           <dl className="small mt14 club-settings-values" style={{ margin: "14px 0 0" }}>
+            <dt className="muted">When</dt>
+            <dd style={{ margin: "2px 0 10px" }}>{describeSchedule(club)}</dd>
+            <dt className="muted">Timezone</dt>
+            <dd style={{ margin: "2px 0 10px" }}>{club.timezone}</dd>
             <dt className="muted">Films each picker nominates</dt>
             <dd style={{ margin: "2px 0 10px" }}>{nomineesPerTurn}</dd>
             <dt className="muted">When to ask &ldquo;Did you watch it?&rdquo;</dt>

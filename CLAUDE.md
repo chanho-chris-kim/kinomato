@@ -249,7 +249,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   doesn't exist in a later month (a "5th Friday" club hits a 4-Friday
   month), it clamps to that month's last occurrence rather than skipping
   the month — skipping would make the club's own page look broken one
-  month most years. DST correctness (get 8pm local right on both sides
+  month most years. **The counting starts from `settings.scheduleAnchor`
+  ("First night on", ruled 2026-11-10) when a club has one, else from
+  `created_at`.** Changing a biweekly or monthly club's cadence or day, or
+  switching to either, requires that date (on the chosen weekday, not
+  past), so the week parity or the Nth weekday is always one somebody
+  chose. DST correctness (get 8pm local right on both sides
   of a transition) is the part of this module that's actually tested
   hard; the monthly interpretation is a reasoned judgment call worth
   revisiting if it doesn't match what a club expects.
@@ -512,6 +517,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   by `mergeClubSettings`, other keys kept). **Pause/resume is owner or
   admin** and never ends the night in flight; nothing new is drafted
   while paused, and resuming lets the next Tonight load draft one.
+  **Club details (name, how often, day, time, timezone, mode), ruled
+  2026-11-10:** owner or admin, same gate, validated by
+  `lib/clubDetails.ts` for both `/new` and the edit form. **Edits apply
+  from the next night; a night in flight keeps its stored
+  `scheduled_at`.** "No fixed schedule" isn't offered when editing until
+  nights can be scheduled by hand.
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5

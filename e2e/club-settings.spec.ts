@@ -113,7 +113,7 @@ test.describe("How this club runs", () => {
         await setOwnerRole("owner");
         await signInAsUser(owner, c.users.olive);
         await owner.goto(`/clubs/${c.clubId}/members`);
-        await expect(owner.getByRole("button", { name: "Save" })).toBeVisible();
+        await expect(owner.getByRole("button", { name: "Save", exact: true })).toBeVisible();
         await setOwnerRole("member");
         const response = owner.waitForResponse((r) => r.request().method() === "POST");
         await submit(owner);
@@ -124,7 +124,7 @@ test.describe("How this club runs", () => {
     };
     await forged(async (owner) => {
       await owner.getByLabel("Films each picker nominates").fill("1");
-      await owner.getByRole("button", { name: "Save" }).click();
+      await owner.getByRole("button", { name: "Save", exact: true }).click();
     });
     await forged((owner) => owner.getByRole("button", { name: "Pause the club" }).click());
     const after = await clubRow(c.clubId);
@@ -156,7 +156,7 @@ test.describe("How this club runs", () => {
     await page.goto(`/clubs/${c.clubId}/members`);
     await page.getByLabel("Films each picker nominates").fill("2");
     await page.getByLabel(/When to ask/).selectOption("same_night");
-    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.locator("#club-settings").getByRole("status")).toContainText("Saved.");
     expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night" });
 
@@ -165,7 +165,7 @@ test.describe("How this club runs", () => {
       (el as HTMLInputElement).removeAttribute("max");
       (el as HTMLInputElement).value = "9";
     });
-    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.locator("#club-settings").getByRole("alert")).toHaveText(
       "Films each picker nominates must be a whole number from 1 to 5.",
     );
@@ -212,7 +212,7 @@ test.describe("How this club runs", () => {
 
     await page.goto(`/clubs/${c.clubId}/members`);
     await page.getByLabel(/When to ask/).selectOption("manual_only");
-    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.locator("#club-settings").getByRole("status")).toContainText("Saved.");
 
     await page.goto(`/clubs/${c.clubId}`);

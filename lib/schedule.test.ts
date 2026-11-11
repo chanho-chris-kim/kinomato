@@ -198,6 +198,79 @@ describe("getNextOccurrence", () => {
 // night uses. It fails if the runtime's tzdata predates 2026b, which would
 // put Vancouver clubs an hour off after 2026-11-01. Unknown system
 // configuration fails loud (CLAUDE.md's missing-data ruling).
+describe("getNextOccurrence with a schedule anchor (settings.scheduleAnchor, 2026-11-10)", () => {
+  const sat8 = { defaultDay: 6, defaultTime: "20:00", timezone: VANCOUVER } as const;
+  const createdAt = new Date("2026-01-01T18:00:00Z"); // a Thursday
+  const at = (year: number, month: number, day: number, tz = VANCOUVER) =>
+    zonedTimeToUtc({ year, month, day }, { hour: 20, minute: 0 }, tz);
+
+  it("biweekly: without an anchor, parity comes from created_at (unchanged)", () => {
+    // First Saturday after Jan 1 is Jan 3, so Jan 3, 17, 31…
+    expect(getNextOccurrence({ ...sat8, cadence: "biweekly" }, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(
+      at(2026, 1, 17),
+    );
+  });
+
+  it("biweekly: with an anchor, parity comes from it instead", () => {
+    const club = { ...sat8, cadence: "biweekly" as const, scheduleAnchor: "2026-01-10" };
+    // Jan 10, 24…
+    expect(getNextOccurrence(club, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 1, 24));
+  });
+
+  it("an anchor still ahead is itself the next night", () => {
+    const club = { ...sat8, cadence: "biweekly" as const, scheduleAnchor: "2026-02-07" };
+    expect(getNextOccurrence(club, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 2, 7));
+    const monthly = { ...sat8, cadence: "monthly" as const, scheduleAnchor: "2026-02-21" };
+    expect(getNextOccurrence(monthly, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 2, 21));
+  });
+
+  it("monthly: without an anchor, the Nth weekday comes from created_at (unchanged)", () => {
+    // Jan 3 is the 1st Saturday: every 1st Saturday.
+    expect(getNextOccurrence({ ...sat8, cadence: "monthly" }, new Date("2026-01-20T12:00:00Z"), createdAt)).toEqual(
+      at(2026, 2, 7),
+    );
+  });
+
+  it("monthly: with an anchor on the 3rd Saturday, every 3rd Saturday", () => {
+    const club = { ...sat8, cadence: "monthly" as const, scheduleAnchor: "2026-01-17" };
+    expect(getNextOccurrence(club, new Date("2026-01-20T12:00:00Z"), createdAt)).toEqual(at(2026, 2, 21));
+  });
+
+  it("weekly ignores the anchor", () => {
+    const club = { ...sat8, cadence: "weekly" as const, scheduleAnchor: "2026-02-07" };
+    expect(getNextOccurrence(club, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 1, 17));
+  });
+
+  it("an unreadable anchor is ignored: created_at as before", () => {
+    const club = { ...sat8, cadence: "biweekly" as const, scheduleAnchor: "next saturday" };
+    expect(getNextOccurrence(club, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 1, 17));
+  });
+
+  it("an anchor off the weekday starts from the first chosen weekday on or after it", () => {
+    // Jan 8 is a Thursday: the first Saturday from it is Jan 10.
+    const club = { ...sat8, cadence: "biweekly" as const, scheduleAnchor: "2026-01-08" };
+    expect(getNextOccurrence(club, new Date("2026-01-12T12:00:00Z"), createdAt)).toEqual(at(2026, 1, 24));
+  });
+
+  it("across the fall-back in Los Angeles, 8pm stays 8pm local (biweekly and monthly)", () => {
+    const la = { defaultDay: 6, defaultTime: "20:00", timezone: LOS_ANGELES } as const;
+    // Anchor Sat Oct 24 (PDT, UTC-7); next is Sat Nov 7 (PST, UTC-8).
+    const biweekly = getNextOccurrence(
+      { ...la, cadence: "biweekly", scheduleAnchor: "2026-10-24" },
+      new Date("2026-10-26T12:00:00Z"),
+      createdAt,
+    );
+    expect(biweekly?.toISOString()).toBe("2026-11-08T04:00:00.000Z");
+    // Anchor the 2nd Saturday of October; next is the 2nd Saturday of November.
+    const monthly = getNextOccurrence(
+      { ...la, cadence: "monthly", scheduleAnchor: "2026-10-10" },
+      new Date("2026-10-12T12:00:00Z"),
+      createdAt,
+    );
+    expect(monthly?.toISOString()).toBe("2026-11-15T04:00:00.000Z");
+  });
+});
+
 describe("runtime timezone data", () => {
   it("knows America/Vancouver is UTC-7 on 2026-12-01 (tzdata 2026b or later)", () => {
     const utc = zonedTimeToUtc({ year: 2026, month: 12, day: 1 }, { hour: 5, minute: 0 }, VANCOUVER);

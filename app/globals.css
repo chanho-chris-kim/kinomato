@@ -686,6 +686,16 @@ button {
   display: block;
 }
 
+/* Club details' "First night on" (Members tab): only for a schedule that
+   counts from a first night, every other week or monthly. */
+.club-details-form .first-night {
+  display: none;
+}
+.club-details-form:has(select[name="cadence"] option[value="biweekly"]:checked) .first-night,
+.club-details-form:has(select[name="cadence"] option[value="monthly"]:checked) .first-night {
+  display: block;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
