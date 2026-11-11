@@ -494,6 +494,30 @@ Empty states: **Invited** hides when there are no pending invites. **Your
 limits** with none set shows "No limits set for this club" and an add
 button.
 
+**Rulings for How this club runs and pause (2026-11-10):**
+- **Every member sees the club's settings; owner and admin change them,
+  with equal powers.** Every action re-checks the role server-side (one
+  gate, `requireOwnerOrAdmin` in `app/clubs/[clubId]/actions.ts`, which
+  closing voting and invites use too).
+- **Changes apply from the next time they matter and never rewrite a
+  night in flight.** Films each picker nominates is read when the picker
+  next opens voting. The "Did you watch it?" timing applies to whichever
+  night is next confirmable; a locked night in flight may see its prompt
+  time shift, which is acceptable. Values are validated at write time
+  (`lib/clubSettings.ts` `readClubSettingsForm`: 1–5 films; one of the
+  three implemented timings). Labels: "That night", "The next morning",
+  "Any time, even before the night" (`manual_only` has no time gate).
+- **Pause and resume: owner or admin.** Pausing never ends the night in
+  flight (the heading still names its picker, CLAUDE.md); no new draft is
+  created while paused; resuming lets the next Tonight load create one
+  from the next occurrence. Tonight says "This club is paused. The night
+  in progress, if any, carries on." and How this club runs shows
+  "Paused" to everyone. On `/`, a paused club's card still shows a night
+  in flight's own time, and "Paused" once nothing is in flight
+  (`lib/clubStatus.ts` `getNextNight`).
+- *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club aren't
+  built yet.
+
 ### 5.11 Navigation
 
 #### 5.11.1 The wordmark (ruled)
@@ -991,7 +1015,8 @@ between, and would have broken `main`'s CI on the shared E2E database.
   module today; a tab with nothing behind it would be a dead link. (5f
   added it: Tonight · History · Members.)
 - **The Members tab holds only Invite people and the member list** until
-  limits, club settings and leaving a club are built.
+  limits, club settings and leaving a club are built. (Club settings and
+  pause: built 2026-11-10, §5.10.)
 - **Privacy and Terms links**: shipped with the draft pages in
   launch-foundations step (a) (§11); the reviewed text replaces the drafts
   as a version change.

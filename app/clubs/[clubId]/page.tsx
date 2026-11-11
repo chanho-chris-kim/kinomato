@@ -450,6 +450,16 @@ export default async function ClubPage({
         </div>
       )}
 
+      {club.pausedAt && (
+        // Paused (§5.10, ruled 2026-11-10): no new night is scheduled, but
+        // a night already in flight carries on.
+        <div className="note mt20 club-paused-note">
+          <p className="small" style={{ margin: 0 }}>
+            This club is paused. The night in progress, if any, carries on.
+          </p>
+        </div>
+      )}
+
       {isFirstRun && (
         // First run (§5.10): nobody but the owner yet. The one useful
         // thing to do is invite people, from the Members tab.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getConfirmAt, getNomineesPerTurn } from "./clubSettings";
+import { getConfirmAt, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "./clubSettings";
 
 describe("getNomineesPerTurn", () => {
   it("defaults to 3 when settings is empty", () => {
@@ -70,5 +70,58 @@ describe("getConfirmAt", () => {
     expect(getConfirmAt(null)).toBe("morning_after");
     expect(getConfirmAt(undefined)).toBe("morning_after");
     expect(getConfirmAt("not an object")).toBe("morning_after");
+  });
+});
+
+describe("readClubSettingsForm (write side: validated at settings-write time)", () => {
+  it("accepts 1–5 films and the three implemented confirm timings", () => {
+    expect(readClubSettingsForm({ nomineesPerTurn: "1", confirmAt: "same_night" })).toEqual({
+      ok: true,
+      settings: { nomineesPerTurn: 1, confirmAt: "same_night" },
+    });
+    expect(readClubSettingsForm({ nomineesPerTurn: "5", confirmAt: "manual_only" })).toEqual({
+      ok: true,
+      settings: { nomineesPerTurn: 5, confirmAt: "manual_only" },
+    });
+    expect(readClubSettingsForm({ nomineesPerTurn: " 3 ", confirmAt: "morning_after" })).toMatchObject({ ok: true });
+  });
+
+  it("rejects anything else for films per turn, with a clear message", () => {
+    for (const bad of ["0", "6", "2.5", "three", "", "-1", "1e1", null, undefined]) {
+      expect(readClubSettingsForm({ nomineesPerTurn: bad, confirmAt: "same_night" }), String(bad)).toEqual({
+        ok: false,
+        error: "Films each picker nominates must be a whole number from 1 to 5.",
+      });
+    }
+  });
+
+  it("rejects an unimplemented or unknown confirm timing rather than storing it", () => {
+    for (const bad of ["2_days", "off", "", "MORNING_AFTER", null]) {
+      expect(readClubSettingsForm({ nomineesPerTurn: "3", confirmAt: bad }), String(bad)).toEqual({
+        ok: false,
+        error: "Pick when to ask whether you watched it.",
+      });
+    }
+  });
+
+  it("what it accepts reads back unchanged through the read side", () => {
+    const written = readClubSettingsForm({ nomineesPerTurn: "2", confirmAt: "manual_only" });
+    if (!written.ok) throw new Error("expected ok");
+    expect(getNomineesPerTurn(written.settings)).toBe(2);
+    expect(getConfirmAt(written.settings)).toBe("manual_only");
+  });
+});
+
+describe("mergeClubSettings", () => {
+  it("replaces only the keys it writes and keeps any others", () => {
+    expect(mergeClubSettings({ lockTime: 24, nomineesPerTurn: 3 }, { nomineesPerTurn: 2, confirmAt: "same_night" })).toEqual({
+      lockTime: 24,
+      nomineesPerTurn: 2,
+      confirmAt: "same_night",
+    });
+    expect(mergeClubSettings(null, { nomineesPerTurn: 4, confirmAt: "morning_after" })).toEqual({
+      nomineesPerTurn: 4,
+      confirmAt: "morning_after",
+    });
   });
 });

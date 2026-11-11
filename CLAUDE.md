@@ -499,6 +499,19 @@ Do not quietly change these — they encode decisions that took a while to reach
   still gets its own "No night scheduled yet" state, pointing at the
   Members tab; anything else with no night in flight gets the generic
   "No open vote right now".
+- **How this club runs (club settings) and pause, ruled 2026-11-10**
+  (`docs/onboarding-spec.md` §5.10). Every member sees the settings;
+  **owner and admin change them, with equal powers**, through the one
+  role gate in `app/clubs/[clubId]/actions.ts` (`requireOwnerOrAdmin`,
+  also used by closing voting and invites), re-checked on every call.
+  **Changes apply from the next time they matter and never rewrite a
+  night in flight**: films per turn is read when the picker next opens
+  voting; the confirm timing applies to the next confirmable night.
+  Written values are validated at write time
+  (`lib/clubSettings.ts` `readClubSettingsForm`, merged into the JSONB
+  by `mergeClubSettings`, other keys kept). **Pause/resume is owner or
+  admin** and never ends the night in flight; nothing new is drafted
+  while paused, and resuming lets the next Tonight load draft one.
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5

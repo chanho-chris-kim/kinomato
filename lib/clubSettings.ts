@@ -51,3 +51,36 @@ export function getConfirmAt(settings: unknown): ConfirmAt {
   }
   return DEFAULT_CONFIRM_AT;
 }
+
+// ---- Write side ("How this club runs", docs/onboarding-spec.md §5.10) ----
+
+export interface WritableClubSettings {
+  nomineesPerTurn: number;
+  confirmAt: ConfirmAt;
+}
+
+// The form's raw values, validated at write time: anything the readers
+// above would have to fall back on is refused here instead, with a
+// message for the ?error= convention. Fixed strings, never echoing input.
+export function readClubSettingsForm(fields: {
+  nomineesPerTurn: unknown;
+  confirmAt: unknown;
+}): { ok: true; settings: WritableClubSettings } | { ok: false; error: string } {
+  const raw = typeof fields.nomineesPerTurn === "string" ? fields.nomineesPerTurn.trim() : "";
+  const nominees = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!(nominees >= MIN_NOMINEES_PER_TURN && nominees <= MAX_NOMINEES_PER_TURN)) {
+    return { ok: false, error: "Films each picker nominates must be a whole number from 1 to 5." };
+  }
+  const confirmAt = fields.confirmAt;
+  if (typeof confirmAt !== "string" || !IMPLEMENTED_CONFIRM_AT.includes(confirmAt as ConfirmAt)) {
+    return { ok: false, error: "Pick when to ask whether you watched it." };
+  }
+  return { ok: true, settings: { nomineesPerTurn: nominees, confirmAt: confirmAt as ConfirmAt } };
+}
+
+// The stored settings with these keys replaced and every other key kept
+// (the JSONB holds the whole admin-flexibility table, analysis-v2.md §2).
+export function mergeClubSettings(existing: unknown, update: WritableClubSettings): Record<string, unknown> {
+  const base = typeof existing === "object" && existing !== null && !Array.isArray(existing) ? existing : {};
+  return { ...(base as Record<string, unknown>), ...update };
+}
