@@ -22,7 +22,7 @@ import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
-import { getNomineesPerTurn } from "@/lib/clubSettings";
+import { getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
 import { normalizeTag } from "@/lib/tags";
 import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
@@ -32,6 +32,25 @@ import { getOrCreateCurrentSeasonId } from "./season";
 // Identity is the session's user, through their membership in this club
 // (./identity.ts). Nothing here trusts a client-supplied membership id —
 // every action reads it back with requireCurrentMembershipId.
+
+// The one owner-or-admin gate for club actions: closing voting, invites,
+// "How this club runs" and pause (docs/onboarding-spec.md §5.10, ruled
+// 2026-11-10: owner and admin have equal powers). Re-checked on every
+// call: a Server Action is callable directly, not only from the page that
+// rendered its form, so a member's forged post, or one from a page loaded
+// before their role changed, is refused here.
+async function requireOwnerOrAdmin(clubId: string, action: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
+  if (!membership || membership.clubId !== clubId) {
+    throw new Error("No identity set for this club — pick a name first.");
+  }
+  if (membership.role !== "owner" && membership.role !== "admin") {
+    throw new Error(`Only the club owner or an admin can ${action}.`);
+  }
+  return { db, membership };
+}
 
 // One vote per person per night, movable (v1 §1.1 stage 7) — a night has
 // several nominations, so "movable" means deleting any existing vote(s)
@@ -333,24 +352,12 @@ export async function removeRatingTag(clubId: string, nightId: string, tagId: st
 // member" ruling). This button is scaffolding until the scheduled-lock
 // cron exists; a member accidentally ending the vote early is a worse
 // failure than waiting for an admin. There's no lockedBy column to
-// attribute it to, unlike confirmNight — membership is only fetched
-// here to check role. The actual tally/tiebreak/write is
+// attribute it to, unlike confirmNight — the role check is the shared
+// requireOwnerOrAdmin. The actual tally/tiebreak/write is
 // lockNightCore, shared with the not-yet-built scheduled job — see
 // that file's SEAM comment.
 export async function lockNight(clubId: string, nightId: string) {
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const membershipId = await requireCurrentMembershipId(clubId);
-
-  const [membership] = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.id, membershipId));
-  if (!membership || membership.clubId !== clubId) {
-    throw new Error("No identity set for this club — pick a name first.");
-  }
-  if (membership.role !== "owner" && membership.role !== "admin") {
-    throw new Error("Only the club owner or an admin can close voting.");
-  }
+  const { db } = await requireOwnerOrAdmin(clubId, "close voting");
 
   const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
   if (!night || night.clubId !== clubId) throw new Error("Night not found.");
@@ -396,22 +403,9 @@ export async function castVeto(clubId: string, nominationId: string) {
 }
 
 // ---- Per-person invites (docs/onboarding-spec.md §7, rebuild step 3) ----
-// Owner/admin only, the same restriction as rotateInviteToken: all three
-// change who can get into the room. Validation errors the person should
-// see go back via ?inviteError= (CLAUDE.md's form-error convention).
-
-async function requireOwnerOrAdmin(clubId: string) {
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const membershipId = await requireCurrentMembershipId(clubId);
-  const [membership] = await db.select().from(memberships).where(eq(memberships.id, membershipId));
-  if (!membership || membership.clubId !== clubId) {
-    throw new Error("No identity set for this club — pick a name first.");
-  }
-  if (membership.role !== "owner" && membership.role !== "admin") {
-    throw new Error("Only the club owner or an admin can manage invites.");
-  }
-  return { db, membership };
-}
+// Owner/admin only (requireOwnerOrAdmin): all three change who can get
+// into the room. Validation errors the person should see go back via
+// ?inviteError= (CLAUDE.md's form-error convention).
 
 function inviteError(clubId: string, message: string): never {
   redirect(`/clubs/${clubId}/members?inviteError=${encodeURIComponent(message)}`);
@@ -434,7 +428,7 @@ async function insertInvite(
 // pending invites reach the cap. Lands back on the Members tab with the
 // new invite's share panel open (?invite=).
 export async function createInvite(clubId: string, formData: FormData) {
-  const { db, membership } = await requireOwnerOrAdmin(clubId);
+  const { db, membership } = await requireOwnerOrAdmin(clubId, "manage invites");
   const name = validateMemberName(
     String(formData.get("firstName") ?? ""),
     String(formData.get("lastInitial") ?? ""),
@@ -457,7 +451,7 @@ export async function createInvite(clubId: string, formData: FormData) {
 // a pending invite: a redeemed one is history, and removing someone who
 // joined is member removal, not this.
 export async function revokeInvite(clubId: string, inviteId: string) {
-  const { db } = await requireOwnerOrAdmin(clubId);
+  const { db } = await requireOwnerOrAdmin(clubId, "manage invites");
   await db
     .update(invites)
     .set({ revokedAt: new Date() })
@@ -475,7 +469,7 @@ export async function revokeInvite(clubId: string, inviteId: string) {
 // Revoke + a fresh invite for the same name: "I sent it to the wrong chat."
 // The revoke frees the seat the new one takes, so it never trips the cap.
 export async function regenerateInvite(clubId: string, inviteId: string) {
-  const { db, membership } = await requireOwnerOrAdmin(clubId);
+  const { db, membership } = await requireOwnerOrAdmin(clubId, "manage invites");
   const [revoked] = await db
     .update(invites)
     .set({ revokedAt: new Date() })
@@ -491,4 +485,43 @@ export async function regenerateInvite(clubId: string, inviteId: string) {
   if (!revoked) redirect(`/clubs/${clubId}/members`);
   const id = await insertInvite(db, clubId, revoked.inviteeName, membership.id);
   redirect(`/clubs/${clubId}/members?invite=${id}`);
+}
+
+// ---- How this club runs (docs/onboarding-spec.md §5.10, ruled 2026-11-10) ----
+// Owner or admin, equal powers. Changes apply from the next time they
+// matter and never rewrite a night in flight: nominees per turn is read
+// when the picker next opens voting; the confirm timing applies to
+// whichever night is next confirmable. Validated at write time
+// (lib/clubSettings.ts readClubSettingsForm); a mistake goes back with a
+// fixed ?settingsError= message.
+const settingsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${query}#club-settings`;
+
+export async function updateClubSettings(clubId: string, formData: FormData) {
+  const { db } = await requireOwnerOrAdmin(clubId, "change how the club runs");
+  const result = readClubSettingsForm({
+    nomineesPerTurn: formData.get("nomineesPerTurn"),
+    confirmAt: formData.get("confirmAt"),
+  });
+  if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ settingsError: result.error })}`));
+  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
+  await db
+    .update(clubs)
+    .set({ settings: mergeClubSettings(club?.settings, result.settings) })
+    .where(eq(clubs.id, clubId));
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(settingsUrl(clubId, "?saved=settings"));
+}
+
+// Pause or resume. Pausing never ends the night in flight (CLAUDE.md: the
+// heading still names its picker); while paused no new draft is created
+// (lib/rotation.ts getNextPicker), and resuming lets the next Tonight load
+// create one from the next occurrence.
+export async function setClubPaused(clubId: string, paused: boolean) {
+  const { db } = await requireOwnerOrAdmin(clubId, paused ? "pause the club" : "resume the club");
+  await db
+    .update(clubs)
+    .set({ pausedAt: paused ? new Date() : null })
+    .where(eq(clubs.id, clubId));
+  revalidatePath("/", "layout");
+  redirect(settingsUrl(clubId));
 }

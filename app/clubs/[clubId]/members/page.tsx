@@ -7,25 +7,35 @@ import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
 import { timeAgo } from "@/lib/format";
 import { canCreateInvite } from "@/lib/invites";
-import { createInvite, regenerateInvite, revokeInvite } from "../actions";
+import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
+import type { ConfirmAt } from "@/lib/confirmTiming";
+import { createInvite, regenerateInvite, revokeInvite, setClubPaused, updateClubSettings } from "../actions";
 import { byJoinedAt, MemberCards } from "../memberViews";
 import { loadClubMemberships } from "../members";
 import { ShareInvite } from "../ShareInvite";
 
-// The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c). In
+// When "Did you watch it?" is asked (lib/confirmTiming.ts), in plain words.
+const CONFIRM_AT_LABELS: Record<ConfirmAt, string> = {
+  same_night: "That night",
+  morning_after: "The next morning",
+  manual_only: "Any time, even before the night",
+};
+
+// The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c, m1). In
 // order: Members, Invited (only when there are pending invites), Add a
-// person (owners and admins). Nothing else until it's built: limits, club
-// settings and leaving a club aren't (§8.5's step-5 rulings). No rail here:
-// it would repeat the main column. Its space is kept (reserveRail).
+// person (owners and admins), How this club runs (everyone sees it; owners
+// and admins change it). Not yet built: your limits in this club, and
+// leaving. No rail here: it would repeat the main column. Its space is
+// kept (reserveRail).
 export default async function MembersPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ invite?: string; inviteError?: string }>;
+  searchParams: Promise<{ invite?: string; inviteError?: string; settingsError?: string; saved?: string }>;
 }) {
   const { clubId } = await params;
-  const { invite: newInviteId, inviteError } = await searchParams;
+  const { invite: newInviteId, inviteError, settingsError, saved } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
 
@@ -46,6 +56,8 @@ export default async function MembersPage({
     .orderBy(asc(invites.createdAt));
   const baseUrl = await getBaseUrl();
   const seatsTaken = activeMemberships.length + pendingInvites.length;
+  const nomineesPerTurn = getNomineesPerTurn(club.settings);
+  const confirmAt = getConfirmAt(club.settings);
 
   return (
     <GlobalShell
@@ -156,6 +168,86 @@ export default async function MembersPage({
           )}
         </section>
       )}
+
+      {/* Your limits in this club (§5.10: hard limits and soft preferences,
+          per membership) will sit here, above How this club runs. A later
+          step; no UI yet. */}
+
+      <section id="club-settings" className="mt20" aria-labelledby="club-settings-heading">
+        <h2 id="club-settings-heading" className="sec">
+          How this club runs
+        </h2>
+        {club.pausedAt && (
+          <p className="small mt-1 club-paused" style={{ color: "var(--warn)" }}>
+            Paused
+          </p>
+        )}
+        {settingsError && (
+          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+            {settingsError}
+          </p>
+        )}
+        {saved === "settings" && !settingsError && (
+          <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+            Saved. It applies from the next time it matters, never to a night already under way.
+          </p>
+        )}
+        {isOwnerOrAdmin ? (
+          <>
+            <form action={updateClubSettings.bind(null, clubId)} className="stack gap14 mt14" style={{ maxWidth: 420 }}>
+              <label className="small muted">
+                Films each picker nominates
+                <div className="search mt-1">
+                  <input
+                    type="number"
+                    name="nomineesPerTurn"
+                    min={1}
+                    max={5}
+                    step={1}
+                    required
+                    defaultValue={nomineesPerTurn}
+                  />
+                </div>
+              </label>
+              <label className="small muted">
+                When to ask &ldquo;Did you watch it?&rdquo;
+                <select
+                  name="confirmAt"
+                  defaultValue={confirmAt}
+                  className="sel mt-1"
+                  style={{ display: "block", width: "100%" }}
+                >
+                  {(Object.keys(CONFIRM_AT_LABELS) as ConfirmAt[]).map((value) => (
+                    <option key={value} value={value}>
+                      {CONFIRM_AT_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className="btn" style={{ width: "auto" }}>
+                Save
+              </button>
+            </form>
+            <form action={setClubPaused.bind(null, clubId, !club.pausedAt)} className="mt14">
+              <button type="submit" className="btn ghost" style={{ width: "auto" }}>
+                {club.pausedAt ? "Resume the club" : "Pause the club"}
+              </button>
+            </form>
+            <p className="tiny dim" style={{ margin: "8px 0 0" }}>
+              {club.pausedAt
+                ? "Resuming schedules the next night as usual."
+                : "Pausing stops new nights being scheduled. A night already under way carries on."}
+            </p>
+          </>
+        ) : (
+          <dl className="small mt14 club-settings-values" style={{ margin: "14px 0 0" }}>
+            <dt className="muted">Films each picker nominates</dt>
+            <dd style={{ margin: "2px 0 10px" }}>{nomineesPerTurn}</dd>
+            <dt className="muted">When to ask &ldquo;Did you watch it?&rdquo;</dt>
+            <dd style={{ margin: "2px 0 0" }}>{CONFIRM_AT_LABELS[confirmAt]}</dd>
+          </dl>
+        )}
+      </section>
     </GlobalShell>
   );
 }
