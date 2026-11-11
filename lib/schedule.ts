@@ -26,6 +26,12 @@ export interface ScheduleConfig {
   defaultDay: number | null; // 0=Sunday..6=Saturday
   defaultTime: string | null; // "HH:MM" or "HH:MM:SS" (Postgres time column)
   timezone: string; // IANA zone name
+  // "First night on" (clubs.settings.scheduleAnchor, YYYY-MM-DD in the
+  // club's timezone; ruled 2026-11-10). When present, biweekly parity and
+  // monthly's Nth weekday count from it instead of the club's created_at.
+  // Weekly ignores it. Unreadable values are ignored too: the writer
+  // validates them (lib/clubDetails.ts).
+  scheduleAnchor?: string | null;
 }
 
 // Exported for lib/confirmTiming.ts (and anything else that needs
@@ -40,6 +46,22 @@ export interface CalendarDate {
   year: number;
   month: number; // 1-12
   day: number;
+}
+
+// "2026-02-07" → a real calendar date, or null.
+export function parseCalendarDate(raw: unknown): CalendarDate | null {
+  if (typeof raw !== "string") return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return null;
+  const date = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  const check = new Date(Date.UTC(date.year, date.month - 1, date.day));
+  return check.getUTCFullYear() === date.year && check.getUTCMonth() + 1 === date.month && check.getUTCDate() === date.day
+    ? date
+    : null;
+}
+
+export function weekdayOfDate(date: CalendarDate): number {
+  return weekdayOf(date);
 }
 
 function parseTime(raw: string | null): TimeOfDay | null {
@@ -215,15 +237,21 @@ export function getNextOccurrence(config: ScheduleConfig, now: Date, anchor: Dat
     );
   }
 
+  // The first night the schedule counts from: the stored "First night on"
+  // when there is one (its start of day, in the club's timezone), else the
+  // club's creation.
+  const anchorDate = parseCalendarDate(config.scheduleAnchor);
+  const from = anchorDate ? zonedTimeToUtc(anchorDate, { hour: 0, minute: 0 }, config.timezone) : anchor;
+
   switch (config.cadence) {
     case "weekly":
       return nextWeeklyOccurrence(config.defaultDay, time, config.timezone, now);
     case "biweekly": {
-      const anchorOccurrence = nextWeeklyOccurrence(config.defaultDay, time, config.timezone, anchor);
+      const anchorOccurrence = nextWeeklyOccurrence(config.defaultDay, time, config.timezone, from);
       return nextPeriodicOccurrence(anchorOccurrence, 14, time, config.timezone, now);
     }
     case "monthly": {
-      const anchorOccurrence = nextWeeklyOccurrence(config.defaultDay, time, config.timezone, anchor);
+      const anchorOccurrence = nextWeeklyOccurrence(config.defaultDay, time, config.timezone, from);
       return nextMonthlyOccurrence(anchorOccurrence, config.defaultDay, time, config.timezone, now);
     }
   }

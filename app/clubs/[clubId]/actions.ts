@@ -23,6 +23,8 @@ import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
 import { getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
+import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
+import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { normalizeTag } from "@/lib/tags";
 import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
@@ -524,4 +526,57 @@ export async function setClubPaused(clubId: string, paused: boolean) {
     .where(eq(clubs.id, clubId));
   revalidatePath("/", "layout");
   redirect(settingsUrl(clubId));
+}
+
+// ---- Club details (docs/onboarding-spec.md §5.10, ruled 2026-11-10) ----
+// Owner or admin: name, how often, day, time, timezone, mode. Validated by
+// lib/clubDetails.ts, the same rules as /new, except that "no fixed
+// schedule" isn't offered until nights can be scheduled by hand. Edits
+// apply from the next night: a draft, open or locked night keeps its
+// stored scheduled_at. A biweekly or monthly schedule whose counting would
+// otherwise come from created_at needs "First night on", stored as
+// settings.scheduleAnchor. A mistake comes back with a fixed
+// ?detailsError= message; what was typed comes back through the form-echo
+// cookie, never the URL (§11.6).
+export async function updateClubDetails(clubId: string, formData: FormData) {
+  const { db } = await requireOwnerOrAdmin(clubId, "edit the club's details");
+  const membersPath = `/clubs/${clubId}/members`;
+  await clearFormEcho(membersPath);
+  const fields = {
+    name: formData.get("name"),
+    cadence: formData.get("cadence"),
+    defaultDay: formData.get("defaultDay"),
+    defaultTime: formData.get("defaultTime"),
+    timezone: formData.get("timezone"),
+    mode: formData.get("mode"),
+  };
+  const firstNightOn = formData.get("firstNightOn");
+  const back = async (error: string): Promise<never> => {
+    const echo: Record<string, string> = {};
+    for (const [key, value] of Object.entries({ ...fields, firstNightOn })) {
+      if (typeof value === "string") echo[key] = value;
+    }
+    await setFormEcho(membersPath, echo);
+    redirect(`${membersPath}?${new URLSearchParams({ detailsError: error })}#club-details`);
+  };
+
+  const result = readClubDetailsForm(fields, { allowAdHoc: false });
+  if (!result.ok) return back(result.error);
+  const details = result.details;
+  const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+  if (!club) throw new Error("Club not found.");
+
+  let settings = club.settings;
+  if (firstNightRequired(club, details)) {
+    const first = checkFirstNight(firstNightOn, details, new Date());
+    if (!first.ok) return back(first.error);
+    settings = { ...(typeof settings === "object" && settings !== null ? settings : {}), scheduleAnchor: first.date };
+  }
+
+  await db
+    .update(clubs)
+    .set({ ...details, settings })
+    .where(eq(clubs.id, clubId));
+  revalidatePath("/", "layout");
+  redirect(`${membersPath}?saved=details#club-details`);
 }

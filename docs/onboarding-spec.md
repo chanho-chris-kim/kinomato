@@ -518,6 +518,31 @@ button.
 - *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club aren't
   built yet.
 
+**Rulings for club details (2026-11-10):**
+- **Owner and admin edit the club's name, how often, day, time, timezone
+  and mode**, through the same `requireOwnerOrAdmin` gate. Members see the
+  values as plain text.
+- **Edits apply from the next night.** A draft, open or locked night keeps
+  its stored `scheduled_at`; the form says so.
+- **Schedule anchor.** Biweekly parity and monthly's Nth weekday used to
+  count only from `clubs.created_at`. When the cadence or the day changes
+  on a biweekly or monthly club, or a club switches to biweekly or
+  monthly, the form requires **"First night on"**: a date in the club's
+  timezone, on the chosen weekday, not in the past. It's stored as
+  `settings.scheduleAnchor` (`YYYY-MM-DD`), and `lib/schedule.ts` counts
+  from it in place of `created_at`. Clubs without one keep the old
+  behaviour. Weekly needs no anchor, and a time or timezone change alone
+  needs none.
+- **"No fixed schedule" (ad hoc) isn't offered in the edit form** until
+  nights can be scheduled by hand. A club already ad hoc can switch to a
+  fixed schedule. `/new` still offers it.
+- *Built (m2), 2026-11-10.* One validator for `/new` and the edit form
+  (`lib/clubDetails.ts`: `readClubDetailsForm`, `firstNightRequired`,
+  `checkFirstNight`). The "First night on" field shows whenever every
+  other week or monthly is chosen; the server requires it only under the
+  rule above. A mistake comes back with a fixed `?detailsError=` message,
+  what was typed through the form-echo cookie (§11.6).
+
 ### 5.11 Navigation
 
 #### 5.11.1 The wordmark (ruled)

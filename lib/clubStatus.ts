@@ -5,6 +5,7 @@ import {
   type NightState,
   type RotationMembership,
 } from "./rotation";
+import { getScheduleAnchor } from "./clubSettings";
 import { getNextOccurrence, type ScheduleConfig } from "./schedule";
 
 // A club's state, derived the same way on its card on `/` (Ruling A,
@@ -22,7 +23,12 @@ export interface StatusNight {
 export interface StatusClub extends ScheduleConfig {
   pausedAt: Date | null;
   createdAt: Date;
+  // clubs.settings, for its schedule anchor (getScheduleAnchor).
+  settings?: unknown;
 }
+
+// The club's schedule, with "First night on" when it has one.
+const scheduleOf = (club: StatusClub): ScheduleConfig => ({ ...club, scheduleAnchor: getScheduleAnchor(club.settings) });
 
 const IN_FLIGHT: readonly NightState[] = ["draft", "open", "locked"];
 
@@ -87,7 +93,7 @@ export function getDraftToCreate(input: {
   if (club.cadence === "ad_hoc") return null;
   const picker = getNextPicker({ memberships, nights, clubPausedAt: club.pausedAt });
   if (!picker) return null;
-  const scheduledAt = getNextOccurrence(club, now, club.createdAt);
+  const scheduledAt = getNextOccurrence(scheduleOf(club), now, club.createdAt);
   if (!scheduledAt) return null;
   return { pickerMembershipId: picker.id, scheduledAt };
 }
@@ -213,7 +219,7 @@ export function getNextNight(input: { club: StatusClub; nights: StatusNight[]; n
   if (inFlight) return { kind: "at", at: inFlight.scheduledAt };
   if (club.cadence === "ad_hoc") return { kind: "none" };
   if (club.pausedAt) return { kind: "paused" };
-  const at = getNextOccurrence(club, now, club.createdAt);
+  const at = getNextOccurrence(scheduleOf(club), now, club.createdAt);
   return at ? { kind: "at", at } : { kind: "none" };
 }
 

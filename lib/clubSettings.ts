@@ -9,6 +9,7 @@
 // session hasn't implemented.
 
 import type { ConfirmAt } from "./confirmTiming";
+import { parseCalendarDate } from "./schedule";
 
 const DEFAULT_NOMINEES_PER_TURN = 3;
 const MIN_NOMINEES_PER_TURN = 1;
@@ -83,4 +84,15 @@ export function readClubSettingsForm(fields: {
 export function mergeClubSettings(existing: unknown, update: WritableClubSettings): Record<string, unknown> {
   const base = typeof existing === "object" && existing !== null && !Array.isArray(existing) ? existing : {};
   return { ...(base as Record<string, unknown>), ...update };
+}
+
+// "First night on" (ruled 2026-11-10): the date biweekly parity and
+// monthly's Nth weekday count from, when set (lib/schedule.ts). Written
+// only by the club details form, validated there (lib/clubDetails.ts);
+// anything unreadable reads as absent, and the schedule falls back to the
+// club's created_at.
+export function getScheduleAnchor(settings: unknown): string | null {
+  if (typeof settings !== "object" || settings === null) return null;
+  const value = (settings as Record<string, unknown>).scheduleAnchor;
+  return parseCalendarDate(value) ? (value as string) : null;
 }
