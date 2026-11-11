@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ConstraintFilm } from "./constraints";
+import { scopeToActiveMembers, type ConstraintFilm } from "./constraints";
 import { pickWinningNomination } from "./lockTally";
 
 function film(id: string, overrides: Partial<ConstraintFilm> = {}): ConstraintFilm {
@@ -113,5 +113,38 @@ describe("pickWinningNomination", () => {
       rsvps: [{ membershipId: "m1", status: "no" }],
     });
     expect(result).toBe("nom-a");
+  });
+});
+
+describe("pickWinningNomination with departed members scoped out (2026-11-09)", () => {
+  it("a departed voter's vote still counts; their soft preference no longer breaks the tie", () => {
+    const nominations = [
+      { id: "n1", filmId: "drama" },
+      { id: "n2", filmId: "other" },
+    ];
+    // Gone voted for n1, Stays for n2: 1–1, but only with Gone's vote.
+    const votes = [{ nominationId: "n1" }, { nominationId: "n2" }];
+    const films = [
+      { id: "drama", genreIds: [18], keywordIds: [], runtime: null, originalLanguage: null },
+      { id: "other", genreIds: [35], keywordIds: [], runtime: null, originalLanguage: null },
+    ];
+    const goneSoft = {
+      id: "c",
+      membershipId: "gone",
+      kind: "soft" as const,
+      ruleType: "genre" as const,
+      value: "18",
+      appliesWhenAbsent: false,
+    };
+    const rsvps = [
+      { membershipId: "gone", status: "yes" as const },
+      { membershipId: "stays", status: "yes" as const },
+    ];
+    // Counted, Gone's preference makes n1 lose the tie.
+    expect(pickWinningNomination({ nominations, votes, films, constraints: [goneSoft], rsvps })).toBe("n2");
+    // Scoped out, it's a clean tie and n1 wins on id; and only because
+    // Gone's vote still counts (without it, n2 wins 1–0).
+    const scoped = scopeToActiveMembers([goneSoft], rsvps, ["stays"]);
+    expect(pickWinningNomination({ nominations, votes, films, ...scoped })).toBe("n1");
   });
 });

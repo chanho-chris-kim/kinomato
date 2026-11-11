@@ -19,7 +19,7 @@ import {
   findLockedNight,
   getDraftToCreate,
 } from "@/lib/clubStatus";
-import { areTakesRevealed } from "@/lib/ratingReveal";
+import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
 import {
   getNextPicker,
   getWhoseTurn,
@@ -331,9 +331,11 @@ export default async function ClubPage({
       .select()
       .from(rsvps)
       .where(eq(rsvps.nightId, mostRecentWatchedNight.id));
-    const attendingMembershipIds = nightRsvps
-      .filter((r) => r.status === "yes")
-      .map((r) => r.membershipId);
+    // Who must rate: yes-RSVPs from members still active (2026-11-09).
+    const attendingMembershipIds = mustRateBeforeReveal(
+      nightRsvps,
+      activeMemberships.map((m) => m.id),
+    );
 
     const nightRatings = await db
       .select()

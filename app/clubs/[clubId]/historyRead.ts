@@ -13,6 +13,7 @@ import {
   votes,
 } from "@/db/schema";
 import { ratingsView, tallyNight, terminalNightsNewestFirst } from "@/lib/history";
+import { mustRateBeforeReveal } from "@/lib/ratingReveal";
 import type { NightState } from "@/lib/rotation";
 import { loadClubMemberships, nameOf } from "./members";
 
@@ -146,7 +147,7 @@ export async function clubHistory(db: Db, clubId: string): Promise<{ timezone: s
       .from(nominations)
       .where(inArray(nominations.nightId, nightIds)),
     db
-      .select({ nightId: rsvps.nightId, membershipId: rsvps.membershipId })
+      .select({ nightId: rsvps.nightId, membershipId: rsvps.membershipId, status: rsvps.status })
       .from(rsvps)
       .where(and(inArray(rsvps.nightId, nightIds), eq(rsvps.status, "yes"))),
     db.select().from(ratings).where(inArray(ratings.nightId, nightIds)),
@@ -185,12 +186,17 @@ export async function clubHistory(db: Db, clubId: string): Promise<{ timezone: s
   };
   const name = (membershipId: string) => nameOf(members.find((m) => m.id === membershipId));
   const voteNominationIds = voteRows.map((v) => v.nominationId);
+  const activeIds = members.filter((m) => m.leftAt === null).map((m) => m.id);
 
   return {
     timezone: club?.timezone ?? "UTC",
     nights: finished.map((night) => {
       const state = night.state as HistoryNight["state"];
-      const attendingIds = nightRsvps.filter((r) => r.nightId === night.id).map((r) => r.membershipId);
+      // Who must rate: yes-RSVPs from members still active (2026-11-09).
+      const attendingIds = mustRateBeforeReveal(
+        nightRsvps.filter((r) => r.nightId === night.id),
+        activeIds,
+      );
       const view = ratingsView(
         attendingIds,
         nightRatings.filter((r) => r.nightId === night.id),
