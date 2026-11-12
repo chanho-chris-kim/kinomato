@@ -24,6 +24,11 @@ const PROCESSORS: { name: string; role: string }[] = [
   },
 ];
 
+// Facts about what's kept, not legal prose (that's pending review).
+const COLLECTED = [
+  "Limits and preferences you set in a club, seen only by you, and applied without showing anyone why.",
+];
+
 // Every cookie Kinomato sets, all first-party and functional (§11.6: no
 // cookie banner for now). Names come from the modules that set them, so
 // the list can't drift. Facts, not legal prose.
@@ -43,7 +48,15 @@ const COOKIES: { name: string; role: string }[] = [
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy" document={currentLegal().privacy}>
-      <PendingSection title="What we collect" />
+      <PendingSection title="What we collect">
+        <ul className="small mt14 collected" style={{ paddingLeft: 18, margin: "10px 0 0" }}>
+          {COLLECTED.map((fact) => (
+            <li key={fact} style={{ marginTop: 4 }}>
+              {fact}
+            </li>
+          ))}
+        </ul>
+      </PendingSection>
       <PendingSection title="How we use it" />
       <PendingSection title="Who we share it with">
         <ul className="small mt14 processors" style={{ paddingLeft: 18, margin: "10px 0 0" }}>

@@ -325,6 +325,16 @@ Do not quietly change these — they encode decisions that took a while to reach
   same picker drafts again, and votes are kept. History's tally leaves
   dropped nominees and their votes out. Lock stays immovable: all of this
   happens inside the one lock, which still only runs on an open night.
+  **A limit added or removed takes effect at the next point it's checked
+  (ruled 2026-11-12):** the next nomination, or the lock of a vote already
+  open. **Only the person sees and changes their own limits**: the
+  Members tab's "Your limits in this club" renders for the viewer's own
+  membership only, and `addLimit`, `removeLimit` and
+  `setLimitsApplyWhenAbsent` act on the signed-in person's membership,
+  never a client-supplied one. Write-time validation is
+  `lib/constraintForm.ts`; the two-hard-limit cap is also enforced by a
+  conditional insert; the "weeks I'm out" switch is written to every one
+  of the person's rows.
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one
   nominee from the slate and costs a token from that member's own pool (per
   member per season, same shape as the two-hard-limit cap — never shared

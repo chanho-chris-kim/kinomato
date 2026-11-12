@@ -14,7 +14,9 @@ const ROOT = join(__dirname, "..");
 const RULING =
   "docs/onboarding-spec.md §11.6 (no personal data in URLs: Workers Logs keep every URL; " +
   "use app/signInCookie.ts or app/formEcho.ts)";
-const KEYS = ["email", "first", "initial", "name", "newEmail"];
+// Limits and preferences are sensitive too (ruled 2026-11-12): no genre,
+// keyword, label or length may ride in a URL either.
+const KEYS = ["email", "first", "initial", "name", "newEmail", "genre", "keyword", "label", "minutes"];
 // Values that are personal when interpolated into a path: these as bare
 // names, and the first four also as properties (`link.email`), but not
 // `.name` (a tag's or a club's name is the club's, not a person's).
@@ -79,6 +81,8 @@ describe("no personal data in URLs (§11.6)", () => {
       'const qs = new URLSearchParams({ error, first: firstName, initial: lastInitial });',
       'qs.set("newEmail", newEmail);',
       'qs.append("name", inviteeName);',
+      "const qs = new URLSearchParams({ genre: limit.value });",
+      'redirect(`/clubs/x/members?label=${limit.label}`);',
       "redirect(`/login?email=${encodeURIComponent(email)}`);",
       'const retry = "/login/code?x=1&email=" + email;',
       "redirect(`/people/${user.displayName}`);",

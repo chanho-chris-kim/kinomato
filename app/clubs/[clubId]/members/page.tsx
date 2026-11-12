@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { clubs, invites } from "@/db/schema";
+import { clubs, constraints, invites } from "@/db/schema";
 import { requireClubMember } from "@/app/auth";
 import { getBaseUrl } from "@/app/baseUrl";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
@@ -10,15 +10,18 @@ import { canCreateInvite } from "@/lib/invites";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import type { ConfirmAt } from "@/lib/confirmTiming";
 import {
+  addLimit,
   createInvite,
   deleteClubAsLastMember,
   leaveClub,
   makeAdmin,
   regenerateInvite,
   removeAdmin,
+  removeLimit,
   removeMember,
   revokeInvite,
   setClubPaused,
+  setLimitsApplyWhenAbsent,
   transferOwnership,
   updateClubDetails,
   updateClubSettings,
@@ -28,6 +31,8 @@ import { readFormEcho } from "@/app/formEcho";
 import Link from "next/link";
 import { canChangeRole, canRemove, canTransferOwnership, type RoleMember } from "@/lib/roles";
 import { planLeave } from "@/lib/clubLeave";
+import { describeLimit, MAX_RUNTIME_LIMIT, MIN_RUNTIME_LIMIT, MOVIE_GENRES } from "@/lib/constraintForm";
+import { canAddHardLimit } from "@/lib/constraints";
 import { nameOf, type ClubMembership } from "../members";
 import { describeSchedule } from "@/lib/format";
 import { byJoinedAt, MemberCards } from "../memberViews";
@@ -65,6 +70,8 @@ export default async function MembersPage({
     removed?: string;
     leave?: string;
     leaveError?: string;
+    limits?: string;
+    limitsError?: string;
   }>;
 }) {
   const { clubId } = await params;
@@ -81,6 +88,8 @@ export default async function MembersPage({
     removed,
     leave,
     leaveError,
+    limits,
+    limitsError,
   } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
@@ -102,6 +111,15 @@ export default async function MembersPage({
     .orderBy(asc(invites.createdAt));
   const baseUrl = await getBaseUrl();
   const seatsTaken = activeMemberships.length + pendingInvites.length;
+  // The viewer's own limits, and only theirs (ruled 2026-11-12): nobody else
+  // sees them, so nothing here loads anyone else's.
+  const myLimits = await db
+    .select()
+    .from(constraints)
+    .where(eq(constraints.membershipId, me.id))
+    .orderBy(asc(constraints.kind), asc(constraints.ruleType), asc(constraints.value));
+  const limitsApplyWhenAbsent = myLimits.some((c) => c.appliesWhenAbsent);
+  const atHardCap = !canAddHardLimit(myLimits);
 
   // Roles (ruled 2026-11-11): only the owner gets controls, and only where
   // lib/roles.ts allows; the actions check again.
@@ -362,9 +380,115 @@ export default async function MembersPage({
         </section>
       )}
 
-      {/* Your limits in this club (§5.10: hard limits and soft preferences,
-          per membership) will sit here, above How this club runs. A later
-          step; no UI yet. */}
+      <section id="limits" className="mt20" aria-labelledby="limits-heading">
+        {/* Your limits in this club (§5.10, ruled 2026-11-12): the viewer's
+            own, seen and changed by nobody else. */}
+        <h2 id="limits-heading" className="sec">
+          Your limits in this club
+        </h2>
+        <p className="tiny dim" style={{ margin: "4px 0 0" }}>
+          These apply in {club.name} only. Two hard limits each. Hard limits are never voted on. Preferences
+          break ties.
+        </p>
+        <p className="tiny dim" style={{ margin: "4px 0 0" }}>
+          A change counts from the next time films are checked: the next nomination, or the close of a vote
+          that&apos;s already open.
+        </p>
+        {limitsError && (
+          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+            {limitsError}
+          </p>
+        )}
+        {limits === "saved" && !limitsError && (
+          <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+            Saved.
+          </p>
+        )}
+        {myLimits.length === 0 ? (
+          <p className="small muted mt14">No limits set for this club.</p>
+        ) : (
+          <ul className="stack gap8 mt14 my-limits" style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
+            {myLimits.map((c) => {
+              const words = describeLimit(c);
+              return (
+                <li key={c.id} className="row gap8">
+                  <span className={`chip ${c.kind === "hard" ? "on" : ""}`}>{words}</span>
+                  <form action={removeLimit.bind(null, clubId, c.id)} style={{ marginLeft: "auto" }}>
+                    <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Remove ${words}`}>
+                      Remove
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <form action={addLimit.bind(null, clubId)} className="limit-form stack gap14 mt14" style={{ maxWidth: 420 }}>
+          <fieldset className="consent-age">
+            <legend className="small muted">Kind</legend>
+            <label className="consent-choice">
+              <input type="radio" name="kind" value="hard" defaultChecked={!atHardCap} disabled={atHardCap} /> Hard
+              limit
+            </label>
+            <label className="consent-choice">
+              <input type="radio" name="kind" value="soft" defaultChecked={atHardCap} /> Prefer not
+            </label>
+          </fieldset>
+          {atHardCap && <p className="tiny dim limit-cap" style={{ margin: 0 }}>{"You have two hard limits. Remove one, or add this as a preference."}</p>}
+          <fieldset className="consent-age">
+            <legend className="small muted">What</legend>
+            <label className="consent-choice">
+              <input type="radio" name="ruleType" value="genre" defaultChecked /> A genre
+            </label>
+            <label className="consent-choice">
+              <input type="radio" name="ruleType" value="runtime" /> A length
+            </label>
+          </fieldset>
+          <label className="small muted limit-genre">
+            Genre
+            <select name="genre" className="sel mt-1" style={{ display: "block", width: "100%" }} defaultValue="">
+              <option value="" disabled>
+                Choose a genre
+              </option>
+              {MOVIE_GENRES.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="small muted limit-minutes">
+            Nothing over (minutes)
+            <div className="search mt-1">
+              <input type="number" name="minutes" min={MIN_RUNTIME_LIMIT} max={MAX_RUNTIME_LIMIT} step={1} />
+            </div>
+          </label>
+          <button type="submit" className="btn" style={{ width: "auto" }}>
+            Add
+          </button>
+        </form>
+
+        {myLimits.length > 0 && (
+          <form action={setLimitsApplyWhenAbsent.bind(null, clubId, !limitsApplyWhenAbsent)} className="mt14">
+            <div className="row gap8" style={{ alignItems: "center" }}>
+              <span className="small" style={{ flex: 1 }}>
+                Apply my limits even on weeks I&apos;m out
+              </span>
+              <button
+                type="submit"
+                className={`btn ${limitsApplyWhenAbsent ? "primary" : "ghost"}`}
+                style={{ width: "auto" }}
+                role="switch"
+                aria-checked={limitsApplyWhenAbsent}
+                aria-label="Apply my limits even on weeks I'm out"
+              >
+                {limitsApplyWhenAbsent ? "On" : "Off"}
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
 
       <section id="club-settings" className="mt20" aria-labelledby="club-settings-heading">
         <h2 id="club-settings-heading" className="sec">

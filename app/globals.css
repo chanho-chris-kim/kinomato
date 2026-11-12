@@ -696,6 +696,18 @@ button {
   display: block;
 }
 
+/* Your limits in this club (Members tab): the genre select for a genre,
+   the minutes field for a length. */
+.limit-form .limit-minutes {
+  display: none;
+}
+.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-minutes {
+  display: block;
+}
+.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-genre {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
