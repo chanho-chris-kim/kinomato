@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { roleLabel } from "@/lib/roles";
 import { nameOf, type ClubMembership } from "./members";
 
 // The club's member list, in its two places: the rail on Tonight (from
@@ -62,23 +64,41 @@ export function RailMembers({
   );
 }
 
-export function MemberCards({ members, meId }: { members: ClubMembership[]; meId: string }) {
+// Every member sees each person's role in words (the leftover `guest`
+// reads as Member). `controls`: the owner's per-member role controls
+// (docs/onboarding-spec.md §5.10, ruled 2026-11-11), nothing for anyone
+// else.
+export function MemberCards({
+  members,
+  meId,
+  controls,
+}: {
+  members: ClubMembership[];
+  meId: string;
+  controls?: (member: ClubMembership) => ReactNode;
+}) {
   return (
     <ul className="stack gap8" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {members.map((m) => (
-        <li key={m.id} className={`card row ${m.id === meId ? "me" : ""}`}>
-          <span className={`avatar ${m.id === meId ? "me" : ""}`} aria-hidden="true">
-            {initials(nameOf(m))}
-          </span>
-          <span className="member-name" style={{ minWidth: 0 }}>
-            {nameOf(m)}
-            {m.id === meId && <You />}
-          </span>
-          <span className="chip" style={{ marginLeft: "auto" }}>
-            {m.role}
-          </span>
-        </li>
-      ))}
+      {members.map((m) => {
+        const memberControls = controls?.(m);
+        return (
+          <li key={m.id} className={`card ${m.id === meId ? "me" : ""}`}>
+            <div className="row">
+              <span className={`avatar ${m.id === meId ? "me" : ""}`} aria-hidden="true">
+                {initials(nameOf(m))}
+              </span>
+              <span className="member-name" style={{ minWidth: 0 }}>
+                {nameOf(m)}
+                {m.id === meId && <You />}
+              </span>
+              <span className="chip member-role" style={{ marginLeft: "auto" }}>
+                {roleLabel(m.role)}
+              </span>
+            </div>
+            {memberControls && <div className="row gap8 mt14 role-controls">{memberControls}</div>}
+          </li>
+        );
+      })}
     </ul>
   );
 }
