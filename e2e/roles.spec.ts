@@ -81,7 +81,13 @@ const rolesOf = (ids: string[]) =>
 const setRole = (membershipId: string, role: Role) =>
   withDb((db) => db.update(schema.memberships).set({ role }).where(eq(schema.memberships.id, membershipId)));
 
-const roleControls = (page: Page) => page.locator("main .role-controls");
+// The role controls themselves (make or remove admin, make owner), not
+// Remove, which admins also get for plain members (m5).
+const roleControls = (page: Page) =>
+  page
+    .locator("main")
+    .getByRole("button", { name: / an admin$| as admin$/ })
+    .or(page.locator("main").getByRole("link", { name: / the owner$/ }));
 const ownerAdminControls = async (page: Page, visible: boolean) => {
   const count = visible ? 1 : 0;
   await expect(page.getByRole("button", { name: "Save details" })).toHaveCount(count);

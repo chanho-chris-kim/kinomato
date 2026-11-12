@@ -1,6 +1,7 @@
 "use server";
 
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
@@ -24,7 +25,9 @@ import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
 import { getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
 import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
-import { canChangeRole, canTransferOwnership, type Role, type RoleMember } from "@/lib/roles";
+import { canChangeRole, canRemove, canTransferOwnership, type Role, type RoleMember } from "@/lib/roles";
+import { planLeave } from "@/lib/clubLeave";
+import { clubDeletionStatements } from "@/app/clubDeletion";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { normalizeTag } from "@/lib/tags";
 import { requireCurrentMembershipId } from "./identity";
@@ -671,4 +674,152 @@ export async function transferOwnership(clubId: string, targetMembershipId: stri
   ]);
   revalidatePath(`/clubs/${clubId}`, "layout");
   redirect(membersPath(clubId, "?roles=transferred"));
+}
+
+// ---- Leaving and removal (docs/onboarding-spec.md §5.10, ruled 2026-11-11) ----
+// Both set left_at and nothing else about the person: their picks, votes
+// and ratings stay in the club's history, and m0's rulings stop them
+// counting toward reveals and lock. An open or locked night carries on.
+// An *empty* draft night they were picking is deleted in the same batch
+// (its RSVPs first), so the next Tonight load drafts for the next picker;
+// a draft with nominations shouldn't exist (voting opening creates them)
+// and is left in place and reported.
+
+async function draftsWithNominations(db: ReturnType<typeof getDb>, clubId: string, membershipId: string) {
+  const rows = await db
+    .select({ id: nights.id })
+    .from(nights)
+    .where(
+      and(
+        eq(nights.clubId, clubId),
+        eq(nights.pickerMembershipId, membershipId),
+        eq(nights.state, "draft"),
+        exists(db.select({ id: nominations.id }).from(nominations).where(eq(nominations.nightId, nights.id))),
+      ),
+    );
+  return rows.length;
+}
+
+// `guard`: an extra condition every statement waits on (an owner's leave
+// only happens once the heir is owner).
+function departureStatements(
+  db: ReturnType<typeof getDb>,
+  clubId: string,
+  membershipId: string,
+  now: Date,
+  guard?: SQL,
+): BatchItem<"pg">[] {
+  const emptyDrafts = db
+    .select({ id: nights.id })
+    .from(nights)
+    .where(
+      and(
+        eq(nights.clubId, clubId),
+        eq(nights.pickerMembershipId, membershipId),
+        eq(nights.state, "draft"),
+        sql`not exists (select 1 from ${nominations} where ${nominations.nightId} = ${nights.id})`,
+        guard,
+      ),
+    );
+  return [
+    db.delete(rsvps).where(inArray(rsvps.nightId, emptyDrafts)),
+    db.delete(nights).where(inArray(nights.id, emptyDrafts)),
+    db
+      .update(memberships)
+      .set({ leftAt: now })
+      .where(and(eq(memberships.id, membershipId), isNull(memberships.leftAt), guard)),
+  ];
+}
+
+async function runDeparture(db: ReturnType<typeof getDb>, clubId: string, membershipId: string, statements: BatchItem<"pg">[]) {
+  const kept = await draftsWithNominations(db, clubId, membershipId);
+  await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+  if (kept > 0) console.warn(`[departure] ${kept} draft night with nominations left in place`);
+}
+
+const activeOthers = (db: ReturnType<typeof getDb>, clubId: string, membershipId: string) =>
+  db
+    .select()
+    .from(memberships)
+    .where(and(eq(memberships.clubId, clubId), isNull(memberships.leftAt), ne(memberships.id, membershipId)));
+
+// Leave (anyone; two-tap from the Members tab). The owner hands the club
+// on first, to the account-deletion heir or to someone they chose, in the
+// same batch: the heir is promoted only if still active, and the owner
+// leaves only once the heir is owner, so the club is never ownerless. The
+// last active member can't leave: they pause the club or delete it.
+export async function leaveClub(clubId: string, chosenHeirMembershipId: string | null) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const meId = await requireCurrentMembershipId(clubId);
+  const [me] = await db.select().from(memberships).where(eq(memberships.id, meId));
+  const others = await activeOthers(db, clubId, me.id);
+  const plan = planLeave(me.role, others.map((o) => ({ membershipId: o.id, role: o.role, joinedAt: o.joinedAt })));
+  const back = (error: string) =>
+    redirect(membersPath(clubId, `?${new URLSearchParams({ leave: "1", leaveError: error })}#leave`));
+  const now = new Date();
+
+  if (plan.kind === "last_member") back("You're the last member: pause the club or delete it.");
+  if (plan.kind === "leave") {
+    await runDeparture(db, clubId, me.id, departureStatements(db, clubId, me.id, now));
+    revalidatePath("/", "layout");
+    redirect("/");
+  }
+  if (plan.kind !== "transfer") return;
+
+  const heirId = chosenHeirMembershipId ?? plan.heirMembershipId;
+  const heir = others.find((o) => o.id === heirId);
+  if (!heir) back("That person isn't in the club any more.");
+  const heirIsOwner = sql`exists (select 1 from ${memberships} where ${memberships.id} = ${heirId} and ${memberships.role} = 'owner' and ${memberships.leftAt} is null)`;
+  await runDeparture(db, clubId, me.id, [
+    db
+      .update(memberships)
+      .set({ role: "owner" })
+      .where(and(eq(memberships.id, heirId), eq(memberships.clubId, clubId), isNull(memberships.leftAt))),
+    db
+      .update(memberships)
+      .set({ role: "member" })
+      .where(and(eq(memberships.id, me.id), eq(memberships.role, "owner"), heirIsOwner)),
+    ...departureStatements(db, clubId, me.id, now, heirIsOwner),
+  ]);
+  const [after] = await db.select({ leftAt: memberships.leftAt }).from(memberships).where(eq(memberships.id, me.id));
+  if (!after?.leftAt) back("That person isn't in the club any more.");
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+// Remove someone (two-tap from the Members tab): the owner removes anyone
+// but themself, an admin plain members only (lib/roles.ts canRemove). The
+// same as their leaving: left_at, history kept, the seat free at once.
+// They can be invited again later.
+export async function removeMember(clubId: string, targetMembershipId: string) {
+  const { db, membership: actor } = await requireOwnerOrAdmin(clubId, "remove members");
+  const target = await loadMembership(db, targetMembershipId);
+  if (!target || !canRemove(asRoleMember(actor), asRoleMember(target))) {
+    throw new Error("That removal isn't allowed.");
+  }
+  await runDeparture(db, clubId, target.id, departureStatements(db, clubId, target.id, new Date()));
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(membersPath(clubId, "?removed=1#roles"));
+}
+
+// The last active member deletes the club: everything in it, by typing its
+// exact name. The same statements as account deletion's last-member clubs
+// (app/clubDeletion.ts), the recorded exception to "attribution is
+// retained" (CLAUDE.md).
+export async function deleteClubAsLastMember(clubId: string, formData: FormData) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const meId = await requireCurrentMembershipId(clubId);
+  if ((await activeOthers(db, clubId, meId)).length > 0) {
+    throw new Error("Only a club's last member can delete it.");
+  }
+  const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+  if (!club) throw new Error("Club not found.");
+  if (String(formData.get("confirmName") ?? "") !== club.name) {
+    redirect(
+      membersPath(clubId, `?${new URLSearchParams({ leave: "1", leaveError: "That isn't the club's name exactly." })}#leave`),
+    );
+  }
+  await db.batch(clubDeletionStatements(db, [clubId]) as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+  revalidatePath("/", "layout");
+  redirect("/");
 }

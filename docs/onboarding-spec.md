@@ -565,6 +565,36 @@ button.
   club is never left without one. Someone who left in between gets "That
   person isn't in the club any more."
 
+**Rulings for leaving and removal (2026-11-11):**
+- **Anyone may leave**, through a two-tap confirm: "Leave Saturday Club?
+  Your past picks, votes and ratings stay in its history." Leaving sets
+  `left_at`; history stays.
+- **The owner leaving** sees the heir named by account deletion's rule
+  (earliest-joined admin, else earliest-joined member; §11.4), with
+  "Choose someone else" listing the other active members. Transfer and
+  leave are one `db.batch` that can never leave the club ownerless.
+- **The last active member** (pending invites don't count) can't simply
+  leave. They're offered "Pause the club" or "Delete this club", which
+  takes typing the club's exact name and deletes the club and everything
+  in it, with the same statements as account deletion's last-member clubs
+  (the attribution exception, CLAUDE.md, now covers this too).
+- **Removing a member:** the owner may remove anyone but themself; an
+  admin may remove plain members only, never the owner or another admin.
+  Two-tap, naming the person. The same as leaving: `left_at`, history
+  kept, the seat free at once; they can be invited again later, and see
+  the club vanish from `/` and its pages 404, with no notice.
+- **A draft night whose picker leaves or is removed**, with no
+  nominations, is deleted in the same batch, so the next Tonight load
+  drafts for the next picker. Open and locked nights are untouched (they
+  carry on; m0's rulings handle their reveal and lock). A draft with
+  nominations shouldn't exist and is left in place and reported.
+- *Built (m5), 2026-11-11.* `lib/clubLeave.ts` `planLeave` (on
+  `planDeletion`), `lib/roles.ts` `canRemove`; actions `leaveClub`,
+  `removeMember`, `deleteClubAsLastMember`; club deletion's statements
+  moved to `app/clubDeletion.ts`, shared with account deletion. Confirm
+  cards use `?leave=1` and `?remove=<membership id>`, never a name; after
+  leaving or deleting, the person lands on `/`.
+
 ### 5.11 Navigation
 
 #### 5.11.1 The wordmark (ruled)

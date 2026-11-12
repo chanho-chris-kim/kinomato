@@ -4,21 +4,11 @@ import type { getDb } from "@/db";
 import {
   accountDeletionRequests,
   clubs,
-  constraints,
-  invites,
-  magicLinks,
   memberships,
-  nights,
-  nominations,
-  ratings,
-  ratingTags,
-  rsvps,
-  seasons,
-  tags,
   users,
 } from "@/db/schema";
 import { anonymisationStatements } from "@/app/anonymise";
-import { deleteVotesAndVetoesOfClubs } from "@/app/clubs/[clubId]/historyRead";
+import { clubDeletionStatements } from "@/app/clubDeletion";
 import {
   checkDeletionRequestAllowed,
   type ClubPlan,
@@ -150,36 +140,6 @@ export async function cancelAccountDeletion(db: Db, userId: string, now: Date): 
         isNull(accountDeletionRequests.cancelledAt),
       ),
     );
-}
-
-// Every row of a club with no active member left, in an order the foreign
-// keys allow (§11.4, ruled 2026-11-07). Votes and vetoes go through the
-// history-read module, the only code that touches them. A sign-in code
-// started from one of the club's invites loses only its invite link:
-// signing in still works, it just joins nothing.
-function clubDeletionStatements(db: Db, clubIds: string[]): BatchItem<"pg">[] {
-  const clubNights = db.select({ id: nights.id }).from(nights).where(inArray(nights.clubId, clubIds));
-  const clubRatings = db.select({ id: ratings.id }).from(ratings).where(inArray(ratings.nightId, clubNights));
-  const clubMemberships = db
-    .select({ id: memberships.id })
-    .from(memberships)
-    .where(inArray(memberships.clubId, clubIds));
-  const clubInvites = db.select({ id: invites.id }).from(invites).where(inArray(invites.clubId, clubIds));
-  return [
-    ...deleteVotesAndVetoesOfClubs(db, clubIds),
-    db.delete(ratingTags).where(inArray(ratingTags.ratingId, clubRatings)),
-    db.delete(ratings).where(inArray(ratings.nightId, clubNights)),
-    db.delete(rsvps).where(inArray(rsvps.nightId, clubNights)),
-    db.delete(nominations).where(inArray(nominations.nightId, clubNights)),
-    db.delete(nights).where(inArray(nights.clubId, clubIds)),
-    db.delete(tags).where(inArray(tags.clubId, clubIds)),
-    db.update(magicLinks).set({ inviteId: null }).where(inArray(magicLinks.inviteId, clubInvites)),
-    db.delete(invites).where(inArray(invites.clubId, clubIds)),
-    db.delete(constraints).where(inArray(constraints.membershipId, clubMemberships)),
-    db.delete(memberships).where(inArray(memberships.clubId, clubIds)),
-    db.delete(seasons).where(inArray(seasons.clubId, clubIds)),
-    db.delete(clubs).where(inArray(clubs.id, clubIds)),
-  ];
 }
 
 // Enter the code: the account is deleted. One batch, so it all lands or
