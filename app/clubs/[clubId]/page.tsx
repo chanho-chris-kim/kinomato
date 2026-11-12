@@ -227,6 +227,7 @@ export default async function ClubPage({
   const draftNight = clubNights.find((n) => n.state === "draft") ?? null;
   let draftPickerName: string | null = null;
   let myWatchlistFilms: { id: string; title: string; year: number }[] = [];
+  let myWatchlistEmpty = true;
   let nomineesPerTurn = 3;
 
   if (draftNight) {
@@ -237,7 +238,9 @@ export default async function ClubPage({
     if (draftNight.pickerMembershipId === currentMembership.id) {
       nomineesPerTurn = getNomineesPerTurn(club.settings);
       // Your list as this club can see it (app/watchlistRead.ts).
-      myWatchlistFilms = await nominatableFilms(db, clubId, currentMembership.userId);
+      const nominatable = await nominatableFilms(db, clubId, currentMembership.userId);
+      myWatchlistFilms = nominatable.films;
+      myWatchlistEmpty = nominatable.listIsEmpty;
     }
   }
 
@@ -491,7 +494,16 @@ export default async function ClubPage({
             <h2 className="h-display" style={{ fontSize: 22 }}>
               Your turn to nominate
             </h2>
-            {myWatchlistFilms.length === 0 ? (
+            {myWatchlistFilms.length === 0 && !myWatchlistEmpty ? (
+              // Every film on the list is out for this club (ruled
+              // 2026-11-12): no count, no reason, no limit, no person.
+              <p className="small muted mt14 empty-pool">
+                None of your watchlist fits this club right now.{" "}
+                <Link href={`/watchlist?seen=${clubId}`} className="underline">
+                  Add a few more films.
+                </Link>
+              </p>
+            ) : myWatchlistFilms.length === 0 ? (
               <p className="small muted mt14">
                 Your watchlist is empty.{" "}
                 <Link href={`/watchlist?seen=${clubId}`} className="underline">

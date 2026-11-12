@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import {
   clubs,
@@ -145,7 +145,10 @@ export async function clubHistory(db: Db, clubId: string): Promise<{ timezone: s
     db
       .select({ id: nominations.id, nightId: nominations.nightId, filmId: nominations.filmId })
       .from(nominations)
-      .where(inArray(nominations.nightId, nightIds)),
+      // A nominee dropped at lock by a hard limit (ruled 2026-11-12) is left
+      // out of the tally, and its votes with it: History never shows a film
+      // that outvoted the winner.
+      .where(and(inArray(nominations.nightId, nightIds), isNull(nominations.droppedAt))),
     db
       .select({ nightId: rsvps.nightId, membershipId: rsvps.membershipId, status: rsvps.status })
       .from(rsvps)

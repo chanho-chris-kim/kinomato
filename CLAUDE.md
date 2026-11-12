@@ -283,9 +283,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   anything (`lib/constraints.ts` `scopeToActiveMembers`, used by
   `lockNightCore`). Their votes, nominations and ratings already cast stay
   and count: they were cast while a member, and the record keeps them.
-  Hard limits aren't applied anywhere yet (the nomination seam in
-  `app/clubs/[clubId]/actions.ts`); when they are, they take the same
-  scoped input.
+  Hard limits take the same scoped input (`lib/eligibility.ts`, ruled
+  2026-11-12; see "Where hard limits apply").
 - **Genre and keyword constraints match on TMDB ids, never display strings.**
   `constraints.value` holds the id; `constraints.label` is a UI-only copy,
   never read by matching logic. "Sci-Fi" vs "Science Fiction" must never
@@ -309,7 +308,23 @@ Do not quietly change these — they encode decisions that took a while to reach
   time so this can't be stored in the first place; the throw is defense in
   depth, not the primary guard.
 - **Never surface constraint causality in the UI.** The eligible pool just is what
-  it is. Never "horror unlocked because Dana is away."
+  it is. Never "horror unlocked because Dana is away." **Ruled 2026-11-12:
+  nobody but the person sees their limits**, not the owner, not admins;
+  soft-preference warnings, when built, never name anyone ("Someone coming
+  would rather not"), superseding `analysis-v1.md`'s "Dana would rather
+  not". The picker sees fewer films with no count and no reason; a list
+  the limits empty says "None of your watchlist fits this club right now.
+  Add a few more films." and names nobody.
+- **Where hard limits apply (ruled 2026-11-12, `lib/eligibility.ts`).**
+  At nomination, every active member's hard limits filter the picker's
+  list (`nominatableFilms`; a draft has no RSVPs, so all count), and
+  `openVoting` re-checks through the same function. Nothing re-filters
+  during voting. At lock, once, scoped by RSVP: nominees a hard limit now
+  excludes are dropped (`nominations.dropped_at`) and the pick comes from
+  the rest; if none remain, the night is cancelled with no pick, the
+  same picker drafts again, and votes are kept. History's tally leaves
+  dropped nominees and their votes out. Lock stays immovable: all of this
+  happens inside the one lock, which still only runs on an open night.
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one
   nominee from the slate and costs a token from that member's own pool (per
   member per season, same shape as the two-hard-limit cap — never shared

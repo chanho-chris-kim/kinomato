@@ -159,13 +159,12 @@ export async function setRsvp(
 // trusts the client-submitted film ids without checking them against
 // the picker's actual watchlist server-side (app/watchlistRead.ts).
 //
-// SEAM for lib/constraints.ts: hard limits aren't wired up yet. Once
-// they are, filterEligibleFilms() belongs right here — filtering the
-// picker's watchlist down to eligible films before nomination, using
-// this club's active constraints and the current RSVPs for this
-// night. That second input doesn't fully exist yet either: nothing in
-// the app collects RSVPs before a night has nominations, so "the set
-// of yes-RSVPs at nomination time" needs its own answer first.
+// Hard limits (ruled 2026-11-12): nominatableFilms already leaves out
+// whatever an active member's hard limit excludes (lib/eligibility.ts; a
+// draft has no RSVPs, so every active member counts), so a forged post
+// naming an excluded film is refused here exactly like one naming a film
+// that isn't on the list. Nothing re-filters during voting; lock does,
+// once (lockNightCore).
 export async function openVoting(clubId: string, nightId: string, formData: FormData) {
   const membershipId = await requireCurrentMembershipId(clubId);
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
@@ -197,7 +196,7 @@ export async function openVoting(clubId: string, nightId: string, formData: Form
   // The picker's list as this club can see it (app/watchlistRead.ts) —
   // the same set Tonight's picker was offered.
   const userId = (await getSessionUserId())!;
-  const ownedFilmIds = new Set((await nominatableFilms(db, clubId, userId)).map((f) => f.id));
+  const ownedFilmIds = new Set((await nominatableFilms(db, clubId, userId)).films.map((f) => f.id));
   const filmIds = requestedFilmIds.filter((id) => ownedFilmIds.has(id));
   if (filmIds.length === 0) {
     throw new Error("None of the selected films are on your watchlist.");

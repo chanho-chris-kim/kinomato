@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
-import { films, memberships, watchlistItems } from "@/db/schema";
+import { constraints, films, memberships, watchlistItems } from "@/db/schema";
+import { eligibleForNomination } from "@/lib/eligibility";
 import { overlapByFilm as countOverlap } from "@/lib/watchlistOverlap";
 import { NO_CLUB_RULES, visibleToClub } from "@/lib/watchlistVisibility";
 
@@ -80,23 +81,49 @@ export async function overlapByFilm(
 }
 
 // The films this person can nominate in this club: their own list, as the
-// club can see it. Tonight's nominate picker and openVoting's server-side
-// check both use it. (Hard limits will filter this further once they're
-// wired in — the SEAM in app/clubs/[clubId]/actions.ts.)
+// club can see it, less what any active member's hard limit excludes
+// (ruled 2026-11-12). Tonight's nominate picker and openVoting's
+// server-side check both use it, so they can't drift. `listIsEmpty` tells
+// an empty list from one the limits emptied, without counting anything.
 export async function nominatableFilms(
   db: Db,
   clubId: string,
   userId: string,
-): Promise<{ id: string; title: string; year: number }[]> {
+): Promise<{ films: { id: string; title: string; year: number }[]; listIsEmpty: boolean }> {
   const items = await clubVisibleItems(db, clubId, { userIds: [userId] });
-  if (items.length === 0) return [];
+  if (items.length === 0) return { films: [], listIsEmpty: true };
   const rows = await db
-    .select({ id: films.id, title: films.title, year: films.year })
+    .select({
+      id: films.id,
+      title: films.title,
+      year: films.year,
+      genreIds: films.genreIds,
+      keywordIds: films.keywordIds,
+      runtime: films.runtime,
+      originalLanguage: films.originalLanguage,
+    })
     .from(films)
     .where(inArray(films.id, items.map((i) => i.filmId)));
+  // Every active member's hard limits apply (lib/eligibility.ts, ruled
+  // 2026-11-12). What's filtered out is never counted or explained: the
+  // pool just is what it is.
+  const active = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.clubId, clubId), isNull(memberships.leftAt)));
+  const activeIds = active.map((m) => m.id);
+  const limits = activeIds.length
+    ? await db.select().from(constraints).where(inArray(constraints.membershipId, activeIds))
+    : [];
+  const eligible = eligibleForNomination(rows, limits, activeIds);
   // In the order they were added, oldest first.
   const addedAt = new Map(items.map((i) => [i.filmId, i.addedAt.getTime()]));
-  return rows.sort((a, b) => addedAt.get(a.id)! - addedAt.get(b.id)!);
+  return {
+    films: eligible
+      .sort((a, b) => addedAt.get(a.id)! - addedAt.get(b.id)!)
+      .map((f) => ({ id: f.id, title: f.title, year: f.year })),
+    listIsEmpty: false,
+  };
 }
 
 // An account's own watchlist, deleted whole: the §11.4 anonymisation
