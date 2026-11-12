@@ -445,6 +445,10 @@ export const nominations = pgTable(
     membershipId: uuid("membership_id")
       .notNull()
       .references(() => memberships.id),
+    // Set at lock when a hard limit now excludes this film (ruled
+    // 2026-11-12): the pick comes from the rest, and History's tally
+    // leaves it and its votes out. Null for every nominee that stood.
+    droppedAt: timestamp("dropped_at", { withTimezone: true }),
   },
   (table) => [index("nominations_night_id_idx").on(table.nightId)],
 );

@@ -1,4 +1,5 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import {
   constraints,
@@ -9,6 +10,7 @@ import {
   rsvps,
 } from "@/db/schema";
 import { scopeToActiveMembers } from "@/lib/constraints";
+import { filterNomineesAtLock } from "@/lib/eligibility";
 import { pickWinningNomination } from "@/lib/lockTally";
 import { votesForLock } from "./historyRead";
 
@@ -90,23 +92,62 @@ export async function lockNightCore(
     nightRsvps.filter((r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null),
     activeMembershipIds,
   );
-  const winningNominationId = pickWinningNomination({
+
+  // Hard limits, once, scoped by RSVP (ruled 2026-11-12): nominees a hard
+  // limit now excludes are dropped (a member joined, or set a limit, during
+  // voting) and the pick comes from the rest. Nothing says why. Their
+  // votes stay in the table (attribution ruling) but don't count, and
+  // History leaves them out.
+  const { kept, dropped } = filterNomineesAtLock({
     nominations: nightNominations,
-    votes: nightVotes,
+    films: nominatedFilms,
+    ...scoped,
+    activeMembershipIds,
+  });
+  const now = new Date();
+  // Every write waits on the night still being open, so a lock that lost a
+  // race changes nothing (the same guard as before, now over a batch).
+  const stillOpen = sql`exists (select 1 from ${nights} where ${nights.id} = ${nightId} and ${nights.state} = 'open')`;
+  const markDropped: BatchItem<"pg">[] = dropped.length
+    ? [db.update(nominations).set({ droppedAt: now }).where(and(inArray(nominations.id, dropped), stillOpen))]
+    : [];
+
+  // None left: the night is cancelled with no pick. A cancelled night
+  // doesn't consume a turn, so the same picker drafts again.
+  if (kept.length === 0) {
+    const cancel: BatchItem<"pg">[] = [
+      ...markDropped,
+      db
+        .update(nights)
+        .set({ state: "cancelled", confirmedAt: now })
+        .where(and(eq(nights.id, nightId), eq(nights.state, "open"))),
+    ];
+    await db.batch(cancel as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+    return;
+  }
+
+  const keptIds = new Set(kept.map((n) => n.id));
+  const winningNominationId = pickWinningNomination({
+    nominations: kept,
+    votes: nightVotes.filter((v) => keptIds.has(v.nominationId)),
     films: nominatedFilms,
     ...scoped,
   });
   if (!winningNominationId) {
     throw new Error("Nothing to lock — this night has no nominations.");
   }
-  const winningFilmId = nightNominations.find((n) => n.id === winningNominationId)!.filmId;
+  const winningFilmId = kept.find((n) => n.id === winningNominationId)!.filmId;
 
   // Conditional on state still being "open" — the whole race guard, same
   // shape as confirmNight: if two members click "Lock it in" at nearly
   // the same moment, whichever write lands second matches zero rows and
   // is silently a no-op rather than double-locking or throwing.
-  await db
-    .update(nights)
-    .set({ state: "locked", winningFilmId, lockedAt: new Date() })
-    .where(and(eq(nights.id, nightId), eq(nights.state, "open")));
+  const lock: BatchItem<"pg">[] = [
+    ...markDropped,
+    db
+      .update(nights)
+      .set({ state: "locked", winningFilmId, lockedAt: now })
+      .where(and(eq(nights.id, nightId), eq(nights.state, "open"))),
+  ];
+  await db.batch(lock as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 }

@@ -484,7 +484,7 @@ the club's real member list, as today.
   - **Add a person** (owner/admin): first name + last initial, **Create
     invite** → the share sheet opens immediately. Seat counter: "4 of 6."
   - **Your limits in this club**: hard limits and soft preferences, per
-    membership (ruled, §1.8), with "apply even on weeks I'm out." Moved
+    membership (ruled, §1, decision 8), with "apply even on weeks I'm out." Moved
     here from the prototype's "You" tab, because they're a fact about this
     room.
   - **How this club runs**: the settings panel, as today.
@@ -542,6 +542,35 @@ button.
   other week or monthly is chosen; the server requires it only under the
   rule above. A mistake comes back with a fixed `?detailsError=` message,
   what was typed through the form-echo cookie (§11.6).
+
+**Rulings for hard limits and soft preferences (2026-11-12):**
+- **Nobody but the person sees their limits**: not the owner, not admins.
+  Soft-preference warnings, when built, never name anyone ("Someone coming
+  would rather not"), which supersedes `analysis-v1.md`'s "Dana would
+  rather not" under the never-surface-causality ruling.
+- **At nomination**, the picker's list is filtered by every active
+  member's hard limits (a draft has no RSVPs, so all count). No count of
+  hidden films, no reason. A picker whose whole watchlist is excluded sees
+  "None of your watchlist fits this club right now. Add a few more films."
+  It never names a limit or a person.
+- **Opening voting re-applies the same filter server-side**, so a forged
+  post can't slip an excluded film in.
+- **During voting, nothing re-filters live.**
+- **At lock, it re-filters once, scoped by RSVP**: hard limits from active
+  members not explicitly RSVP'd no, or set to apply when absent; departed
+  members never count (m0). Nominees now excluded are dropped and the
+  pick comes from the rest; no message says why. If none remain, the
+  night is cancelled with no pick (a cancelled night doesn't consume a
+  turn, so the same picker drafts again); votes are kept.
+- **A nominee dropped at lock is left out of that night's History tally**,
+  and its votes with it, so History can't show a film that outvoted the
+  winner. Recorded in `nominations.dropped_at`.
+- *Built (h1), 2026-11-12.* `lib/eligibility.ts` (`eligibleForNomination`,
+  `filterNomineesAtLock`) on `lib/constraints.ts`'s matching and missing-
+  data rules; `nominatableFilms` filters, `openVoting` re-checks through
+  it, `lockNightCore` drops and cancels in one batch that waits on the
+  night still being open, and `clubHistory` leaves dropped nominees out.
+  No limits UI yet: limits can only be seeded.
 
 **Rulings for roles and ownership (2026-11-11):**
 - **Only the owner makes or removes admins, and transfers ownership.** One
@@ -690,7 +719,7 @@ Tablet and desktop: top bar and club tabs both stick.
 | Settings | Global bar, far right at ≥ 620 | Personal (name, email, notifications), not per club. |
 | Tonight · History · Members | Under the club header | They only mean anything inside one club. |
 | "How this club runs" (club settings) | **Members** tab | It's the club's configuration, not yours. Keeping it out of global Settings avoids two things both called "settings." |
-| Your hard limits and preferences | **Members** tab | Ruled per membership (§1.8), a fact about this room. |
+| Your hard limits and preferences | **Members** tab | Ruled per membership (§1, decision 8), a fact about this room. |
 | A tag page (`/clubs/[id]/tags/[tag]`) | Club level, **History** tab active | Tags come from ratings, which live in History. It's a view within History, not a fourth tab. |
 | Member list at ≥ 1120 | Rail, on Tonight and History | Real secondary content, and the one thing worth glancing at mid-vote. |
 
@@ -1003,7 +1032,7 @@ member.
 | **`magic_links`** | Loses `claim_membership_id`, the plaintext `token` column (unused since step 2, which added `token_hash`, `code_hash` and `attempts`), and `return_to_club_id`. Gained `invite_id` in step 3. Where to land after sign-in is now a same-origin path the code screen carries in its URL (`?returnTo=`), never stored: the code is typed in the tab that asked for it, so the URL is enough. The email's link has no `returnTo` and lands on `/`. |
 | **`sessions.token`** | **Dropped** — plaintext, unused since step 2 moved sessions to `token_hash`. |
 | **`watchlist_items.membership_id`** | Becomes **`user_id`**; unique on `(user_id, film_id)`. Done as expand-then-contract, not a rename (rebuild steps 6a–6e, finished 2026-11-06): nullable `user_id` added and backfilled, reads moved to it, then `membership_id` dropped and `user_id` made NOT NULL. |
-| **`constraints.membership_id`** | **Unchanged**: ruled (§1.8). |
+| **`constraints.membership_id`** | **Unchanged**: ruled (§1, decision 8). |
 | **`votes`, `vetoes`, `rsvps`, `ratings`, `nominations`** | Unchanged. Still keyed to membership, which is still the right unit: a vote is cast by a person *in a club*. |
 
 ### 8.3 Tests
