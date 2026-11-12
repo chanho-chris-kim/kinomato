@@ -11,9 +11,12 @@ import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import type { ConfirmAt } from "@/lib/confirmTiming";
 import {
   createInvite,
+  deleteClubAsLastMember,
+  leaveClub,
   makeAdmin,
   regenerateInvite,
   removeAdmin,
+  removeMember,
   revokeInvite,
   setClubPaused,
   transferOwnership,
@@ -23,7 +26,8 @@ import {
 import { COMMON_TIMEZONES, DAY_LABELS } from "@/app/clubFormOptions";
 import { readFormEcho } from "@/app/formEcho";
 import Link from "next/link";
-import { canChangeRole, canTransferOwnership, type RoleMember } from "@/lib/roles";
+import { canChangeRole, canRemove, canTransferOwnership, type RoleMember } from "@/lib/roles";
+import { planLeave } from "@/lib/clubLeave";
 import { nameOf, type ClubMembership } from "../members";
 import { describeSchedule } from "@/lib/format";
 import { byJoinedAt, MemberCards } from "../memberViews";
@@ -40,8 +44,8 @@ const CONFIRM_AT_LABELS: Record<ConfirmAt, string> = {
 // The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c, m1). In
 // order: Members, Invited (only when there are pending invites), Add a
 // person (owners and admins), How this club runs (everyone sees it; owners
-// and admins change it). Not yet built: your limits in this club, and
-// leaving. No rail here: it would repeat the main column. Its space is
+// and admins change it), Leave this club. Not yet built: your limits in
+// this club. No rail here: it would repeat the main column. Its space is
 // kept (reserveRail).
 export default async function MembersPage({
   params,
@@ -57,6 +61,10 @@ export default async function MembersPage({
     transfer?: string;
     roles?: string;
     rolesError?: string;
+    remove?: string;
+    removed?: string;
+    leave?: string;
+    leaveError?: string;
   }>;
 }) {
   const { clubId } = await params;
@@ -69,6 +77,10 @@ export default async function MembersPage({
     transfer,
     roles,
     rolesError,
+    remove,
+    removed,
+    leave,
+    leaveError,
   } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
@@ -100,8 +112,11 @@ export default async function MembersPage({
     leftAt: m.leftAt,
   });
   const meForRoles = asRoleMember(me);
-  const ownerControls =
-    me.role === "owner"
+  // Per-member controls: the owner's role controls (m4), and Remove for
+  // whoever lib/roles.ts canRemove allows (owner: anyone but themself;
+  // admin: plain members). Nobody else gets any.
+  const memberControls =
+    me.role === "owner" || me.role === "admin"
       ? (m: ClubMembership) => {
           const target = asRoleMember(m);
           const name = nameOf(m);
@@ -137,9 +152,33 @@ export default async function MembersPage({
               </Link>,
             );
           }
+          if (canRemove(meForRoles, target)) {
+            items.push(
+              <Link
+                key="remove"
+                href={`/clubs/${clubId}/members?remove=${m.id}#roles`}
+                className="btn ghost"
+                style={{ width: "auto" }}
+                aria-label={`Remove ${name} from the club`}
+              >
+                Remove
+              </Link>,
+            );
+          }
           return items.length ? items : null;
         }
       : undefined;
+  const removeCandidate = remove ? activeMemberships.find((m) => m.id === remove) : undefined;
+  const removeTarget =
+    removeCandidate && canRemove(meForRoles, asRoleMember(removeCandidate)) ? removeCandidate : null;
+
+  // Leaving (ruled 2026-11-11): the plan decides what the confirm offers.
+  const others = activeMemberships.filter((m) => m.id !== me.id);
+  const leavePlan = planLeave(
+    me.role,
+    others.map((o) => ({ membershipId: o.id, role: o.role, joinedAt: o.joinedAt })),
+  );
+  const heir = leavePlan.kind === "transfer" ? others.find((o) => o.id === leavePlan.heirMembershipId) : undefined;
   const transferCandidate = transfer ? activeMemberships.find((m) => m.id === transfer) : undefined;
   const transferTarget =
     transferCandidate && canTransferOwnership(meForRoles, asRoleMember(transferCandidate)) ? transferCandidate : null;
@@ -203,7 +242,31 @@ export default async function MembersPage({
           </div>
         </div>
       )}
-      <MemberCards members={activeMemberships} meId={me.id} controls={ownerControls} />
+      {removed && (
+        <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+          Removed.
+        </p>
+      )}
+      {removeTarget && (
+        // Two-tap removal (ruled 2026-11-11); the POST carries the
+        // membership id, never a name.
+        <div className="card mt14 remove-confirm" style={{ borderColor: "var(--warn)" }}>
+          <p className="small" style={{ margin: 0 }}>
+            Remove {nameOf(removeTarget)} from {club.name}? Their past picks, votes and ratings stay in its history.
+          </p>
+          <div className="row gap8 mt14">
+            <form action={removeMember.bind(null, clubId, removeTarget.id)}>
+              <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                Remove
+              </button>
+            </form>
+            <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
+              Cancel
+            </Link>
+          </div>
+        </div>
+      )}
+      <MemberCards members={activeMemberships} meId={me.id} controls={memberControls} />
 
       {pendingInvites.length > 0 && (
         <>
@@ -496,6 +559,91 @@ export default async function MembersPage({
             <dt className="muted">When to ask &ldquo;Did you watch it?&rdquo;</dt>
             <dd style={{ margin: "2px 0 0" }}>{CONFIRM_AT_LABELS[confirmAt]}</dd>
           </dl>
+        )}
+      </section>
+
+      <section id="leave" className="mt20" aria-labelledby="leave-heading">
+        <h2 id="leave-heading" className="sec">
+          Leave this club
+        </h2>
+        {leaveError && (
+          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+            {leaveError}
+          </p>
+        )}
+        {!leave ? (
+          <Link href={`/clubs/${clubId}/members?leave=1#leave`} className="btn ghost mt14" style={{ width: "auto" }}>
+            Leave this club
+          </Link>
+        ) : leavePlan.kind === "last_member" ? (
+          // The last active member can't simply leave (ruled 2026-11-11):
+          // pause, or delete the club by typing its name.
+          <div className="card mt14 leave-confirm">
+            <p className="small" style={{ margin: 0 }}>
+              You&apos;re the last member of {club.name}, so you can&apos;t just leave it. Pause it to come back
+              later, or delete it.
+            </p>
+            {!club.pausedAt && (
+              <form action={setClubPaused.bind(null, clubId, true)} className="mt14">
+                <button type="submit" className="btn" style={{ width: "auto" }}>
+                  Pause the club
+                </button>
+              </form>
+            )}
+            <form action={deleteClubAsLastMember.bind(null, clubId)} className="stack gap8 mt14">
+              <label className="small muted">
+                To delete {club.name} and everything in it (every night, vote and rating), type its name
+                <div className="search mt-1">
+                  <input type="text" name="confirmName" required autoComplete="off" />
+                </div>
+              </label>
+              <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                Delete this club
+              </button>
+            </form>
+            <Link href={`/clubs/${clubId}/members`} className="btn ghost mt14" style={{ width: "auto" }}>
+              Cancel
+            </Link>
+          </div>
+        ) : (
+          <div className="card mt14 leave-confirm">
+            <p className="small" style={{ margin: 0 }}>
+              Leave {club.name}? Your past picks, votes and ratings stay in its history.
+            </p>
+            {heir && (
+              <p className="small mt-1" style={{ margin: "8px 0 0" }}>
+                {nameOf(heir)} will become the owner.
+              </p>
+            )}
+            <div className="row gap8 mt14">
+              <form action={leaveClub.bind(null, clubId, null)}>
+                <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                  Leave
+                </button>
+              </form>
+              <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
+                Cancel
+              </Link>
+            </div>
+            {heir && others.length > 1 && (
+              <div className="mt14 choose-heir">
+                <p className="tiny dim" style={{ margin: 0 }}>
+                  Choose someone else
+                </p>
+                <div className="stack gap8 mt-1">
+                  {others
+                    .filter((o) => o.id !== heir.id)
+                    .map((o) => (
+                      <form key={o.id} action={leaveClub.bind(null, clubId, o.id)}>
+                        <button type="submit" className="btn ghost" style={{ width: "auto" }}>
+                          Leave and make {nameOf(o)} the owner
+                        </button>
+                      </form>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </section>
     </GlobalShell>

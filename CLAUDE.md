@@ -239,7 +239,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   still named** — leaving isn't handing the turn off, and nothing else
   resolves their night, so naming anyone else would claim a handoff that
   never happened. In both cases the heading only moves once the night
-  itself resolves (watched, cancelled, or unconfirmed).
+  itself resolves (watched, cancelled, or unconfirmed). **Amended
+  2026-11-11: the departed-picker part covers open and locked nights
+  only.** Those carry on with the departed picker still named. An *empty*
+  draft (no nominations) whose picker leaves or is removed is deleted in
+  the same batch as their departure, so the next Tonight load drafts for
+  the next picker; it no longer waits on someone who left.
 - **`lib/schedule.ts`'s "monthly" means the Nth occurrence of a weekday,
   not a calendar day.** `clubs` only stores `default_day` (a weekday),
   not a day-of-month, so "the 2nd Saturday of the month" is the only
@@ -353,11 +358,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   club's server actions (`app/clubs/[clubId]/actions.ts`), which import
   them to *write* (cast or move a vote, cast a veto) and may never read
   them. **One recorded exception (2026-11-07, `docs/onboarding-spec.md`
-  §11.4):** deleting the account of a club's last active member deletes
-  that club whole, its votes and vetoes included. With no member left
-  there's no one to audit for, and people who left the club earlier lose
-  its history too. That delete is `historyRead.ts`'s
-  `deleteVotesAndVetoesOfClubs`, run only by Delete account.
+  §11.4; widened 2026-11-11, §5.10):** when a club's last active member
+  deletes their account, or deletes the club from the Members tab (by
+  typing its exact name), the club goes whole, its votes and vetoes
+  included. With no member left there's no one to audit for, and people
+  who left the club earlier lose its history too. That delete is
+  `historyRead.ts`'s `deleteVotesAndVetoesOfClubs`, inside
+  `app/clubDeletion.ts`'s `clubDeletionStatements`, which only those two
+  paths run.
 - **Which films a club can see goes through one function.** One
   watchlist per person (`watchlist_items.user_id`, docs/onboarding-spec.md
   §6), so what each club sees of it is decided in exactly one place:
@@ -529,6 +537,15 @@ Do not quietly change these — they encode decisions that took a while to reach
   club: a transfer goes to an active member through a two-tap confirm and
   leaves the old owner an admin, both changes in one `db.batch` that can
   never leave the club ownerless. `guest` reads as Member.
+  **Leaving and removal, ruled 2026-11-11:** anyone may leave, and the
+  owner may remove anyone but themself, an admin plain members only
+  (`lib/roles.ts` `canRemove`). Both set `left_at` and keep history; the
+  seat frees at once and a removed person can be invited again (the
+  rotation carries their last pick forward). **An owner leaving hands the
+  club on first**, to the same heir as account deletion
+  (`lib/clubLeave.ts` `planLeave`, built on `planDeletion`) or one they
+  choose, in one batch that can't leave the club ownerless. **The last
+  active member can't simply leave**: they pause the club or delete it.
 - **The confirmation prompt respects `clubs.settings.confirmAt`, not a
   fixed "past scheduled_at" rule.** `lib/confirmTiming.ts`'s
   `confirmableAt`/`isConfirmable` implement 3 of analysis-v2.md §2's 5

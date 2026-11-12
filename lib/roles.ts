@@ -37,6 +37,16 @@ export function canTransferOwnership(actor: RoleMember, target: RoleMember): boo
   return isActiveOwner(actor) && isOtherActiveMember(actor, target) && target.role !== "owner";
 }
 
+// Removing someone (ruled 2026-11-11): the owner removes anyone but
+// themself; an admin removes plain members only, never the owner or
+// another admin; members remove nobody. Both active, same club.
+export function canRemove(actor: RoleMember, target: RoleMember): boolean {
+  if (actor.leftAt !== null || !isOtherActiveMember(actor, target)) return false;
+  if (actor.role === "owner") return target.role !== "owner";
+  if (actor.role === "admin") return target.role === "member" || target.role === "guest";
+  return false;
+}
+
 export function roleLabel(role: Role): string {
   return role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
 }

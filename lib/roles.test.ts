@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canChangeRole, canTransferOwnership, roleLabel, type RoleMember } from "./roles";
+import { canChangeRole, canRemove, canTransferOwnership, roleLabel, type RoleMember } from "./roles";
 
 const CLUB = "club";
 const m = (id: string, role: RoleMember["role"], overrides: Partial<RoleMember> = {}): RoleMember => ({
@@ -87,5 +87,37 @@ describe("roleLabel", () => {
       "Member",
       "Member",
     ]);
+  });
+});
+
+describe("canRemove (ruled 2026-11-11)", () => {
+  it("the owner removes anyone but themself", () => {
+    expect(canRemove(owner, admin)).toBe(true);
+    expect(canRemove(owner, member)).toBe(true);
+    expect(canRemove(owner, guest)).toBe(true);
+    expect(canRemove(owner, owner)).toBe(false);
+  });
+
+  it("an admin removes plain members only: never the owner or another admin", () => {
+    expect(canRemove(admin, member)).toBe(true);
+    expect(canRemove(admin, guest)).toBe(true);
+    expect(canRemove(admin, owner)).toBe(false);
+    expect(canRemove(admin, m("a2", "admin"))).toBe(false);
+    expect(canRemove(admin, admin)).toBe(false);
+  });
+
+  it("members and guests remove nobody", () => {
+    for (const actor of [member, guest]) {
+      for (const target of [owner, admin, m("m2", "member"), m("g2", "guest")]) {
+        expect(canRemove(actor, target), `${actor.role} → ${target.role}`).toBe(false);
+      }
+    }
+  });
+
+  it("only active members of the same club, on either side", () => {
+    expect(canRemove(owner, left)).toBe(false);
+    expect(canRemove(owner, otherClub)).toBe(false);
+    expect(canRemove(leftOwner, member)).toBe(false);
+    expect(canRemove(m("la", "admin", { leftAt: new Date() }), member)).toBe(false);
   });
 });
