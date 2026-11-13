@@ -571,6 +571,22 @@ button.
   it, `lockNightCore` drops and cancels in one batch that waits on the
   night still being open, and `clubHistory` leaves dropped nominees out.
   No limits UI yet: limits can only be seeded.
+- **A limit added or removed takes effect at the next point it's checked**
+  (ruled 2026-11-12): the next nomination, or the lock of a vote already
+  open. The section says so in one plain line, naming no film and no one.
+- **"Your limits in this club" (h2, built 2026-11-12).** Only the person
+  sees and changes their own limits: the section renders for the viewer's
+  own membership only, and its actions (`addLimit`, `removeLimit`,
+  `setLimitsApplyWhenAbsent`) take no membership id from the client.
+  Genre (TMDB's 19 movie genres, stored by id) or length ("nothing over N
+  minutes", 30–400), hard or "Prefer not"; validated at write time
+  (`lib/constraintForm.ts`). Two hard limits each, re-checked by a
+  conditional insert so two quick submits can't pass the cap; preferences
+  have no cap; a duplicate is refused. "Apply my limits even on weeks I'm
+  out" is one switch per person per club, written to every one of their
+  rows, which new rows copy; shown once they have a limit. Keyword limits
+  are the next step; language is deferred. The Privacy page's "What we
+  collect" says limits are kept, seen only by the person.
 
 **Rulings for roles and ownership (2026-11-11):**
 - **Only the owner makes or removes admins, and transfers ownership.** One

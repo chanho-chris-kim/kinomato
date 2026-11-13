@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import {
   clubs,
+  constraints,
   invites,
   memberships,
   nights,
@@ -30,6 +31,7 @@ import { planLeave } from "@/lib/clubLeave";
 import { clubDeletionStatements } from "@/app/clubDeletion";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 import { normalizeTag } from "@/lib/tags";
+import { HARD_LIMIT_CAP_MESSAGE, readLimitForm } from "@/lib/constraintForm";
 import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
@@ -821,4 +823,80 @@ export async function deleteClubAsLastMember(clubId: string, formData: FormData)
   await db.batch(clubDeletionStatements(db, [clubId]) as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+// ---- Your limits in this club (docs/onboarding-spec.md §5.10, ruled 2026-11-12) ----
+// Only the person sees and changes their own limits: these actions take no
+// membership id from the client, only the signed-in person's active
+// membership here (requireCurrentMembershipId). Validated at write time
+// (lib/constraintForm.ts). A limit takes effect at the next point it's
+// checked: the next nomination, or the lock of a vote already open.
+// Messages are fixed strings; no limit value or label ever rides in a URL.
+const limitsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${query}#limits`;
+
+async function myLimits(db: ReturnType<typeof getDb>, membershipId: string) {
+  return db.select().from(constraints).where(eq(constraints.membershipId, membershipId));
+}
+
+export async function addLimit(clubId: string, formData: FormData) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const existing = await myLimits(db, membershipId);
+  const result = readLimitForm(
+    {
+      kind: formData.get("kind"),
+      ruleType: formData.get("ruleType"),
+      genre: formData.get("genre"),
+      minutes: formData.get("minutes"),
+    },
+    existing,
+  );
+  if (!result.ok) redirect(limitsUrl(clubId, `?${new URLSearchParams({ limitsError: result.error })}`));
+  const { limit } = result;
+  // "Apply my limits even on weeks I'm out" is one switch per person: a new
+  // row copies it.
+  const appliesWhenAbsent = existing.some((c) => c.appliesWhenAbsent);
+
+  if (limit.kind === "hard") {
+    // Race-safe cap: the row goes in only while fewer than two hard limits
+    // exist, decided by the database in the same statement.
+    const inserted = await db.execute(sql`
+      insert into ${constraints} (membership_id, kind, rule_type, value, label, applies_when_absent)
+      select ${membershipId}, 'hard', ${limit.ruleType}, ${limit.value}, ${limit.label}, ${appliesWhenAbsent}
+      where (select count(*) from ${constraints} where ${constraints.membershipId} = ${membershipId} and ${constraints.kind} = 'hard') < 2
+      returning id`);
+    if (inserted.rows.length === 0) {
+      redirect(limitsUrl(clubId, `?${new URLSearchParams({ limitsError: HARD_LIMIT_CAP_MESSAGE })}`));
+    }
+  } else {
+    await db.insert(constraints).values({ membershipId, ...limit, appliesWhenAbsent });
+  }
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(limitsUrl(clubId, "?limits=saved"));
+}
+
+// Only a limit of the person's own; anything else is refused, unchanged.
+export async function removeLimit(clubId: string, limitId: string) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  if (!/^[0-9a-f-]{36}$/i.test(limitId)) throw new Error("That limit isn't yours.");
+  const removed = await db
+    .delete(constraints)
+    .where(and(eq(constraints.id, limitId), eq(constraints.membershipId, membershipId)))
+    .returning({ id: constraints.id });
+  if (removed.length === 0) throw new Error("That limit isn't yours.");
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(limitsUrl(clubId, "?limits=saved"));
+}
+
+// One switch per person per club, stored on every one of their rows.
+export async function setLimitsApplyWhenAbsent(clubId: string, on: boolean) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  await db
+    .update(constraints)
+    .set({ appliesWhenAbsent: on === true })
+    .where(eq(constraints.membershipId, membershipId));
+  revalidatePath(`/clubs/${clubId}`, "layout");
+  redirect(limitsUrl(clubId, "?limits=saved"));
 }
