@@ -494,6 +494,9 @@ export default async function ClubPage({
             <h2 className="h-display" style={{ fontSize: 22 }}>
               Your turn to nominate
             </h2>
+            {/* Always shown, filtered or not (ruled 2026-11-13), so it never
+                signals that something in particular was hidden. */}
+            <p className="small muted mt-1 fit-note">Only films that fit everyone in this club are shown here.</p>
             {myWatchlistFilms.length === 0 && !myWatchlistEmpty ? (
               // Every film on the list is out for this club (ruled
               // 2026-11-12): no count, no reason, no limit, no person.
