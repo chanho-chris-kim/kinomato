@@ -21,7 +21,8 @@
 
 import type { TmdbGenre, TmdbKeyword, TmdbMovie } from "./tmdb";
 
-// Invented but internally consistent — real TMDB keyword ids are
+// Invented but internally consistent (except gore and spider below, which
+// are real) — real TMDB keyword ids are
 // arbitrary per-keyword database ids with no small fixed list (unlike
 // genres), so there's nothing meaningful to "get right" here for a
 // fixture. Genre ids, by contrast, are TMDB's real, stable, well-known
@@ -58,6 +59,10 @@ const KEYWORD = {
   postApocalyptic: { id: 9029, name: "post-apocalyptic" },
   jazzDrumming: { id: 9030, name: "jazz" },
   highSchool: { id: 9031, name: "high school" },
+  // Real TMDB keyword ids from lib/contentTopics.ts (Gore, Spiders), so
+  // E2E can exercise topic limits (ruled 2026-11-12) against seeded films.
+  gore: { id: 10292, name: "gore" },
+  spider: { id: 3986, name: "spider" },
 } as const;
 
 function keywords(...entries: (typeof KEYWORD)[keyof typeof KEYWORD][]) {
@@ -217,7 +222,7 @@ const FIXTURE_MOVIES: TmdbMovie[] = [
       ["Milly Shapiro", "Charlie Graham"],
     ],
     crew: [["Ari Aster", "Director", "Directing"]],
-    keywords: keywords(KEYWORD.griefAndLoss),
+    keywords: keywords(KEYWORD.griefAndLoss, KEYWORD.gore),
   }),
   movie({
     id: 400002,
@@ -496,7 +501,7 @@ const FIXTURE_MOVIES: TmdbMovie[] = [
       ["Sergi Lopez", "Captain Vidal"],
     ],
     crew: [["Guillermo del Toro", "Director", "Directing"]],
-    keywords: keywords(KEYWORD.fairyTale, KEYWORD.spanishCivilWar),
+    keywords: keywords(KEYWORD.fairyTale, KEYWORD.spanishCivilWar, KEYWORD.spider),
   }),
   movie({
     id: 400020,

@@ -848,6 +848,7 @@ export async function addLimit(clubId: string, formData: FormData) {
       ruleType: formData.get("ruleType"),
       genre: formData.get("genre"),
       minutes: formData.get("minutes"),
+      topic: formData.get("topic"),
     },
     existing,
   );

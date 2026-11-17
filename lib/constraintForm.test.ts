@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { describeLimit, MOVIE_GENRES, readLimitForm } from "./constraintForm";
+import { CONTENT_TOPICS } from "./contentTopics";
 
 const none: { kind: "hard" | "soft"; ruleType: string; value: string }[] = [];
-const form = (o: Partial<Record<"kind" | "ruleType" | "genre" | "minutes", unknown>>) => ({
+const form = (o: Partial<Record<"kind" | "ruleType" | "genre" | "minutes" | "topic", unknown>>) => ({
   kind: "hard",
   ruleType: "genre",
   genre: "27",
   minutes: "",
+  topic: "",
   ...o,
 });
 
@@ -45,12 +47,12 @@ describe("readLimitForm (validated at write time)", () => {
     }
   });
 
-  it("only hard or soft, only genre or length (keyword and language aren't offered yet)", () => {
+  it("only hard or soft; only genre, length or topic (a raw keyword and language aren't offered)", () => {
     expect(readLimitForm(form({ kind: "veto" }), none)).toEqual({ ok: false, error: "Choose hard limit or preference." });
     for (const ruleType of ["keyword", "language", "rating", ""]) {
       expect(readLimitForm(form({ ruleType }), none), ruleType).toEqual({
         ok: false,
-        error: "Choose a genre or a length.",
+        error: "Choose a genre, a length or a topic.",
       });
     }
   });
@@ -106,5 +108,56 @@ describe("describeLimit", () => {
     expect(describeLimit({ kind: "hard", ruleType: "keyword", value: "1", label: "body horror" })).toBe(
       "Hard limit: body horror",
     );
+  });
+});
+
+describe("topic limits (ruled 2026-11-12: a curated list, stored as keyword ids)", () => {
+  const spiders = CONTENT_TOPICS.find((t) => t.slug === "spiders")!;
+
+  it("a topic stores rule type keyword, its ids sorted and comma-separated, and its label", () => {
+    expect(readLimitForm(form({ ruleType: "topic", topic: "spiders" }), none)).toEqual({
+      ok: true,
+      limit: {
+        kind: "hard",
+        ruleType: "keyword",
+        value: [...spiders.keywordIds].sort((a, b) => a - b).join(","),
+        label: "Spiders",
+      },
+    });
+  });
+
+  it("only a topic on the list, by slug: never a made-up one or a raw keyword id", () => {
+    for (const bad of ["tarantulas", "3986", "3888,3986", "", "Spiders", null]) {
+      expect(readLimitForm(form({ ruleType: "topic", topic: bad }), none), String(bad)).toEqual({
+        ok: false,
+        error: "Choose a topic from the list.",
+      });
+    }
+  });
+
+  it("duplicates and the cap work the same", () => {
+    const value = [...spiders.keywordIds].sort((a, b) => a - b).join(",");
+    expect(readLimitForm(form({ ruleType: "topic", topic: "spiders", kind: "soft" }), [{ kind: "hard", ruleType: "keyword", value }])).toEqual({
+      ok: false,
+      error: "You already have that one.",
+    });
+    const two = [
+      { kind: "hard" as const, ruleType: "genre", value: "27" },
+      { kind: "hard" as const, ruleType: "runtime", value: "150" },
+    ];
+    expect(readLimitForm(form({ ruleType: "topic", topic: "spiders" }), two)).toEqual({
+      ok: false,
+      error: "You have two hard limits. Remove one, or add this as a preference.",
+    });
+  });
+
+  it("reads back by its label", () => {
+    expect(describeLimit({ kind: "hard", ruleType: "keyword", value: "3888,3986", label: "Spiders" })).toBe("Hard limit: Spiders");
+  });
+
+  it("every topic on the list has ids, unique slugs and labels", () => {
+    expect(new Set(CONTENT_TOPICS.map((t) => t.slug)).size).toBe(CONTENT_TOPICS.length);
+    expect(new Set(CONTENT_TOPICS.map((t) => t.label)).size).toBe(CONTENT_TOPICS.length);
+    for (const t of CONTENT_TOPICS) expect(t.keywordIds.length, t.slug).toBeGreaterThan(0);
   });
 });

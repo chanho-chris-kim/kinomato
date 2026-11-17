@@ -592,6 +592,28 @@ button.
   are the next step; language is deferred. The Privacy page's "What we
   collect" says limits are kept, seen only by the person.
 
+**Rulings for topic limits (2026-11-12):**
+- **Keyword limits come from a fixed, curated list of content topics**
+  (`lib/contentTopics.ts`), not free search. Nothing a person types is sent
+  to TMDB or appears in any URL or log, and the app never calls TMDB's
+  keyword search at runtime. Free keyword search is deferred until someone
+  asks for a topic the list lacks.
+- **A topic bundles one or more TMDB keyword ids and matches a film with
+  any of them.** `constraints.value` holds the ids, comma-separated and
+  sorted, with the topic's name in `label`; matching stays on ids.
+- **Missing data stays fail-closed for hard limits**: a film with no
+  keywords at all is left out for anyone with a hard topic limit, and the
+  form says so ("Films with no topic information are also left out, to be
+  safe."). Preferences never fail closed.
+- *Built (h3), 2026-11-17.* Fifteen topics, compiled from the live TMDB
+  API on 2026-11-17 (`/search/keyword`, then `/keyword/{id}/movies` for
+  film counts; off-topic ids and ids on fewer than 5 films dropped).
+  "Flashing lights" was researched and left out: TMDB has no keyword for
+  strobe effects, so a limit on it would look protective and protect no
+  one. "A topic" joins the add form; the hint shows for Hard limit + A
+  topic (CSS). The Privacy page needs nothing new: nothing new leaves the
+  app.
+
 **Rulings for roles and ownership (2026-11-11):**
 - **Only the owner makes or removes admins, and transfers ownership.** One
   owner per club.

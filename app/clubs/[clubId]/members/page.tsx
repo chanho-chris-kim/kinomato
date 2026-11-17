@@ -32,6 +32,7 @@ import Link from "next/link";
 import { canChangeRole, canRemove, canTransferOwnership, type RoleMember } from "@/lib/roles";
 import { planLeave } from "@/lib/clubLeave";
 import { describeLimit, MAX_RUNTIME_LIMIT, MIN_RUNTIME_LIMIT, MOVIE_GENRES } from "@/lib/constraintForm";
+import { CONTENT_TOPICS } from "@/lib/contentTopics";
 import { canAddHardLimit } from "@/lib/constraints";
 import { nameOf, type ClubMembership } from "../members";
 import { describeSchedule } from "@/lib/format";
@@ -414,7 +415,7 @@ export default async function MembersPage({
                 <li key={c.id} className="row gap8">
                   <span className={`chip ${c.kind === "hard" ? "on" : ""}`}>{words}</span>
                   <form action={removeLimit.bind(null, clubId, c.id)} style={{ marginLeft: "auto" }}>
-                    <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Remove ${words}`}>
+                    <button type="submit" className="btn ghost limit-remove" aria-label={`Remove ${words}`}>
                       Remove
                     </button>
                   </form>
@@ -444,6 +445,9 @@ export default async function MembersPage({
             <label className="consent-choice">
               <input type="radio" name="ruleType" value="runtime" /> A length
             </label>
+            <label className="consent-choice">
+              <input type="radio" name="ruleType" value="topic" /> A topic
+            </label>
           </fieldset>
           <label className="small muted limit-genre">
             Genre
@@ -458,6 +462,24 @@ export default async function MembersPage({
               ))}
             </select>
           </label>
+          <label className="small muted limit-topic">
+            Topic
+            <select name="topic" className="sel mt-1" style={{ display: "block", width: "100%" }} defaultValue="">
+              <option value="" disabled>
+                Choose a topic
+              </option>
+              {CONTENT_TOPICS.map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {/* Shown for Hard limit + A topic (app/globals.css): a film with
+              no topic information fails closed (ruled 2026-11-12). */}
+          <p className="tiny dim limit-topic-hint" style={{ margin: 0 }}>
+            Films with no topic information are also left out, to be safe.
+          </p>
           <label className="small muted limit-minutes">
             Nothing over (minutes)
             <div className="search mt-1">
