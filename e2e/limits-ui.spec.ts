@@ -89,7 +89,11 @@ async function addLimit(page: Page, kind: "Hard limit" | "Prefer not", what: { g
     await form.getByRole("radio", { name: "A length", exact: true }).check();
     await form.getByLabel("Nothing over (minutes)").fill(what.minutes);
   }
+  // Wait for the add to land before the test reads the database.
+  const done = page.waitForResponse((r) => r.request().method() === "POST");
   await form.getByRole("button", { name: "Add" }).click();
+  await done;
+  await page.waitForLoadState("load");
 }
 
 // A genre two seeded films have, and a seeded film without it.
@@ -250,6 +254,47 @@ test.describe("Your limits in this club", () => {
     await page.goto(`/clubs/${c.clubId}`);
     await expect(page.locator("main")).toContainText(split.miss[0].title);
     await expect(page.locator("main")).not.toContainText(split.hit.title);
+  });
+
+  test("the nomination screen's fit line is the same with no limits in the club and with some", async ({ page }) => {
+    const split = await genreSplit();
+    const texts: string[] = [];
+    for (const withLimit of [false, true]) {
+      const c = await clubWith(`Fit Line Club ${withLimit}`, [
+        { key: "owner", name: "Ode F.", role: "owner" },
+        { key: "pip", name: "Pip F.", role: "member" },
+      ]);
+      await withDb(async (db) => {
+        await db.insert(schema.watchlistItems).values([
+          { userId: c.users.pip, filmId: split.hit.id },
+          { userId: c.users.pip, filmId: split.miss[0].id },
+        ]);
+        await db.insert(schema.nights).values({
+          clubId: c.clubId,
+          scheduledAt: new Date(Date.now() + 2 * 86_400_000),
+          pickerMembershipId: c.members.pip,
+          state: "draft",
+        });
+        if (withLimit) {
+          await db.insert(schema.constraints).values({
+            membershipId: c.members.owner,
+            kind: "hard",
+            ruleType: "genre",
+            value: String(split.genre.id),
+            label: split.genre.label,
+          });
+        }
+      });
+      await signInAsUser(page, c.users.pip);
+      await page.goto(`/clubs/${c.clubId}`);
+      const line = page.locator(".fit-note");
+      await expect(line).toHaveText("Only films that fit everyone in this club are shown here.");
+      texts.push((await line.innerHTML()) + (await line.getAttribute("class")));
+      // And the filter itself did its job either way.
+      await expect(page.locator('input[name="filmId"]')).toHaveCount(withLimit ? 1 : 2);
+    }
+    // Identical markup, filtered or not.
+    expect(texts[0]).toBe(texts[1]);
   });
 
   test("the weeks-I'm-out switch writes every row, and an RSVP no no longer lifts the limit at lock", async ({ page }) => {

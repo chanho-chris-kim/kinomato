@@ -571,6 +571,10 @@ button.
   it, `lockNightCore` drops and cancels in one batch that waits on the
   night still being open, and `clubHistory` leaves dropped nominees out.
   No limits UI yet: limits can only be seeded.
+- **Tonight's nomination screen always says "Only films that fit everyone
+  in this club are shown here."** (ruled 2026-11-13), under "Your turn to
+  nominate", whether or not anything was filtered, so the line itself
+  never signals that something in particular was hidden.
 - **A limit added or removed takes effect at the next point it's checked**
   (ruled 2026-11-12): the next nomination, or the lock of a vote already
   open. The section says so in one plain line, naming no film and no one.
