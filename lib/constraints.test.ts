@@ -399,3 +399,39 @@ describe("scopeToActiveMembers (2026-11-09: a member who has left stops counting
     expect(countSoftPreferenceConflicts([drama], scoped.constraints, scoped.rsvps)[0].conflictCount).toBe(0);
   });
 });
+
+describe("keyword limits from a topic: a comma-separated id list, any match (ruled 2026-11-12)", () => {
+  const topic = (o: Partial<Constraint> = {}) =>
+    constraint("m", { ruleType: "keyword", value: "3888,3986,14792", label: "Spiders", ...o });
+  const rsvps: Rsvp[] = [];
+
+  it("a single id still works (rows stored before topics)", () => {
+    const heist = film("heist", { keywordIds: [KEYWORD_HEIST] });
+    const result = filterEligibleFilms({ films: [heist], constraints: [constraint("m", { ruleType: "keyword", value: String(KEYWORD_HEIST) })], rsvps });
+    expect(result.excluded.map((e) => e.film.id)).toEqual(["heist"]);
+  });
+
+  it("matches a film carrying any of the topic's ids", () => {
+    const films = [
+      film("first", { keywordIds: [3888, 1] }),
+      film("last", { keywordIds: [2, 14792] }),
+      film("none", { keywordIds: [1, 2, 3] }),
+    ];
+    const result = filterEligibleFilms({ films, constraints: [topic()], rsvps });
+    expect(result.excluded.map((e) => e.film.id)).toEqual(["first", "last"]);
+    expect(result.eligible.map((f) => f.id)).toEqual(["none"]);
+  });
+
+  it("a film with no keywords at all fails closed for a hard topic limit, open for a preference", () => {
+    const blank = film("blank", { keywordIds: [] });
+    expect(filterEligibleFilms({ films: [blank], constraints: [topic()], rsvps }).excluded).toHaveLength(1);
+    expect(countSoftPreferenceConflicts([blank], [topic({ kind: "soft" })], [{ membershipId: "m", status: "yes" }])[0].conflictCount).toBe(0);
+  });
+
+  it("a soft topic preference counts a matching film as a conflict", () => {
+    const spider = film("spider", { keywordIds: [3986] });
+    expect(
+      countSoftPreferenceConflicts([spider], [topic({ kind: "soft" })], [{ membershipId: "m", status: "yes" }])[0].conflictCount,
+    ).toBe(1);
+  });
+});

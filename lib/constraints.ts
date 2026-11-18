@@ -45,7 +45,8 @@ export interface Constraint {
   id: string;
   membershipId: string;
   kind: ConstraintKind;
-  // For genre/keyword: the TMDB id, as a string. For language: an ISO
+  // For genre: the TMDB id, as a string. For keyword: one TMDB keyword
+  // id, or a topic's ids comma-separated (any match). For language: an ISO
   // 639-1 code. For runtime: whole minutes, upper bound.
   value: string;
   ruleType: ConstraintRuleType;
@@ -127,6 +128,14 @@ function unknownDataMatches(constraint: Constraint): boolean {
   return FAILS_CLOSED_RULE_TYPES.includes(constraint.ruleType);
 }
 
+// "3888,3986" → [3888, 3986]. Ids only, never strings (CLAUDE.md).
+export function keywordIdsOf(value: string): number[] {
+  return value
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
 function matchesKnownValue(
   constraint: Constraint,
   film: ConstraintFilm,
@@ -135,7 +144,9 @@ function matchesKnownValue(
     case "genre":
       return film.genreIds.includes(Number(constraint.value));
     case "keyword":
-      return film.keywordIds.includes(Number(constraint.value));
+      // One id, or a topic's ids as a comma-separated list
+      // (lib/contentTopics.ts): a film with any of them matches.
+      return keywordIdsOf(constraint.value).some((id) => film.keywordIds.includes(id));
     case "language":
       return (
         film.originalLanguage?.toLowerCase() ===

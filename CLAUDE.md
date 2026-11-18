@@ -334,7 +334,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   never a client-supplied one. Write-time validation is
   `lib/constraintForm.ts`; the two-hard-limit cap is also enforced by a
   conditional insert; the "weeks I'm out" switch is written to every one
-  of the person's rows.
+  of the person's rows. **Topic limits, ruled 2026-11-12:** keyword
+  limits come only from the curated list in `lib/contentTopics.ts`, never
+  free search; the app never calls TMDB's keyword search at runtime, so
+  nothing a person types reaches TMDB, a URL or a log. A topic's ids are
+  stored comma-separated in `constraints.value` and match a film with any
+  of them; a film with no keywords fails closed for a hard topic limit.
 - **Vetoes are discretionary, hard limits are automatic.** A veto removes one
   nominee from the slate and costs a token from that member's own pool (per
   member per season, same shape as the two-hard-limit cap — never shared

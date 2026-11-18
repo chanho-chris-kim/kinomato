@@ -698,14 +698,30 @@ button {
 
 /* Your limits in this club (Members tab): the genre select for a genre,
    the minutes field for a length. */
-.limit-form .limit-minutes {
+.limit-form .limit-minutes,
+.limit-form .limit-topic,
+.limit-form .limit-topic-hint {
   display: none;
 }
-.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-minutes {
+.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-minutes,
+.limit-form:has(input[name="ruleType"][value="topic"]:checked) .limit-topic {
   display: block;
 }
-.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-genre {
+.limit-form:has(input[name="ruleType"][value="runtime"]:checked) .limit-genre,
+.limit-form:has(input[name="ruleType"][value="topic"]:checked) .limit-genre {
   display: none;
+}
+/* The fail-closed hint: a hard limit on a topic only. */
+.limit-form:has(input[name="ruleType"][value="topic"]:checked):has(input[name="kind"][value="hard"]:checked)
+  .limit-topic-hint {
+  display: block;
+}
+/* Remove beside a limit chip: as light as the chip it sits by. */
+.btn.limit-remove {
+  width: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  min-height: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

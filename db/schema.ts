@@ -366,9 +366,10 @@ export const constraints = pgTable(
       .references(() => memberships.id),
     kind: constraintKindEnum("kind").notNull(),
     ruleType: constraintRuleTypeEnum("rule_type").notNull(),
-    // For genre/keyword: the TMDB id, as text (matching is on ids only,
-    // never display strings). For language: an ISO 639-1 code. For
-    // runtime: whole minutes, upper bound.
+    // For genre: the TMDB id, as text. For keyword: one TMDB keyword id, or
+    // a content topic's ids comma-separated, any match (lib/contentTopics.ts).
+    // Matching is on ids only, never display strings. For language: an
+    // ISO 639-1 code. For runtime: whole minutes, upper bound.
     value: text("value").notNull(),
     // UI-only. Genre/keyword matching never reads this — it exists so
     // the UI doesn't have to look the id back up to render a label.

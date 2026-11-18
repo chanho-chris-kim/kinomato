@@ -2,11 +2,13 @@
 // 2026-11-12): what a person may store as a hard limit or a preference,
 // validated at write time (CLAUDE.md), and how it reads back. Pure.
 // Genre limits store the TMDB id (CLAUDE.md: match on ids, never display
-// strings); the label is for display only. Keyword is a later step and
-// language is deferred, so neither is accepted here yet.
+// strings); the label is for display only. A topic (ruled 2026-11-12) is
+// one of lib/contentTopics.ts's curated list, stored as rule type keyword
+// with its ids; free keyword search and language aren't offered.
 
 import { canAddHardLimit, type Constraint } from "./constraints";
 import { formatRuntime } from "./format";
+import { CONTENT_TOPICS } from "./contentTopics";
 
 // TMDB's movie genres (GET /genre/movie/list). Stable ids, so a fixed list
 // beats a fetch.
@@ -38,7 +40,7 @@ export const HARD_LIMIT_CAP_MESSAGE = "You have two hard limits. Remove one, or 
 
 export interface NewLimit {
   kind: "hard" | "soft";
-  ruleType: "genre" | "runtime";
+  ruleType: "genre" | "runtime" | "keyword";
   value: string;
   label: string | null;
 }
@@ -50,13 +52,15 @@ const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 // The add form's raw values against the person's limits in this club.
 // Fixed messages, for the ?limitsError= convention.
 export function readLimitForm(
-  fields: { kind: unknown; ruleType: unknown; genre: unknown; minutes: unknown },
+  fields: { kind: unknown; ruleType: unknown; genre: unknown; minutes: unknown; topic?: unknown },
   existing: Existing[],
 ): { ok: true; limit: NewLimit } | { ok: false; error: string } {
   const kind = text(fields.kind);
   if (kind !== "hard" && kind !== "soft") return { ok: false, error: "Choose hard limit or preference." };
   const ruleType = text(fields.ruleType);
-  if (ruleType !== "genre" && ruleType !== "runtime") return { ok: false, error: "Choose a genre or a length." };
+  if (ruleType !== "genre" && ruleType !== "runtime" && ruleType !== "topic") {
+    return { ok: false, error: "Choose a genre, a length or a topic." };
+  }
 
   let limit: NewLimit;
   if (ruleType === "genre") {
@@ -64,6 +68,11 @@ export function readLimitForm(
     const genre = /^\d+$/.test(raw) ? MOVIE_GENRES.find((g) => g.id === Number(raw)) : undefined;
     if (!genre) return { ok: false, error: "Choose a genre from the list." };
     limit = { kind, ruleType, value: String(genre.id), label: genre.label };
+  } else if (ruleType === "topic") {
+    const topic = CONTENT_TOPICS.find((t) => t.slug === text(fields.topic));
+    if (!topic) return { ok: false, error: "Choose a topic from the list." };
+    const ids = [...topic.keywordIds].sort((a, b) => a - b).join(",");
+    limit = { kind, ruleType: "keyword", value: ids, label: topic.label };
   } else {
     const raw = text(fields.minutes);
     const minutes = /^\d+$/.test(raw) ? Number(raw) : NaN;
