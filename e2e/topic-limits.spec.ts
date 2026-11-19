@@ -106,10 +106,19 @@ async function addTopic(page: Page, kind: "Hard limit" | "Prefer not", topic: st
   await form(page).getByRole("radio", { name: kind, exact: true }).check();
   await form(page).getByRole("radio", { name: "A topic", exact: true }).check();
   await form(page).locator('select[name="topic"]').selectOption({ label: topic });
+  // Wait for the outcome to render (one more chip, or an error), not just
+  // the POST: a form filled before the re-render lands gets reset under it.
+  const chipsBefore = await page.locator("#limits .my-limits .chip").count();
   const done = page.waitForResponse((r) => r.request().method() === "POST");
   await form(page).getByRole("button", { name: "Add" }).click();
   await done;
-  await page.waitForLoadState("load");
+  await expect
+    .poll(async () => {
+      const chipsNow = await page.locator("#limits .my-limits .chip").count();
+      const alerts = await page.locator("#limits").getByRole("alert").count();
+      return chipsNow > chipsBefore || alerts > 0;
+    })
+    .toBe(true);
 }
 
 test.describe("topic limits", () => {

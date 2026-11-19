@@ -13,7 +13,11 @@
 // and film counts at compile time. "Flashing lights" was researched and
 // left out: TMDB has no keyword for strobe effects (only "epilepsy", about
 // the condition), so a limit on it would look protective and protect no
-// one. Recompile the same way to add a topic; never at runtime.
+// one. "Animal death or cruelty" was extended on 2026-11-18 with a wider
+// set of search terms ("animal attack", animals attacking people, was left
+// out). A limit already stored keeps the ids it was saved with: changing
+// this list never rewrites a stored row. Recompile the same way to add a
+// topic; never at runtime.
 
 export interface ContentTopic {
   slug: string;
@@ -37,8 +41,10 @@ export const CONTENT_TOPICS: ContentTopic[] = [
   {
     slug: "animal-death-cruelty",
     label: "Animal death or cruelty",
-    // 156456 animal abuse (38), 157164 animal death (18), 176661 death of pet (9), 205685 animal cruelty (60), 344244 cruelty to animals (6)
-    keywordIds: [156456, 157164, 176661, 205685, 344244],
+    // Extended 2026-11-18 (more terms: dog dies, dead dog, cat dies, horse death,
+    // animal killing, pet dies, hunting, animal sacrifice and similar).
+    // 734 bullfighting (69), 10404 dog fighting (18), 11547 slaughterhouse (55), 155235 animal killing (35), 155701 cock fighting (10), 156175 dead dog (32), 156456 animal abuse (38), 157164 animal death (18), 157490 dead cat (16), 157560 roadkill (11), 159803 killing a dog (22), 176661 death of pet (9), 180173 dead horse (8), 205685 animal cruelty (59), 226646 animal slaughter (15), 228761 animal sacrifice (10), 283199 poaching (19), 303095 dead animals (9), 344244 cruelty to animals (6)
+    keywordIds: [734, 10404, 11547, 155235, 155701, 156175, 156456, 157164, 157490, 157560, 159803, 176661, 180173, 205685, 226646, 228761, 283199, 303095, 344244],
   },
   {
     slug: "child-abuse",

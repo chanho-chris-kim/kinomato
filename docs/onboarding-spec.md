@@ -646,6 +646,11 @@ button.
   one. "A topic" joins the add form; the hint shows for Hard limit + A
   topic (CSS). The Privacy page needs nothing new: nothing new leaves the
   app.
+- **A stored limit keeps the ids it was saved with** (2026-11-18): changing
+  a topic's id list in `lib/contentTopics.ts` never rewrites existing
+  rows; it applies to limits added afterwards. A topic still counts as a
+  duplicate by its name, whatever ids it was stored with. "Animal death
+  or cruelty" was extended on 2026-11-18 (5 ids → 19).
 
 **Rulings for roles and ownership (2026-11-11):**
 - **Only the owner makes or removes admins, and transfers ownership.** One

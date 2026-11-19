@@ -161,3 +161,13 @@ describe("topic limits (ruled 2026-11-12: a curated list, stored as keyword ids)
     for (const t of CONTENT_TOPICS) expect(t.keywordIds.length, t.slug).toBeGreaterThan(0);
   });
 });
+
+describe("a topic stored before its list changed", () => {
+  it("still counts as a duplicate, by its name, though its stored ids differ", () => {
+    const old = [{ kind: "hard" as const, ruleType: "keyword", value: "156456,157164", label: "Animal death or cruelty" }];
+    expect(readLimitForm(form({ ruleType: "topic", topic: "animal-death-cruelty", kind: "soft" }), old)).toEqual({
+      ok: false,
+      error: "You already have that one.",
+    });
+  });
+});

@@ -89,11 +89,20 @@ async function addLimit(page: Page, kind: "Hard limit" | "Prefer not", what: { g
     await form.getByRole("radio", { name: "A length", exact: true }).check();
     await form.getByLabel("Nothing over (minutes)").fill(what.minutes);
   }
-  // Wait for the add to land before the test reads the database.
+  // Wait for the add's outcome to render (one more chip, or an error)
+  // before the test reads the database or fills the form again: a form
+  // filled before the re-render lands gets reset under it.
+  const chipsBefore = await page.locator("#limits .my-limits .chip").count();
   const done = page.waitForResponse((r) => r.request().method() === "POST");
   await form.getByRole("button", { name: "Add" }).click();
   await done;
-  await page.waitForLoadState("load");
+  await expect
+    .poll(async () => {
+      const chipsNow = await page.locator("#limits .my-limits .chip").count();
+      const alerts = await page.locator("#limits").getByRole("alert").count();
+      return chipsNow > chipsBefore || alerts > 0;
+    })
+    .toBe(true);
 }
 
 // A genre two seeded films have, and a seeded film without it.
