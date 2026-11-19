@@ -543,6 +543,26 @@ button.
   rule above. A mistake comes back with a fixed `?detailsError=` message,
   what was typed through the form-echo cookie (§11.6).
 
+**Rulings for passing a turn (2026-11-17):**
+- **Pass my turn** is open to the picker while their night is a draft (no
+  nominations; not once voting is open). **Owner and admin may pass a
+  picker's turn for them**, through a two-tap confirm naming the person;
+  that's the fix for an absent picker stalling the club.
+- **Passing deletes the empty draft and sets the picker's
+  `postponed_at`** (to the passed slot, the draft's `scheduled_at`). The
+  rotation skips them for the very next night, which goes to the next
+  person at once, then puts them first for the night after. It's cleared
+  when a night is next created with them as picker. If everyone is
+  postponed, someone is still named.
+- **Rotation stays computed** (`lib/rotation.ts` `isSkippedThisTurn`, a
+  rule over existing columns).
+- **"Passed this turn"** shows beside the name in the rail and on
+  Members until they pick again.
+- *Built (p1), 2026-11-17.* Actions `passMyTurn` and `passTurnFor`
+  (owner or admin); the draft, its RSVPs and the postponement are one
+  batch that waits on the night still being an empty draft. Confirms are
+  `?pass=1` / `?passFor=1`, never a name.
+
 **Rulings for hard limits and soft preferences (2026-11-12):**
 - **Nobody but the person sees their limits**: not the owner, not admins.
   Soft-preference warnings, when built, never name anyone ("Someone coming

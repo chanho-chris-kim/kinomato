@@ -901,3 +901,50 @@ export async function setLimitsApplyWhenAbsent(clubId: string, on: boolean) {
   revalidatePath(`/clubs/${clubId}`, "layout");
   redirect(limitsUrl(clubId, "?limits=saved"));
 }
+
+// ---- Pass my turn (docs/onboarding-spec.md §5.10, ruled 2026-11-17) ----
+// The picker passes their own turn while their night is still a draft (no
+// nominations); an owner or admin can pass it for them, so an absent picker
+// can't stall the club. One batch: postponed_at set to the passed slot
+// (the draft's scheduled_at, read by lib/rotation.ts's skip rule), the
+// draft's RSVPs and the draft deleted. Every statement waits on the draft
+// still being an empty draft, so a pass that loses a race to voting
+// opening changes nothing. The next Tonight load drafts for the next
+// person; the passer is first for the night after.
+const tonightUrl = (clubId: string, query = "") => `/clubs/${clubId}${query}`;
+
+async function passDraft(db: ReturnType<typeof getDb>, clubId: string, pickerMembershipId: string) {
+  const [draft] = await db
+    .select()
+    .from(nights)
+    .where(and(eq(nights.clubId, clubId), eq(nights.pickerMembershipId, pickerMembershipId), eq(nights.state, "draft")));
+  if (!draft) {
+    redirect(tonightUrl(clubId, `?${new URLSearchParams({ passError: "That turn can't be passed now." })}`));
+  }
+  const stillEmptyDraft = sql`exists (select 1 from ${nights} where ${nights.id} = ${draft.id} and ${nights.state} = 'draft' and not exists (select 1 from ${nominations} where ${nominations.nightId} = ${draft.id}))`;
+  await db.batch([
+    db
+      .update(memberships)
+      .set({ postponedAt: draft.scheduledAt })
+      .where(and(eq(memberships.id, pickerMembershipId), stillEmptyDraft)),
+    db.delete(rsvps).where(and(eq(rsvps.nightId, draft.id), stillEmptyDraft)),
+    db.delete(nights).where(and(eq(nights.id, draft.id), stillEmptyDraft)),
+  ]);
+  revalidatePath("/", "layout");
+  redirect(tonightUrl(clubId, "?passed=1"));
+}
+
+export async function passMyTurn(clubId: string) {
+  const membershipId = await requireCurrentMembershipId(clubId);
+  await passDraft(getDb(), clubId, membershipId);
+}
+
+// An owner or admin passing someone's turn for them (two-tap, naming the
+// person). The target is a membership id, never a name; it must be the
+// picker of this club's draft.
+export async function passTurnFor(clubId: string, targetMembershipId: string) {
+  const { db } = await requireOwnerOrAdmin(clubId, "pass someone's turn");
+  const target = await loadMembership(db, targetMembershipId);
+  if (!target || target.clubId !== clubId) throw new Error("That turn isn't in this club.");
+  await passDraft(db, clubId, target.id);
+}

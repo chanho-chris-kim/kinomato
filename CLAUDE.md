@@ -168,7 +168,17 @@ Do not quietly change these — they encode decisions that took a while to reach
   active row per person per club is a database constraint
   (`memberships_one_active_per_user_per_club`), not just an app check.
   Storing a pointer turns every skip, join, leave and pause into a
-  migration problem.
+  migration problem. **Pass my turn, ruled 2026-11-17:** the picker, or an
+  owner or admin for them (the fix for an absent picker stalling the
+  club), passes while the night is still a draft. Passing deletes the
+  empty draft and sets `postponed_at` to the passed slot (that draft's
+  `scheduled_at`). `lib/rotation.ts`'s `isSkippedThisTurn` skips a
+  postponed member until a night for someone else at or after that slot
+  exists, so the next draft goes to the next person now; then
+  `postponed_at` puts them first ("pushed to the front of next week, not
+  skipped"). It's cleared when a night is next created with them as
+  picker, and if everyone is skipped the rotation still names someone.
+  Shown as "Passed this turn" in the rail and Members list until then.
 - **Lock is immovable.** After lock, RSVP changes do not re-run the constraint
   filter and the pick does not change. A lock people can't trust is worthless.
   Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
@@ -985,9 +995,11 @@ and move on.
   TMDB actually returns for CA before building the mapping; note that
   Quebec's system differs from BC's, so "CA" alone may not be enough to
   resolve a single scheme.
-- **Postponement duration.** Is there a cap on how long a membership can sit
-  postponed, or a separate "paused" status for a multi-month absence (parental
-  leave, deployment) distinct from missing one week?
+- **Postponement duration.** Partly ruled 2026-11-17: passing a turn
+  postpones for one night only (the rotation ruling above), and
+  `postponed_at` clears when their next night is created, so it can't sit
+  forever. Still open: a separate "paused" status for a multi-month
+  absence (parental leave, deployment) distinct from missing one week.
 - **Veto-exhaustion timing.** If every nominee gets vetoed close to the
   nomination deadline, does the picker get a deadline extension to
   re-nominate, or does the round proceed toward lock with nothing decided?
