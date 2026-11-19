@@ -578,7 +578,7 @@ button.
 
 **Rulings for hard limits and soft preferences (2026-11-12):**
 - **Nobody but the person sees their limits**: not the owner, not admins.
-  Soft-preference warnings, when built, never name anyone ("Someone coming
+  Soft-preference warnings never name anyone ("Someone coming
   would rather not"), which supersedes `analysis-v1.md`'s "Dana would
   rather not" under the never-surface-causality ruling.
 - **At nomination**, the picker's list is filtered by every active
@@ -651,6 +651,27 @@ button.
   rows; it applies to limits added afterwards. A topic still counts as a
   duplicate by its name, whatever ids it was stored with. "Animal death
   or cruelty" was extended on 2026-11-18 (5 ids → 19).
+
+**Rulings for soft-preference warnings (2026-11-18):**
+- **During open voting, a nominee shows "Someone coming would rather
+  not."** when at least one active member who has explicitly RSVP'd yes
+  has a soft preference matching that film (`countSoftPreferenceConflicts`,
+  scoped by `scopeToActiveMembers`). Never a name, never a count, never
+  which preference. The viewer's own preference counts like anyone's; it
+  still says "Someone". A "no" or no answer never counts, and
+  "apply when absent" doesn't bring a non-attendee in.
+- **Anonymity threshold:** shown only when at least three active members
+  other than the viewer have RSVP'd yes. With fewer, "someone" could
+  identify a person, so nobody sees a warning.
+- **Only genre and runtime preferences warn.** A topic (keyword)
+  preference can reveal a sensitivity, so it never produces the note; it
+  still breaks ties at lock as before. Hard limits never warn either:
+  they've already filtered the slate.
+- **Open nights only**: never on the nomination screen, a locked or
+  finished night, or History.
+- *Built (h5), 2026-11-18.* `lib/preferenceWarnings.ts`
+  (`preferenceWarnings`, returning the nominee film ids to mark); Tonight's
+  open-voting nominee cards render the fixed sentence. No schema change.
 
 **Rulings for roles and ownership (2026-11-11):**
 - **Only the owner makes or removes admins, and transfers ownership.** One

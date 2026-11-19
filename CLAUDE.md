@@ -320,11 +320,24 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **Never surface constraint causality in the UI.** The eligible pool just is what
   it is. Never "horror unlocked because Dana is away." **Ruled 2026-11-12:
   nobody but the person sees their limits**, not the owner, not admins;
-  soft-preference warnings, when built, never name anyone ("Someone coming
+  soft-preference warnings never name anyone ("Someone coming
   would rather not"), superseding `analysis-v1.md`'s "Dana would rather
   not". The picker sees fewer films with no count and no reason; a list
   the limits empty says "None of your watchlist fits this club right now.
   Add a few more films." and names nobody.
+- **Soft-preference warnings during voting (ruled 2026-11-18,
+  `lib/preferenceWarnings.ts`).** While a night is open, a nominee shows
+  "Someone coming would rather not." when at least one active member
+  who explicitly RSVP'd yes has a soft preference it matches
+  (`countSoftPreferenceConflicts` over `scopeToActiveMembers`). Never a
+  name, a count, or which preference; the viewer's own preference counts
+  like anyone's and still reads "Someone". **Anonymity threshold:** only
+  when at least three active members other than the viewer have RSVP'd
+  yes; below that, "someone" could identify a person, so nobody sees it.
+  **Genre and runtime preferences only**: a topic (keyword) preference
+  can reveal a sensitivity, so it never warns, though it still breaks
+  ties at lock. Open nights only: never on the nomination screen, a
+  locked or finished night, or History.
 - **Where hard limits apply (ruled 2026-11-12, `lib/eligibility.ts`).**
   At nomination, every active member's hard limits filter the picker's
   list (`nominatableFilms`; a draft has no RSVPs, so all count), and
