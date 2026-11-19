@@ -563,6 +563,19 @@ button.
   batch that waits on the night still being an empty draft. Confirms are
   `?pass=1` / `?passFor=1`, never a name.
 
+**Ruling for the empty-state help (2026-11-17):**
+- When the picker's nominatable list has fewer films than nominees per
+  turn (including none), Tonight shows **"Films your club wants that fit
+  everyone"**: up to six films from other active members' watchlists,
+  visible through the visibility function, that pass every active
+  member's hard limits, not already on the picker's list, most wanted
+  first. Each shows the overlap count ("2 others want this"), never names,
+  and "Add to my list" (the existing `addToWatchlist`, which now
+  revalidates the whole layout so Tonight follows); added, it's
+  nominatable at once. Nothing says why other films are missing.
+- *Built (p1), 2026-11-17.* `app/watchlistRead.ts` `helpFilmsFor` (the
+  watchlist scan still holds); selection in `lib/nominationHelp.ts`.
+
 **Rulings for hard limits and soft preferences (2026-11-12):**
 - **Nobody but the person sees their limits**: not the owner, not admins.
   Soft-preference warnings, when built, never name anyone ("Someone coming

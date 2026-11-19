@@ -416,7 +416,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   `clubVisibleItems` (active members' lists only), `overlapByFilm` (§6.3:
   distinct active members, via `lib/watchlistOverlap.ts`; shelves count
   you, the search badge counts others) and `nominatableFilms` (Tonight's
-  picker and `openVoting`'s server check). **Enforced by a test:**
+  picker and `openVoting`'s server check) and `helpFilmsFor` (Tonight's
+  "Films your club wants that fit everyone", ruled 2026-11-17: others'
+  visible, eligible films, counts only, never names). **Enforced by a test:**
   `lib/watchlistAccess.test.ts` fails, naming this ruling, if any file
   other than the loader and the own-list files (`app/watchlist/page.tsx`
   and `actions.ts`, which touch only the viewer's own rows) touches

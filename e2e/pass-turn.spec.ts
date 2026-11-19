@@ -238,3 +238,61 @@ test.describe("pass my turn", () => {
     await expect(page.getByRole("link", { name: /Pass .*turn/ })).toHaveCount(0);
   });
 });
+
+test.describe("films your club wants that fit everyone", () => {
+  test("shows only fitting films from others' lists, with counts and no names; adding makes them nominatable; hides once there are enough", async ({
+    page,
+  }) => {
+    const c = await clubWith("Help Club", [
+      { key: "owner", name: "Odo H.", role: "owner" },
+      { key: "pia", name: "Pia H.", role: "member" },
+      { key: "quy", name: "Quy H.", role: "member" },
+    ]);
+    await withDb(async (db) => {
+      const byTitle = async (title: string) => (await db.select().from(schema.films).where(eq(schema.films.title, title)))[0];
+      const [arrival, hereditary, bladeRunner, zodiac] = await Promise.all(
+        ["Arrival", "Hereditary", "Blade Runner", "Zodiac"].map(byTitle),
+      );
+      await db.insert(schema.watchlistItems).values([
+        { userId: c.users.pia, filmId: arrival.id },
+        { userId: c.users.quy, filmId: hereditary.id },
+        { userId: c.users.quy, filmId: bladeRunner.id },
+        { userId: c.users.quy, filmId: zodiac.id },
+        { userId: c.users.owner, filmId: zodiac.id },
+      ]);
+      // The owner's Gore limit (TMDB's real "gore" id, on Hereditary).
+      await db.insert(schema.constraints).values({
+        membershipId: c.members.owner,
+        kind: "hard",
+        ruleType: "keyword",
+        value: "10292",
+        label: "Gore",
+      });
+    });
+    const urls = recordRequestUrls(page);
+    const draft = await draftFor(page, c.users.pia, c.clubId);
+    expect(draft.pickerMembershipId).toBe(c.members.pia);
+
+    const help = page.locator(".help-films");
+    await expect(help.getByRole("heading")).toHaveText("Films your club wants that fit everyone");
+    const items = help.locator("li");
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText("Zodiac");
+    await expect(items.nth(0)).toContainText("2 others want this");
+    await expect(items.nth(1)).toContainText("Blade Runner");
+    await expect(items.nth(1)).toContainText("1 other wants this");
+    // Not the excluded film, not her own, never a name, never a reason.
+    await expect(help).not.toContainText(/Hereditary|Arrival|Odo|Quy|limit|gore/i);
+
+    await help.getByRole("button", { name: "Add Zodiac to my list" }).click();
+    await expect(page.locator('input[name="filmId"]')).toHaveCount(2);
+    await expect(page.locator("main")).toContainText("Zodiac");
+    await expect(help.locator("li")).toHaveCount(1);
+
+    await help.getByRole("button", { name: "Add Blade Runner to my list" }).click();
+    await expect(page.locator('input[name="filmId"]')).toHaveCount(3);
+    await expect(page.locator(".help-films")).toHaveCount(0);
+
+    expectNoneContain(urls, "Zodiac", "Blade Runner", "Pia", "Quy", "Odo");
+  });
+});

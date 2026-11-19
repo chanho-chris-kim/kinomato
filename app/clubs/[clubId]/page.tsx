@@ -13,6 +13,8 @@ import {
   tags,
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
+import { needsHelp } from "@/lib/nominationHelp";
+import { addToWatchlist } from "@/app/watchlist/actions";
 import {
   findConfirmableNight,
   findInFlightNight,
@@ -44,7 +46,7 @@ import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { liveVotes } from "./historyRead";
-import { nominatableFilms } from "@/app/watchlistRead";
+import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 
@@ -241,6 +243,7 @@ export default async function ClubPage({
   let draftPickerName: string | null = null;
   let myWatchlistFilms: { id: string; title: string; year: number }[] = [];
   let myWatchlistEmpty = true;
+  let helpFilms: Awaited<ReturnType<typeof helpFilmsFor>> = [];
   let nomineesPerTurn = 3;
 
   if (draftNight) {
@@ -254,6 +257,11 @@ export default async function ClubPage({
       const nominatable = await nominatableFilms(db, clubId, currentMembership.userId);
       myWatchlistFilms = nominatable.films;
       myWatchlistEmpty = nominatable.listIsEmpty;
+      // Not enough to fill a turn (ruled 2026-11-17): films the club wants
+      // that fit everyone, counts only.
+      if (needsHelp(myWatchlistFilms.length, nomineesPerTurn)) {
+        helpFilms = await helpFilmsFor(db, clubId, currentMembership.userId);
+      }
     }
   }
 
@@ -544,6 +552,36 @@ export default async function ClubPage({
               <form action={openVoting.bind(null, clubId, draftNight.id)} className="mt14">
                 <NominationSelector films={myWatchlistFilms} cap={nomineesPerTurn} />
               </form>
+            )}
+            {helpFilms.length > 0 && (
+              // Films your club wants that fit everyone (ruled 2026-11-17):
+              // others' lists, through the visibility function and the hard
+              // limits, with counts and never names. Nothing says why
+              // other films aren't here.
+              <section className="mt20 help-films" aria-labelledby="help-films-heading">
+                <h3 id="help-films-heading" className="sec">
+                  Films your club wants that fit everyone
+                </h3>
+                <ul className="stack gap8 mt14" style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
+                  {helpFilms.map((f) => (
+                    <li key={f.id} className="card row gap8">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <span className="small">
+                          {f.title} ({f.year})
+                        </span>
+                        <p className="tiny dim" style={{ margin: "2px 0 0" }}>
+                          {f.othersWant} {f.othersWant === 1 ? "other wants" : "others want"} this
+                        </p>
+                      </div>
+                      <form action={addToWatchlist.bind(null, f.tmdbId)}>
+                        <button type="submit" className="btn ghost limit-remove" aria-label={`Add ${f.title} to my list`}>
+                          Add to my list
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             {/* Pass my turn (ruled 2026-11-17): only while the night is a
                 draft. Two taps: the link opens the confirm. */}
