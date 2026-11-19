@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/db";
 import {
   clubs,
+  constraints,
   films,
   memberships,
   nights,
@@ -14,6 +15,7 @@ import {
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
 import { needsHelp } from "@/lib/nominationHelp";
+import { PREFERENCE_WARNING, preferenceWarnings } from "@/lib/preferenceWarnings";
 import { addToWatchlist } from "@/app/watchlist/actions";
 import {
   findConfirmableNight,
@@ -188,6 +190,7 @@ export default async function ClubPage({
     filmYear: number;
     voteCount: number;
     votedByMe: boolean;
+    someoneWouldRatherNot: boolean;
   }[] = [];
   let myRsvpStatus: "yes" | "no" | null = null;
 
@@ -212,8 +215,13 @@ export default async function ClubPage({
     const nightNominations = await db
       .select({
         nominationId: nominations.id,
+        filmId: films.id,
         filmTitle: films.title,
         filmYear: films.year,
+        genreIds: films.genreIds,
+        keywordIds: films.keywordIds,
+        runtime: films.runtime,
+        originalLanguage: films.originalLanguage,
       })
       .from(nominations)
       .innerJoin(films, eq(nominations.filmId, films.id))
@@ -223,12 +231,41 @@ export default async function ClubPage({
     // the only code that reads votes (CLAUDE.md attribution ruling).
     const live = await liveVotes(db, openNight.id, currentMembership.id);
 
+    // "Someone coming would rather not." (ruled 2026-11-18,
+    // lib/preferenceWarnings.ts): only while the night is open, never a
+    // name, a count or which preference. Others' preferences are read here
+    // only to decide that one anonymous yes/no per film.
+    const activeIds = activeMemberships.map((m) => m.id);
+    const [openRsvps, activePreferences] = await Promise.all([
+      db.select({ membershipId: rsvps.membershipId, status: rsvps.status }).from(rsvps).where(eq(rsvps.nightId, openNight.id)),
+      activeIds.length
+        ? db
+            .select()
+            .from(constraints)
+            .where(and(inArray(constraints.membershipId, activeIds), eq(constraints.kind, "soft")))
+        : Promise.resolve([]),
+    ]);
+    const warned = preferenceWarnings({
+      viewerMembershipId: currentMembership.id,
+      activeMembershipIds: activeIds,
+      rsvps: openRsvps.filter((r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null),
+      preferences: activePreferences,
+      films: nightNominations.map((n) => ({
+        id: n.filmId,
+        genreIds: n.genreIds,
+        keywordIds: n.keywordIds,
+        runtime: n.runtime,
+        originalLanguage: n.originalLanguage,
+      })),
+    });
+
     nomineeRows = nightNominations.map((n) => ({
       nominationId: n.nominationId,
       filmTitle: n.filmTitle,
       filmYear: n.filmYear,
       voteCount: live?.counts[n.nominationId] ?? 0,
       votedByMe: live?.viewerVotedFor === n.nominationId,
+      someoneWouldRatherNot: warned.has(n.filmId),
     }));
   }
 
@@ -722,6 +759,7 @@ export default async function ClubPage({
                   {n.voteCount === 1 ? "vote" : "votes"}
                   {n.votedByMe && " — your vote"}
                 </div>
+                {n.someoneWouldRatherNot && <p className="tiny dim pref-note" style={{ margin: "4px 0 0" }}>{PREFERENCE_WARNING}</p>}
                 <form action={castVote.bind(null, clubId, n.nominationId)} className="mt14">
                   <button type="submit" className="btn">
                     {n.votedByMe ? "Voted" : "Vote"}
