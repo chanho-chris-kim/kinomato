@@ -3,6 +3,7 @@ import {
   getNextPicker,
   getRotationOrder,
   getWhoseTurn,
+  isSkippedThisTurn,
   type RotationMembership,
   type RotationNight,
 } from "./rotation";
@@ -100,18 +101,23 @@ describe("getRotationOrder", () => {
     expect(order.map((m) => m.id)).toEqual(["b", "a"]);
   });
 
-  it("puts a postponed member ahead of everyone, even the never-picked", () => {
+  it("puts a postponed member ahead of everyone, even the never-picked, once the night they passed has gone to someone else", () => {
     const a = membership("a", { postponedAt: new Date("2026-01-05") });
     const b = membership("b");
-    const order = getRotationOrder({ memberships: [a, b], nights: [] });
-    expect(order.map((m) => m.id)).toEqual(["a", "b"]);
+    const c = membership("c");
+    const order = getRotationOrder({ memberships: [a, b, c], nights: [night("c", "2026-01-05", "draft")] });
+    expect(order[0].id).toBe("a");
   });
 
-  it("orders two postponed members by postponed_at ASC", () => {
+  it("orders two postponed members by postponed_at ASC, once both passed nights have gone to others", () => {
     const a = membership("a", { postponedAt: new Date("2026-01-10") });
     const b = membership("b", { postponedAt: new Date("2026-01-05") });
-    const order = getRotationOrder({ memberships: [a, b], nights: [] });
-    expect(order.map((m) => m.id)).toEqual(["b", "a"]);
+    const c = membership("c");
+    const order = getRotationOrder({
+      memberships: [a, b, c],
+      nights: [night("c", "2026-01-05"), night("c", "2026-01-10", "draft")],
+    });
+    expect(order.map((m) => m.id)).toEqual(["b", "a", "c"]);
   });
 
   it("excludes members who have left, even if they'd otherwise be next", () => {
@@ -342,5 +348,89 @@ describe("getWhoseTurn", () => {
       clubPausedAt: null,
     };
     expect(getWhoseTurn(input)?.id).toBe("b");
+  });
+});
+
+// Pass my turn (ruled 2026-11-17): postponed_at holds the slot passed (the
+// deleted draft's scheduled_at). The passer is skipped for that night,
+// which goes to the next person now, then is first for the night after
+// (analysis-v1: "pushed to the front of next week, not skipped").
+describe("passing a turn", () => {
+  const SLOT = "2026-02-07T01:00:00Z";
+  const passed = (id: string, overrides: Partial<RotationMembership> = {}) =>
+    membership(id, { postponedAt: new Date(SLOT), ...overrides });
+
+  it("the next night goes to the next person at once", () => {
+    const a = passed("a");
+    const b = membership("b");
+    const c = membership("c");
+    const pick = getNextPicker({ memberships: [a, b, c], nights: [], clubPausedAt: null });
+    expect(pick?.id).toBe("b");
+  });
+
+  it("the passer is first for the night after, ahead of the never-picked", () => {
+    const a = passed("a");
+    const b = membership("b");
+    const c = membership("c");
+    // B's replacement night for the passed slot exists (any state).
+    for (const state of ["draft", "open", "watched", "cancelled"] as const) {
+      const pick = getNextPicker({ memberships: [a, b, c], nights: [night("b", SLOT, state)], clubPausedAt: null });
+      expect(pick?.id, state).toBe("a");
+    }
+  });
+
+  it("a night for someone else scheduled before the passed slot doesn't end the skip", () => {
+    const a = passed("a");
+    const b = membership("b");
+    const pick = getNextPicker({
+      memberships: [a, b],
+      nights: [night("b", "2026-01-31T01:00:00Z")],
+      clubPausedAt: null,
+    });
+    expect(pick?.id).toBe("b");
+  });
+
+  it("the passer's own nights never end their skip", () => {
+    const a = passed("a");
+    const b = membership("b");
+    const pick = getNextPicker({
+      memberships: [a, b],
+      nights: [night("a", "2026-03-07T01:00:00Z", "cancelled")],
+      clubPausedAt: null,
+    });
+    expect(pick?.id).toBe("b");
+  });
+
+  it("once postponed_at is cleared (their next night created), the normal order is back", () => {
+    const a = membership("a");
+    const b = membership("b");
+    const pick = getNextPicker({
+      memberships: [a, b],
+      nights: [night("b", SLOT), night("a", "2026-02-14T01:00:00Z")],
+      clubPausedAt: null,
+    });
+    expect(pick?.id).toBe("b");
+  });
+
+  it("if everyone active has passed, someone is still named", () => {
+    const a = passed("a");
+    const b = passed("b", { postponedAt: new Date("2026-02-14T01:00:00Z") });
+    const pick = getNextPicker({ memberships: [a, b], nights: [], clubPausedAt: null });
+    expect(pick?.id).toBe("a");
+  });
+
+  it("a departed member is never picked, passed or not", () => {
+    const a = passed("a", { leftAt: new Date("2026-02-01") });
+    const b = membership("b", { leftAt: new Date("2026-02-01") });
+    const c = membership("c");
+    const pick = getNextPicker({ memberships: [a, b, c], nights: [night("c", SLOT)], clubPausedAt: null });
+    expect(pick?.id).toBe("c");
+  });
+
+  it("isSkippedThisTurn says who is passing the coming night", () => {
+    const a = passed("a");
+    expect(isSkippedThisTurn(a, [])).toBe(true);
+    expect(isSkippedThisTurn(a, [night("b", SLOT, "draft")])).toBe(false);
+    expect(isSkippedThisTurn(membership("b"), [])).toBe(false);
   });
 });

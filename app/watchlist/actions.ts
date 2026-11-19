@@ -24,7 +24,9 @@ export async function addToWatchlist(tmdbId: number) {
     .insert(watchlistItems)
     .values({ userId: user.id, filmId })
     .onConflictDoNothing({ target: [watchlistItems.userId, watchlistItems.filmId] });
-  revalidatePath("/watchlist");
+  // The whole layout, not just /watchlist: Tonight's "Films your club
+  // wants" adds through here too, and its nomination list must follow.
+  revalidatePath("/", "layout");
 }
 
 // Off your one list, everywhere.

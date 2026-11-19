@@ -111,6 +111,19 @@ function compareRotationOrder(
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+// Pass my turn (ruled 2026-11-17). postponed_at holds the slot passed: the
+// passed draft's scheduled_at (app/clubs/[clubId]/actions.ts passTurn). The
+// passer is skipped for that slot, which goes to the next person, until a
+// night for someone else at or after it exists; from then on postponed_at
+// puts them first ("pushed to the front of next week, not skipped",
+// analysis-v1). postponed_at is cleared when their next night is created.
+// A rule over existing columns, never a stored pointer.
+export function isSkippedThisTurn(membership: RotationMembership, nights: RotationNight[]): boolean {
+  if (membership.postponedAt === null) return false;
+  const slot = membership.postponedAt.getTime();
+  return !nights.some((n) => n.pickerMembershipId !== membership.id && n.scheduledAt.getTime() >= slot);
+}
+
 export function getRotationOrder(
   input: GetRotationOrderInput,
 ): RotationMembership[] {
@@ -121,7 +134,12 @@ export function getRotationOrder(
       effectiveLastPickedAt(m, input.memberships, input.nights),
     ]),
   );
-  return [...active].sort((a, b) => compareRotationOrder(a, b, lastPicked));
+  const sorted = [...active].sort((a, b) => compareRotationOrder(a, b, lastPicked));
+  // Those passing the coming night go to the back, unless everyone is:
+  // the rotation always names someone.
+  const skipped = sorted.filter((m) => isSkippedThisTurn(m, input.nights));
+  if (skipped.length === 0 || skipped.length === sorted.length) return sorted;
+  return [...sorted.filter((m) => !skipped.includes(m)), ...skipped];
 }
 
 export function getNextPicker(

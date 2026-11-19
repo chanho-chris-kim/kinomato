@@ -45,7 +45,7 @@ export interface NewLimit {
   label: string | null;
 }
 
-type Existing = { kind: "hard" | "soft"; ruleType: string; value: string };
+type Existing = { kind: "hard" | "soft"; ruleType: string; value: string; label?: string | null };
 
 const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
@@ -82,7 +82,10 @@ export function readLimitForm(
     limit = { kind, ruleType, value: String(minutes), label: null };
   }
 
-  if (existing.some((e) => e.ruleType === limit.ruleType && e.value === limit.value)) {
+  // A topic is the same topic by its name too: a limit stored before the
+  // topic's id list changed keeps its old ids (lib/contentTopics.ts).
+  const sameTopic = (e: Existing) => limit.ruleType === "keyword" && e.ruleType === "keyword" && e.label === limit.label;
+  if (existing.some((e) => (e.ruleType === limit.ruleType && e.value === limit.value) || sameTopic(e))) {
     return { ok: false, error: "You already have that one." };
   }
   if (kind === "hard" && !canAddHardLimit(existing as Constraint[])) {

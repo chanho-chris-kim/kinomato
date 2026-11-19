@@ -27,6 +27,12 @@ function You() {
   return <span className="you"> (you)</span>;
 }
 
+// Pass my turn (ruled 2026-11-17): shown until their next night is created,
+// which clears postponed_at.
+function PassedThisTurn({ member }: { member: ClubMembership }) {
+  return member.postponedAt ? <span className="tiny dim passed-turn"> · Passed this turn</span> : null;
+}
+
 export function RailMembers({
   members,
   meId,
@@ -49,6 +55,7 @@ export function RailMembers({
             <span className="small">
               {nameOf(m)}
               {m.id === meId && <You />}
+              <PassedThisTurn member={m} />
             </span>
           </li>
         ))}
@@ -90,6 +97,7 @@ export function MemberCards({
               <span className="member-name" style={{ minWidth: 0 }}>
                 {nameOf(m)}
                 {m.id === meId && <You />}
+                <PassedThisTurn member={m} />
               </span>
               <span className="chip member-role" style={{ marginLeft: "auto" }}>
                 {roleLabel(m.role)}

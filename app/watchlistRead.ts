@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { constraints, films, memberships, watchlistItems } from "@/db/schema";
 import { eligibleForNomination } from "@/lib/eligibility";
+import { chooseHelpFilms } from "@/lib/nominationHelp";
 import { overlapByFilm as countOverlap } from "@/lib/watchlistOverlap";
 import { NO_CLUB_RULES, visibleToClub } from "@/lib/watchlistVisibility";
 
@@ -124,6 +125,53 @@ export async function nominatableFilms(
       .map((f) => ({ id: f.id, title: f.title, year: f.year })),
     listIsEmpty: false,
   };
+}
+
+// "Films your club wants that fit everyone" (ruled 2026-11-17): films on
+// other active members' lists, as the club can see them (visibleToClub),
+// that pass every active member's hard limits (eligibleForNomination),
+// aren't on the picker's own list, most wanted first, at most six
+// (lib/nominationHelp.ts). Only counts leave here, never who wants what.
+export async function helpFilmsFor(
+  db: Db,
+  clubId: string,
+  userId: string,
+): Promise<{ id: string; tmdbId: number; title: string; year: number; othersWant: number }[]> {
+  const items = await clubVisibleItems(db, clubId);
+  const mine = new Set(items.filter((i) => i.userId === userId).map((i) => i.filmId));
+  const wanters = new Map<string, Set<string>>();
+  for (const i of items) {
+    if (i.userId === userId) continue;
+    wanters.set(i.filmId, (wanters.get(i.filmId) ?? new Set()).add(i.userId));
+  }
+  const filmIds = [...wanters.keys()].filter((id) => !mine.has(id));
+  if (filmIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: films.id,
+      tmdbId: films.tmdbId,
+      title: films.title,
+      year: films.year,
+      genreIds: films.genreIds,
+      keywordIds: films.keywordIds,
+      runtime: films.runtime,
+      originalLanguage: films.originalLanguage,
+    })
+    .from(films)
+    .where(inArray(films.id, filmIds));
+  const active = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.clubId, clubId), isNull(memberships.leftAt)));
+  const activeIds = active.map((m) => m.id);
+  const limits = activeIds.length
+    ? await db.select().from(constraints).where(inArray(constraints.membershipId, activeIds))
+    : [];
+  const eligible = eligibleForNomination(rows, limits, activeIds);
+  return chooseHelpFilms(
+    eligible.map((f) => ({ id: f.id, tmdbId: f.tmdbId, title: f.title, year: f.year, othersWant: wanters.get(f.id)!.size })),
+    mine,
+  );
 }
 
 // An account's own watchlist, deleted whole: the §11.4 anonymisation

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import {
   clubs,
   films,
+  memberships,
   nights,
   nominations,
   ratings,
@@ -12,6 +13,8 @@ import {
   tags,
 } from "@/db/schema";
 import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
+import { needsHelp } from "@/lib/nominationHelp";
+import { addToWatchlist } from "@/app/watchlist/actions";
 import {
   findConfirmableNight,
   findInFlightNight,
@@ -32,6 +35,8 @@ import {
   confirmNight,
   lockNight,
   openVoting,
+  passMyTurn,
+  passTurnFor,
   removeRatingTag,
   setRsvp,
   submitRating,
@@ -41,7 +46,7 @@ import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { liveVotes } from "./historyRead";
-import { nominatableFilms } from "@/app/watchlistRead";
+import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
 import { NominationSelector } from "./NominationSelector";
 import { RatingSlider } from "./RatingSlider";
 
@@ -50,10 +55,10 @@ export default async function ClubPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ joined?: string }>;
+  searchParams: Promise<{ joined?: string; pass?: string; passFor?: string; passed?: string; passError?: string }>;
 }) {
   const { clubId } = await params;
-  const { joined } = await searchParams;
+  const { joined, pass, passFor, passed, passError } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   // react-hooks/purity is a React Compiler rule aimed at client
   // components it might memoize; this is a Server Component that reads
@@ -118,23 +123,33 @@ export default async function ClubPage({
   });
   if (draftToCreate) {
     try {
-      await db.insert(nights).values({
-        clubId,
-        scheduledAt: draftToCreate.scheduledAt,
-        pickerMembershipId: draftToCreate.pickerMembershipId,
-        state: "draft",
-      });
+      // The night, and its picker's "Passed this turn" cleared, together
+      // (ruled 2026-11-17: postponed_at is cleared when a night is next
+      // created with them as picker).
+      await db.batch([
+        db.insert(nights).values({
+          clubId,
+          scheduledAt: draftToCreate.scheduledAt,
+          pickerMembershipId: draftToCreate.pickerMembershipId,
+          state: "draft",
+        }),
+        db
+          .update(memberships)
+          .set({ postponedAt: null })
+          .where(eq(memberships.id, draftToCreate.pickerMembershipId)),
+      ]);
     } catch (error) {
       // "A club has at most one night in flight" (CLAUDE.md) is a
       // partial unique index — a second concurrent lazy-create is a
       // rejected insert (Postgres 23505), not a duplicate row. Losing
       // that race is expected, not a bug: re-read below picks up
       // whichever request won. Anything else genuinely is a failure.
+      // A batch may report the code on its cause.
+      const codeOf = (e: unknown) =>
+        typeof e === "object" && e !== null && "code" in e ? (e as { code?: unknown }).code : undefined;
       const isUniqueViolation =
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: unknown }).code === "23505";
+        codeOf(error) === "23505" ||
+        codeOf(typeof error === "object" && error !== null ? (error as { cause?: unknown }).cause : undefined) === "23505";
       if (!isUniqueViolation) throw error;
     }
     clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
@@ -228,6 +243,7 @@ export default async function ClubPage({
   let draftPickerName: string | null = null;
   let myWatchlistFilms: { id: string; title: string; year: number }[] = [];
   let myWatchlistEmpty = true;
+  let helpFilms: Awaited<ReturnType<typeof helpFilmsFor>> = [];
   let nomineesPerTurn = 3;
 
   if (draftNight) {
@@ -241,6 +257,11 @@ export default async function ClubPage({
       const nominatable = await nominatableFilms(db, clubId, currentMembership.userId);
       myWatchlistFilms = nominatable.films;
       myWatchlistEmpty = nominatable.listIsEmpty;
+      // Not enough to fill a turn (ruled 2026-11-17): films the club wants
+      // that fit everyone, counts only.
+      if (needsHelp(myWatchlistFilms.length, nomineesPerTurn)) {
+        helpFilms = await helpFilmsFor(db, clubId, currentMembership.userId);
+      }
     }
   }
 
@@ -445,6 +466,19 @@ export default async function ClubPage({
         />
       }
     >
+      {passed && (
+        <div className="note mt20">
+          <p className="small" style={{ margin: 0 }} role="status">
+            Turn passed. The next person picks this time.
+          </p>
+        </div>
+      )}
+      {passError && (
+        <p className="small mt20" role="alert" style={{ color: "var(--warn)" }}>
+          {passError}
+        </p>
+      )}
+
       {joined && (
         <div className="note mt20">
           <p className="small" style={{ margin: 0 }}>
@@ -519,9 +553,92 @@ export default async function ClubPage({
                 <NominationSelector films={myWatchlistFilms} cap={nomineesPerTurn} />
               </form>
             )}
+            {helpFilms.length > 0 && (
+              // Films your club wants that fit everyone (ruled 2026-11-17):
+              // others' lists, through the visibility function and the hard
+              // limits, with counts and never names. Nothing says why
+              // other films aren't here.
+              <section className="mt20 help-films" aria-labelledby="help-films-heading">
+                <h3 id="help-films-heading" className="sec">
+                  Films your club wants that fit everyone
+                </h3>
+                <ul className="stack gap8 mt14" style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
+                  {helpFilms.map((f) => (
+                    <li key={f.id} className="card row gap8">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <span className="small">
+                          {f.title} ({f.year})
+                        </span>
+                        <p className="tiny dim" style={{ margin: "2px 0 0" }}>
+                          {f.othersWant} {f.othersWant === 1 ? "other wants" : "others want"} this
+                        </p>
+                      </div>
+                      <form action={addToWatchlist.bind(null, f.tmdbId)}>
+                        <button type="submit" className="btn ghost limit-remove" aria-label={`Add ${f.title} to my list`}>
+                          Add to my list
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {/* Pass my turn (ruled 2026-11-17): only while the night is a
+                draft. Two taps: the link opens the confirm. */}
+            {pass ? (
+              <div className="card mt14 pass-confirm">
+                <p className="small" style={{ margin: 0 }}>
+                  Pass your turn? The next person picks this time, and you&apos;ll pick the time after.
+                </p>
+                <div className="row gap8 mt14">
+                  <form action={passMyTurn.bind(null, clubId)}>
+                    <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                      Pass my turn
+                    </button>
+                  </form>
+                  <Link href={`/clubs/${clubId}`} className="btn ghost" style={{ width: "auto" }}>
+                    Cancel
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <p className="small mt14">
+                <Link href={`/clubs/${clubId}?pass=1`} className="underline">
+                  Pass my turn
+                </Link>
+              </p>
+            )}
           </>
         ) : (
-          <p className="small muted mt20">Waiting on {draftPickerName} to nominate.</p>
+          <>
+            <p className="small muted mt20">Waiting on {draftPickerName} to nominate.</p>
+            {(currentMembership.role === "owner" || currentMembership.role === "admin") &&
+              clubMemberships.some((m) => m.id === draftNight.pickerMembershipId && m.leftAt === null) &&
+              (passFor ? (
+                <div className="card mt14 pass-confirm">
+                  <p className="small" style={{ margin: 0 }}>
+                    Pass {draftPickerName}&apos;s turn? The next person picks this time, and {draftPickerName} picks
+                    the time after.
+                  </p>
+                  <div className="row gap8 mt14">
+                    <form action={passTurnFor.bind(null, clubId, draftNight.pickerMembershipId)}>
+                      <button type="submit" className="btn primary" style={{ width: "auto" }}>
+                        Pass {draftPickerName}&apos;s turn
+                      </button>
+                    </form>
+                    <Link href={`/clubs/${clubId}`} className="btn ghost" style={{ width: "auto" }}>
+                      Cancel
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <p className="small mt14">
+                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline">
+                    Pass {draftPickerName}&apos;s turn
+                  </Link>
+                </p>
+              ))}
+          </>
         ))}
 
       {!openNight &&
