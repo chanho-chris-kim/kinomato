@@ -6,6 +6,7 @@ import { getSessionUserId } from "@/app/session";
 import { requireUser } from "@/app/auth";
 import { loadClubCards } from "@/app/clubCards";
 import { Marketing } from "@/app/marketing";
+import { signupOpen } from "@/app/signIn";
 import { DEFAULT_TITLE } from "@/app/metadata";
 
 // The marketing page's title and description (plain meta tags; the
@@ -23,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   // Per-request by construction: getSessionUserId reads the cookie first.
   const userId = await getSessionUserId();
-  if (!userId) return <Marketing />;
+  if (!userId) return <Marketing signupOpen={signupOpen()} />;
 
   // Signed in, through the same gate as every signed-in page: current
   // consent and an age, or off to /consent or /welcome (app/auth.ts).

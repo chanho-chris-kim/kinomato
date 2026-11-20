@@ -141,7 +141,9 @@ guest to exclude.
    link.
 4. Verifying finds or creates the `users` row for that email and starts a
    session. There is no separate sign-up: **creating an account is just
-   verifying an email for the first time.**
+   verifying an email for the first time.** (While sign-up is invite-only,
+   §11.1, ruled 2026-11-18, only verifying through a live invite creates
+   one.)
 5. If the account has no display name yet, the name step (§5.6) runs once.
 
 ### 4.2 Why the code is primary, not a fallback
@@ -1481,6 +1483,34 @@ off the Terms and Privacy text.**
   version change, so everyone re-accepts it.
 - Public pages, `/terms` and `/privacy`, with Privacy · Terms links in the
   footer of every page.
+- **Sign-up is invite-only until the reviewed text is signed off**
+  (ruled 2026-11-18). No public sign-ups until a lawyer has signed off the
+  Terms and Privacy, so **a new account can only be created through a
+  valid personal invite** (unredeemed, unrevoked). Existing accounts sign
+  in as normal and can still create clubs.
+  - At `/login`, an address with no account gets the same "check your
+    email" screen as everyone (no enumeration, §4.3), counts against the
+    same per-address send limits, and is sent a short email instead of a
+    code: "Kinomato is invite-only for now. Ask a member of a club to
+    invite you." Its sign-in row can never be used: the stored code hash
+    is of a random value no 6-digit code matches, and its link token is
+    never sent. A typed code meets the same "didn't match, N tries left".
+  - Completing a sign-in (a code or a `/verify` link) never creates an
+    account without a live invite; it signs nobody in and shows the
+    invite-only message on `/login`.
+  - The invite flow (`startInvite`, then `completeSignIn` with the
+    invite) still creates accounts.
+  - One server setting, `OPEN_SIGNUP`: exactly `"true"` opens sign-up;
+    unset or anything else keeps it closed, so it fails safe.
+    Documented in `.env.example`.
+  - While closed, the marketing page's **Start a club** is replaced by
+    "Invite-only for now" (no sign-up button); **Sign in** stays.
+  - A deleted account's released address (§11.4) is an unknown address
+    like any other: a fresh account needs an invite.
+  - *Built (q1), 2026-11-18.* `lib/signupGate.ts` (`isSignupOpen`,
+    `signInEmailKind`, `mayCreateAccount`), applied in `app/signIn.ts`
+    (`issueSignIn`, `completeSignIn`, `signupOpen`). E2E runs closed;
+    `e2e/open-signup.spec.ts` runs on CI's third server with it open.
 - *Built (b):* the gate covers every signed-in page and server action,
   except `/terms`, `/privacy`, `/consent`, `/welcome`, sign-in, the invite
   landing, `/age-limit` and both sign-outs. `/consent` always has Sign
@@ -1524,7 +1554,7 @@ off the Terms and Privacy text.**
 | Data | What happens |
 |---|---|
 | Name | "Former member" |
-| Email | Released (a tombstone), so a fresh sign-up with it is possible |
+| Email | Released (a tombstone), so a fresh sign-up with it is possible (through an invite while sign-up is invite-only, §11.1) |
 | Watchlist, hard limits and preferences | Deleted |
 | Ratings | Scores kept; hot takes and rating tags removed |
 | Pending invites the person created | Revoked, `invitee_name` cleared |

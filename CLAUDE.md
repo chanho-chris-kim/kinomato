@@ -449,6 +449,23 @@ Do not quietly change these — they encode decisions that took a while to reach
     version change blocks every signed-in page until re-accepted**. Gating
     starts with the draft texts; the reviewed text is a version change.
     **No public sign-ups until a lawyer has signed off the text.**
+  - **Sign-up is invite-only until then (ruled 2026-11-18,
+    `lib/signupGate.ts`).** A new account is created only through a valid
+    personal invite (`startInvite` → `completeSignIn` with its
+    `inviteId`, the invite still unredeemed and unrevoked). Existing
+    accounts sign in as normal and can still create clubs. An address
+    with no account at `/login` gets the same code screen as everyone (no
+    enumeration), counts against the same send limits, and is emailed
+    "Kinomato is invite-only for now. Ask a member of a club to invite
+    you." instead of a code: its `magic_links` row holds a code hash no
+    6-digit code matches and a token never sent. `completeSignIn` never
+    creates an account without a live invite, whatever code or link
+    reaches it. One server setting, `OPEN_SIGNUP`: exactly `"true"` opens
+    sign-up, anything else (unset included) keeps it closed. The signed-out
+    marketing page shows "Invite-only for now" in place of Start a club
+    while closed. E2E runs closed; `e2e/open-signup.spec.ts` runs against
+    CI's open-signup server, and specs whose founder signs in fresh start
+    from a bare account (`e2e/signIn.ts` `existingAccount`).
   - **Data licensing** is a separate checkbox, default unchecked, never
     bundled into the Terms; aggregates only; withdrawal is future-only;
     **13–17s can't opt in.**

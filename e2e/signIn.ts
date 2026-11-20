@@ -37,6 +37,20 @@ export async function setKnownSignIn(email: string): Promise<{ code: string; tok
   }
 }
 
+// Sign-up is invite-only (docs/onboarding-spec.md §11.1), and E2E runs
+// closed: an address with no account gets the invite-only email at /login,
+// not a code. A test whose founder signs in fresh at /login starts from an
+// existing account instead: a bare users row (no name, no consent), so
+// everything after the code (the name step, consent, /new) runs as before.
+export async function existingAccount(email: string): Promise<void> {
+  const client = postgres(process.env.E2E_DATABASE_URL!);
+  try {
+    await drizzle(client, { schema }).insert(schema.users).values({ email }).onConflictDoNothing();
+  } finally {
+    await client.end();
+  }
+}
+
 // Read-only look at the newest sign-in row, for asserting what a request
 // did or didn't do to it (e.g. that opening /verify didn't consume it).
 export async function latestSignInRow(email: string) {

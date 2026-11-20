@@ -10,6 +10,7 @@ export const EMAIL_OUTBOX_FILE = join(__dirname, "..", ".e2e-email-outbox.jsonl"
 export interface SentEmail {
   kind:
     | "sign-in"
+    | "invite-only"
     | "email-change-code"
     | "email-taken-notice"
     | "email-changed-notice"

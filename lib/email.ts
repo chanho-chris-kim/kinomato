@@ -16,6 +16,7 @@ const SENDER = { email: "hello@kinomato.com", name: "Kinomato" };
 interface Message {
   kind:
     | "sign-in"
+    | "invite-only"
     | "email-change-code"
     | "email-taken-notice"
     | "email-changed-notice"
@@ -98,6 +99,18 @@ export async function sendSignInEmail(email: string, code: string, verifyUrl: st
       `<p style="font-size:28px;letter-spacing:4px;font-weight:600">${code}</p>` +
       `<p>Enter it where you asked for it. It works once and expires in 15 minutes.</p>` +
       `<p>Or sign in on this device: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
+  });
+}
+
+// To an address with no account while sign-up is invite-only (§11.1,
+// ruled 2026-11-18): no code, no link. The person asking sees the same
+// screen as everyone (no enumeration, §4.3).
+export async function sendInviteOnlyEmail(email: string): Promise<void> {
+  await send({
+    kind: "invite-only",
+    to: email,
+    subject: "Kinomato is invite-only for now",
+    html: `<p>Kinomato is invite-only for now. Ask a member of a club to invite you.</p>`,
   });
 }
 

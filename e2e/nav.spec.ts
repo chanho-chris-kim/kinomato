@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { CLUB_ID, MEMBERSHIP } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 
 // The global shell (docs/onboarding-spec.md §5.11, Ruling D; rebuild step
 // 5a). Desktop Chrome's viewport is 1280px wide, so the top bar carries the
@@ -16,7 +16,9 @@ function nav(page: Page) {
 
 // A fresh account, named, signed in through the real code flow: for the
 // watchlist cases, so no seeded club's membership changes.
+// Sign-up is invite-only (§11.1): the account exists, unnamed.
 async function signUp(page: Page, email: string, first: string, initial: string) {
+  await existingAccount(email);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send code" }).click();

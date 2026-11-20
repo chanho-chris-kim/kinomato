@@ -1,6 +1,5 @@
 import { CLUB_2_ID, CLUB_ID } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
-import { finishCodeSignIn, nameYourself } from "./signIn";
 
 // The signed-out / is the marketing page (docs/onboarding-spec.md §5.2,
 // rebuild step 5d). It used to select every row in `clubs` and link each
@@ -20,12 +19,10 @@ test.describe("home page, signed out", () => {
       ),
     ).toBeVisible();
 
-    const start = page.locator("main").getByRole("link", { name: "Start a club" });
-    await expect(start).toBeVisible();
-    const startHref = new URL((await start.getAttribute("href"))!, page.url());
-    expect(startHref.pathname).toBe("/login");
-    expect(startHref.searchParams.get("returnTo")).toBe("/new");
-    expect([...startHref.searchParams.keys()]).toEqual(["returnTo"]);
+    // Sign-up is invite-only (§11.1, ruled 2026-11-18): no Start a club
+    // while closed. The open page is e2e/open-signup.spec.ts.
+    await expect(page.locator("main").getByText("Invite-only for now", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start a club" })).toHaveCount(0);
     await expect(page.locator("main").getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     // Sign in at the right of the top bar, and no global nav.
     await expect(page.getByRole("banner").getByRole("link", { name: "Sign in" })).toHaveAttribute(
@@ -74,19 +71,6 @@ test.describe("home page, signed out", () => {
     // Phone: one column, and no illustration.
     await page.setViewportSize({ width: 375, height: 800 });
     await expect(art).toBeHidden();
-    await expect(page.locator("main").getByRole("link", { name: "Start a club" })).toBeVisible();
-  });
-
-  test("Start a club, then signing in, lands on /new", async ({ page }) => {
-    const email = "marketing-start@example.com";
-    await page.goto("/");
-    await page.locator("main").getByRole("link", { name: "Start a club" }).click();
-    await expect(page).toHaveURL("/login?returnTo=%2Fnew");
-    await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Send code" }).click();
-    await finishCodeSignIn(page, email);
-    await nameYourself(page, "Mae", "W");
-    await expect(page).toHaveURL("/new");
-    await expect(page.getByLabel("Club name")).toBeVisible();
+    await expect(page.locator("main").getByText("Invite-only for now", { exact: true })).toBeVisible();
   });
 });

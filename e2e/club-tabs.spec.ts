@@ -3,7 +3,7 @@ import { CLUB_8_ID, CLUB_ID, DISPLAY_NAME, MEMBERSHIP, MEMBERSHIP_8 } from "../d
 import { expect, test } from "./fixtures";
 import { memberNames } from "./identity";
 import { signInAs } from "./session";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 
 // Club tabs (docs/onboarding-spec.md §5.10–5.11.2; rebuild step 5c):
 // Tonight · Members under the club header. Desktop Chrome is 1280px wide,
@@ -164,6 +164,7 @@ test.describe("club tabs", () => {
     page,
   }) => {
     const email = "tabs-firstrun@example.com";
+    await existingAccount(email);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send code" }).click();

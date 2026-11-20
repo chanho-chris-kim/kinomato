@@ -8,7 +8,7 @@ import { LEGAL } from "../lib/legal";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
-import { agreeToTerms, expectNoneContain, finishCodeSignIn, holdSignInAddress, recordRequestUrls } from "./signIn";
+import { agreeToTerms, existingAccount, expectNoneContain, finishCodeSignIn, holdSignInAddress, recordRequestUrls } from "./signIn";
 
 // No personal data in URLs (docs/onboarding-spec.md §11.6): Workers Logs
 // keep every request URL. Each test records every URL the browser asks for
@@ -36,6 +36,8 @@ test.describe("no personal data in URLs", () => {
     const email = "url.check@example.com";
     const { context, page, errors, urls } = await freshPage(browser);
     try {
+      // Sign-up is invite-only (§11.1): an existing, unnamed account.
+      await existingAccount(email);
       await page.goto(`/login?${new URLSearchParams({ returnTo: "/watchlist" })}`);
       await page.getByLabel("Email").fill(email);
       await page.getByRole("button", { name: "Send code" }).click();
