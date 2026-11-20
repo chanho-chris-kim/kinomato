@@ -29,7 +29,8 @@ another month over the thing that picks a film faster.
   removed guests). Launch foundations (§11) follow: (a) legal pages,
   (b) consent, (c) data licensing, (d) age, (e) export, (f) deletion and
   (g) no personal data in URLs and (h) retention are built; what's left
-  of housekeeping (§11.6) is dropping `users.avatar`.
+  of housekeeping (§11.6) is dropping `users.avatar` and the unused
+  `guest` value of `membership_role`.
 - `docs/prototype.html` — interactive prototype. Open it in a browser; the
   controls at the top switch screen size, theme, week stage, who's viewing
   (signed in, brand new, or signed out) and how they arrived. Faster than
@@ -133,7 +134,8 @@ another month over the thing that picks a film faster.
 4. Only then make it look like the prototype.
 
 Built beyond this list as the need became concrete rather than as a
-separate planned step: lock (`/clubs/[clubId]`'s "Lock it in"), club
+separate planned step: lock (`/clubs/[clubId]`'s "Close voting and set
+the pick"), club
 creation and invites (`/new`, then per-person invites), and first-night
 (`lib/schedule.ts` plus the lazy draft-night creation on `/clubs/[clubId]`
 page load — see the ruling below). A club created today reaches its
@@ -144,11 +146,14 @@ v0 is feature-complete; what's left is the Open Questions below.
 
 The purpose of v0 is to find out which rulings below are wrong.
 
-**Next: the onboarding rebuild.** The build order is
-`docs/onboarding-spec.md` §8.5: seven sessions, each shippable on its own,
-with `main` deployable between them. Step 4 (the cutover) wipes
-`dev.kinomato.com`'s data and follows the written checklist in §8.6,
-not improvisation.
+The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
+are the launch foundations' build steps (§11).
+
+**Next: weekly-loop automation, then email reminders.** A scheduled job
+that locks voting and closes out nights nobody confirmed (`unconfirmed`;
+nothing writes that state yet, so one unanswered prompt holds a club's
+night in flight forever), then reminders by email within the two-pushes-
+a-week cap. Both run on the Cron Trigger beside retention (`worker.ts`).
 
 ## Rulings that are load-bearing
 
@@ -373,7 +378,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   loses their turn, only which film." Vetoes are public, with the vetoer
   named — an anonymous veto reads as sabotage, a named one reads as a
   boundary. No vetoes after lock. A hard limit excludes automatically and
-  costs nothing; a veto is a choice and costs a token.
+  costs nothing; a veto is a choice and costs a token. **Deferred until
+  seasons are designed (ruled 2026-11-19).** The token pool is per member
+  per season, and a season has no start, end or length yet; without
+  one, a cap can't be enforced, and vetoes without a cap would be free
+  and unlimited, against "a veto costs a token". So no veto UI ships
+  before seasons do. `castVeto` stays as the seam it is (see Open
+  Questions).
 - **No full attendance ranking, ever.** Top attendees or a personal streak only.
   A ranked list ending in last place is how you lose the member with a newborn.
 - **History is shared and symmetric.** Every member sees the same club
@@ -891,16 +902,18 @@ Kinoma (former Marvell division) are the nearest existing marks.
   (Superseded ruling: this file used to say no E2E until the voting flow
   stabilised. Overridden — the QA net starts now, while there's only one
   flow to cover, not after there are five.)
-  - `e2e/` — one spec file, six scenarios matching a manual click-through:
-    identity persists across reload, a vote increments its nominee's
-    count, changing a vote moves it rather than duplicating (the
-    `db.batch()` path — this is the one most worth having a test for,
-    since neon-http silently having no `db.transaction()` is exactly the
-    kind of thing that fails quietly), two members in separate browser
-    contexts both voting correctly, RSVP persists across reload, and the
-    displayed "Whose turn" is checked against `lib/rotation.ts`'s own
-    `getWhoseTurn()` output for the same seeded data — not a hardcoded
-    expectation, so it can't drift out of sync with the rotation logic.
+  - `e2e/` — 41 spec files, 219 tests (2026-11-19), one or a few per
+    feature. It began as one file of six scenarios, and those still run
+    in `voting-flow.spec.ts`: identity persists across reload, a vote
+    increments its nominee's count, changing a vote moves it rather than
+    duplicating (the `db.batch()` path, since neon-http silently having
+    no `db.transaction()` is exactly the kind of thing that fails
+    quietly), two members in separate browser contexts both voting
+    correctly, RSVP persists across reload, and the displayed "Whose
+    turn" is checked against `lib/rotation.ts`'s own `getWhoseTurn()`
+    output for the same seeded data, so it can't drift out of sync with
+    the rotation logic. Two specs run on their own CI-only servers:
+    `legal-bump.spec.ts` and `open-signup.spec.ts`.
   - Runs against a **local** server, never `dev.kinomato.com`: `next dev`
     on a developer's machine, `next build && next start` in CI
     (`playwright.config.ts` switches on `CI`). CI tests a production
@@ -983,7 +996,9 @@ and move on.
   as morning_after) and what "off" means operationally (never
   confirmable through this prompt at all — does the night just sit
   non-terminal forever, or does something else eventually close it?).
-- **Vetoes have no UI, no pool-cap enforcement, and no season lifecycle.**
+- **Vetoes have no UI, no pool-cap enforcement, and no season lifecycle**
+  (deferred until seasons are designed, ruled 2026-11-19: see the veto
+  ruling).
   `castVeto` (`app/clubs/[clubId]/actions.ts`) is a minimal seam — it inserts
   a veto row and rejects one after lock, nothing more. It doesn't enforce the
   two-per-member-per-season cap from the veto ruling above, doesn't let the

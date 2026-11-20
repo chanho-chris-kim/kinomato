@@ -517,8 +517,9 @@ button.
   "Paused" to everyone. On `/`, a paused club's card still shows a night
   in flight's own time, and "Paused" once nothing is in flight
   (`lib/clubStatus.ts` `getNextNight`).
-- *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club aren't
-  built yet.
+- *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club came
+  later: Leave this club in m5 (2026-11-11), Your limits in h2
+  (2026-11-12).
 
 **Rulings for club details (2026-11-10):**
 - **Owner and admin edit the club's name, how often, day, time, timezone
@@ -605,7 +606,7 @@ button.
   data rules; `nominatableFilms` filters, `openVoting` re-checks through
   it, `lockNightCore` drops and cancels in one batch that waits on the
   night still being open, and `clubHistory` leaves dropped nominees out.
-  No limits UI yet: limits can only be seeded.
+  (The limits UI followed in h2, below.)
 - **Tonight's nomination screen always says "Only films that fit everyone
   in this club are shown here."** (ruled 2026-11-13), under "Your turn to
   nominate", whether or not anything was filtered, so the line itself
@@ -890,8 +891,8 @@ alongside the §8.4 list. `docs/prototype.html` already shows this model.
 `watchlist_items` moves from `membership_id` to `user_id`, unique on
 `(user_id, film_id)`. One list per person, carried into every club they
 join. The Watchlist tab (`/watchlist`) is that list, and nomination in any
-club draws from it, filtered by that club's constraints once hard limits
-are wired in (not yet: actions.ts SEAM).
+club draws from it, filtered by every active member's hard limits in that
+club (h1, §5.10).
 
 ### 6.2 What "private" means, precisely
 
@@ -1193,7 +1194,9 @@ Leave these as written until then. They describe the running code:
 4b's list: the `membership_role` enum still has a `guest` value that
 nothing assigns. Dropping an enum value in Postgres means rebuilding the
 type, so it belongs with the next destructive schema change (step 6's
-watchlist move) rather than a change of its own.
+watchlist move) rather than a change of its own. **Still pending
+(2026-11-19):** step 6 shipped without it. Moved to pre-launch
+housekeeping (§11.6), alongside dropping `users.avatar`.
 
 ### 8.5 Build order
 
@@ -1670,7 +1673,9 @@ off the Terms and Privacy text.**
   10 ms of CPU (30 s on Paid); the job is one HTTP round trip, nearly
   all wall time.
 - **Cloudflare logs stay on and are disclosed** (§9).
-- **`users.avatar` is dropped later** (destructive, so last).
+- **`users.avatar` is dropped later** (destructive, so last), **with the
+  unused `guest` value of `membership_role`** (moved here from §8.4 on
+  2026-11-19): one destructive change, before launch.
 - **No cookie banner for now**: every cookie (`kinomato_session`,
   `kinomato_seen_from`, `kinomato_signin_email`, `kinomato_form_echo`) is
   strictly functional, and the Privacy page lists them. To be confirmed at

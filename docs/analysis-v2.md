@@ -227,6 +227,7 @@ Cache with a 24-hour TTL. Never fetch on browse — it's the most expensive call
 ## 7. Removed and revised
 
 - **Filter-cost indicator: removed**, per your call. Replacement: the picker alone sees a quiet note only when one of their own nominations is blocked — "*Sorcerer* conflicts with a club limit." Nobody else ever sees it, and there's no group-level percentage anywhere.
+  *The replacement note is superseded by CLAUDE.md's causality ruling (2026-11-12, `onboarding-spec.md` §5.10): nothing ever names a limit, to the picker included. The picker's list just has fewer films, under a fixed line ("Only films that fit everyone in this club are shown here.") that shows whether or not anything was filtered.*
 - **Letterboxd API: dropped**, per your call. One distinction worth keeping: **CSV import is not the same thing.** Letterboxd lets users export their own data, and importing a file a user hands you creates no dependency on a competitor, no API relationship, and no permission to request. It's the single biggest onboarding accelerant available — a new member arrives with 200 films already in their list. Keep the importer, drop the API.
 - **Landing pitch: revised.** "Your movie night, organized" was too utilitarian. Warmer directions, in rough order of preference:
   - *"Whose turn is it?"*
