@@ -1,9 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { getDb } from "@/db";
-import { memberships, users } from "@/db/schema";
-import { getSessionUserId } from "@/app/session";
-import { consentGapsFor } from "@/app/consent";
+import { memberships } from "@/db/schema";
+import { getSessionAccount } from "@/app/session";
+import { needsConsent } from "@/lib/consent";
+import { currentLegal } from "@/lib/legal";
 
 // Session gates for pages and server actions (docs/onboarding-spec.md
 // §5.1). Everything except the marketing page, the invite landing, the
@@ -11,6 +13,10 @@ import { consentGapsFor } from "@/app/consent";
 // an active membership. And every one of them needs current consent and
 // an age (§11.1, §11.3), checked here so no signed-in route can skip it:
 // lib/consentGate.test.ts fails any route that doesn't come through these.
+//
+// Two round trips at most, each once per request (React cache()): the
+// session, account and consent events together (app/session.ts
+// getSessionAccount), then, on a club page, the membership.
 
 function loginUrl(returnTo: string) {
   return `/login?${new URLSearchParams({ returnTo })}`;
@@ -21,21 +27,19 @@ function loginUrl(returnTo: string) {
 // is trapped. lib/consentGate.test.ts keeps it there.
 // Session cookie before any database call (app/session.ts).
 export async function requireSignedInIgnoringConsent(returnTo: string) {
-  const userId = await getSessionUserId();
-  if (!userId) redirect(loginUrl(returnTo));
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user) redirect(loginUrl(returnTo));
-  return user;
+  const account = await getSessionAccount();
+  if (!account) redirect(loginUrl(returnTo));
+  return account.user;
 }
 
 // Signed in, or off to /login — coming back to `returnTo` afterwards.
 export async function requireUser(returnTo: string) {
-  const user = await requireSignedInIgnoringConsent(returnTo);
-  const db = getDb();
+  const account = await getSessionAccount();
+  if (!account) redirect(loginUrl(returnTo));
+  const { user } = account;
   // No banner-and-continue (§11.1): a stale version or an age never asked
   // blocks the page. An account with no name yet gets it all at /welcome.
-  if ((await consentGapsFor(db, user)).length > 0) {
+  if (needsConsent(user, account.consentEvents, currentLegal()).length > 0) {
     const step = user.displayName ? "/consent" : "/welcome";
     redirect(`${step}?${new URLSearchParams({ next: returnTo })}`);
   }
@@ -54,11 +58,17 @@ export async function requireNamedUser(returnTo: string) {
 // gets a 404, not a 403 — a 403 would confirm the club exists.
 export async function requireClubMember(clubId: string, returnTo: string) {
   const user = await requireUser(returnTo);
-  const db = getDb();
-  const [membership] = await db
-    .select()
-    .from(memberships)
-    .where(and(eq(memberships.clubId, clubId), eq(memberships.userId, user.id), isNull(memberships.leftAt)));
+  const membership = await activeMembership(clubId, user.id);
   if (!membership) notFound();
   return { user, membership };
 }
+
+// The account's active membership in a club, once per request per club
+// (React cache()). Also the server actions' check (identity.ts).
+export const activeMembership = cache(async (clubId: string, userId: string) => {
+  const [membership] = await getDb()
+    .select()
+    .from(memberships)
+    .where(and(eq(memberships.clubId, clubId), eq(memberships.userId, userId), isNull(memberships.leftAt)));
+  return membership ?? null;
+});
