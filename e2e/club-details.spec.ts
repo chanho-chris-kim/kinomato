@@ -96,7 +96,10 @@ function saturdays(weeksAhead: number) {
   const iso = (d: { year: number; month: number; day: number }) =>
     `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
   const chosen = addDays(nextSat, weeksAhead * 7);
-  return { chosen, chosenIso: iso(chosen), fridayIso: iso(addDays(chosen, -1)), pastIso: iso(addDays(nextSat, -7)) };
+  // The last Saturday strictly before today. (nextSat − 7 was today itself
+  // whenever today is a Saturday, which isn't in the past.)
+  const lastSat = addDays(today, -((weekday + 1) % 7 || 7));
+  return { chosen, chosenIso: iso(chosen), fridayIso: iso(addDays(chosen, -1)), pastIso: iso(lastSat) };
 }
 
 const detailsForm = (page: Page) => page.locator("form.club-details-form");

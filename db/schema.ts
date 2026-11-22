@@ -416,6 +416,17 @@ export const nights = pgTable(
     lockedAt: timestamp("locked_at", { withTimezone: true }),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     confirmedBy: uuid("confirmed_by").references(() => memberships.id),
+    // The night's deadlines (ruled 2026-11-21, lib/nightDeadlines.ts),
+    // stored so a settings change never moves a night under way. lock_at:
+    // when voting closes, set when it opens. unconfirm_at: when a locked
+    // night nobody confirms is logged as unconfirmed, set at lock. Null on
+    // nights from before they existed (Tonight computes a display-only
+    // fallback).
+    lockAt: timestamp("lock_at", { withTimezone: true }),
+    unconfirmAt: timestamp("unconfirm_at", { withTimezone: true }),
+    // When it became unconfirmed. Kept even if a late "yes" later makes it
+    // watched.
+    unconfirmedAt: timestamp("unconfirmed_at", { withTimezone: true }),
     // Best shared-history connection (director/actor/country/decade),
     // computed once at lock and cached here — a query, not a job.
     clubConnections: jsonb("club_connections"),
@@ -450,6 +461,10 @@ export const nominations = pgTable(
     // 2026-11-12): the pick comes from the rest, and History's tally
     // leaves it and its votes out. Null for every nominee that stood.
     droppedAt: timestamp("dropped_at", { withTimezone: true }),
+    // The picker's order, 1 = first choice (ruled 2026-11-21), written when
+    // voting opens: lock's last tiebreak before id, so with no votes the
+    // first choice wins. Null on nominations from before it existed.
+    position: smallint("position"),
   },
   (table) => [index("nominations_night_id_idx").on(table.nightId)],
 );

@@ -546,6 +546,45 @@ button.
   rule above. A mistake comes back with a fixed `?detailsError=` message,
   what was typed through the form-echo cookie (§11.6).
 
+**Rulings for night deadlines (2026-11-21):**
+- **Stored on the night**, so a settings change never moves a night
+  already open or locked. How this club runs says so: "Changing these
+  never moves a night already under way."
+- **Voting closes** at `nights.lock_at`, written when voting opens:
+  `min(max(scheduled_at − lockTime, now + 6h), scheduled_at)`. At least 6
+  hours to vote unless the night comes first; never after the night
+  starts. Setting "Voting closes … before the night": 1, 3, 6, 12 hours,
+  1, 2 or 3 days; default 1 day.
+- **Logged unconfirmed** at `nights.unconfirm_at`, written at lock:
+  `max(confirmableAt ?? scheduled_at, locked_at) + autoAdvance`. Setting
+  "If nobody answers, log it as unconfirmed after …": 1 day, 2 days or 1
+  week; default 2 days; never "never". An unconfirmed night consumes the
+  turn but is never counted as watched (ruled 2026-11-19, CLAUDE.md).
+  `nights.unconfirmed_at` records when, kept through a late "yes".
+- **Absolute hours**: across a DST change, 23/25 or 47/49 on the clock.
+- **With no votes, the picker's first choice wins**: `nominations.position`,
+  the order the picker selected their films in, is lock's last tiebreak
+  before id. The nominate screen numbers the choices and says "If nobody
+  votes, your first choice wins."
+- **A picker who never opens voting** has their turn passed by the job
+  when voting would have closed (`scheduled_at − lockTime`), exactly as
+  Pass my turn does. Built with the job.
+- **Late confirmation**: only "Yes, we watched it", for 7 days after the
+  night became unconfirmed, while no later night has finished. A late
+  "No" is refused. Built later.
+- **The manual button stays** as "close now" for owners and admins.
+- Tonight: "Voting closes {day time}" on an open night; on a locked one,
+  "If nobody answers by {day time}, this week is logged as unconfirmed and
+  the turn moves on." A night from before the columns existed shows a
+  fallback computed from today's settings, for display only.
+- *Built (w1 + w2), 2026-11-21.* `lib/nightDeadlines.ts` (`lockAtFor`,
+  `unconfirmAtFor`, `autoPassAtFor`, `lateConfirmOpen`),
+  `lib/clubSettings.ts` (`getLockTime`, `getAutoAdvance`, validated in
+  `readClubSettingsForm`), `lib/nominationOrder.ts`; `openVoting` writes
+  `lock_at` and positions, `lockNightCore` writes `unconfirm_at`. Schema:
+  `nights.lock_at`, `unconfirm_at`, `unconfirmed_at`, `nominations.position`
+  (additive). Nothing acts on the deadlines yet: that's the job (w3).
+
 **Rulings for passing a turn (2026-11-17):**
 - **Pass my turn** is open to the picker while their night is a draft (no
   nominations; not once voting is open). **Owner and admin may pass a

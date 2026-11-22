@@ -148,3 +148,64 @@ describe("pickWinningNomination with departed members scoped out (2026-11-09)", 
     expect(pickWinningNomination({ nominations, votes, films, ...scoped })).toBe("n1");
   });
 });
+
+describe("the picker's order as the final tiebreak (ruled 2026-11-21)", () => {
+  const films = [film("film-a"), film("film-b"), film("film-c")];
+
+  it("when nobody votes, the picker's first choice wins, whatever the ids", () => {
+    const result = pickWinningNomination({
+      nominations: [
+        { id: "nom-a", filmId: "film-a", position: 3 },
+        { id: "nom-b", filmId: "film-b", position: 1 },
+        { id: "nom-c", filmId: "film-c", position: 2 },
+      ],
+      votes: [],
+      films,
+      constraints: [],
+      rsvps: [],
+    });
+    expect(result).toBe("nom-b");
+  });
+
+  it("breaks a tie that votes and soft conflicts leave, before id", () => {
+    const result = pickWinningNomination({
+      nominations: [
+        { id: "nom-a", filmId: "film-a", position: 2 },
+        { id: "nom-b", filmId: "film-b", position: 3 },
+        { id: "nom-c", filmId: "film-c", position: 1 },
+      ],
+      votes: [{ nominationId: "nom-a" }, { nominationId: "nom-b" }],
+      films,
+      constraints: [],
+      rsvps: [],
+    });
+    expect(result).toBe("nom-a");
+  });
+
+  it("nominations without a position (opened before it existed) come after those with one, then id", () => {
+    expect(
+      pickWinningNomination({
+        nominations: [
+          { id: "nom-a", filmId: "film-a", position: null },
+          { id: "nom-b", filmId: "film-b", position: 2 },
+        ],
+        votes: [],
+        films,
+        constraints: [],
+        rsvps: [],
+      }),
+    ).toBe("nom-b");
+    expect(
+      pickWinningNomination({
+        nominations: [
+          { id: "nom-b", filmId: "film-b", position: null },
+          { id: "nom-a", filmId: "film-a" },
+        ],
+        votes: [],
+        films,
+        constraints: [],
+        rsvps: [],
+      }),
+    ).toBe("nom-a");
+  });
+});

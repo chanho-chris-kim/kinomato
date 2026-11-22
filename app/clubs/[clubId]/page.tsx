@@ -13,7 +13,8 @@ import {
   rsvps,
   tags,
 } from "@/db/schema";
-import { getConfirmAt, getNomineesPerTurn } from "@/lib/clubSettings";
+import { getAutoAdvance, getConfirmAt, getLockTime, getNomineesPerTurn } from "@/lib/clubSettings";
+import { autoPassAtFor, unconfirmAtFor } from "@/lib/nightDeadlines";
 import { needsHelp } from "@/lib/nominationHelp";
 import { PREFERENCE_WARNING, preferenceWarnings } from "@/lib/preferenceWarnings";
 import { addToWatchlist } from "@/app/watchlist/actions";
@@ -22,6 +23,7 @@ import {
   findInFlightNight,
   findLatestWatchedNight,
   findLockedNight,
+  formatNightTime,
   getDraftToCreate,
 } from "@/lib/clubStatus";
 import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
@@ -312,6 +314,37 @@ export default async function ClubPage({
   // longer, "manual_only" doesn't wait for a schedule at all.
   const confirmAt = getConfirmAt(club.settings);
   const confirmableNight = findConfirmableNight(clubNights, confirmAt, club.timezone, new Date(now));
+
+  // The night's deadlines (ruled 2026-11-21), as stored on it. A night from
+  // before they were stored gets a fallback from today's settings, for
+  // display only: when voting closes by the setting, and when it would be
+  // logged unconfirmed.
+  const votingClosesLabel = openNight
+    ? formatNightTime(
+        openNight.lockAt ??
+          autoPassAtFor({ scheduledAt: openNight.scheduledAt, lockTimeHours: getLockTime(club.settings) }),
+        club.timezone,
+      )
+    : null;
+  const lockedInFlight = clubNights.find((n) => n.state === "locked") ?? null;
+  const unconfirmLabel = lockedInFlight
+    ? formatNightTime(
+        lockedInFlight.unconfirmAt ??
+          unconfirmAtFor({
+            confirmAt,
+            scheduledAt: lockedInFlight.scheduledAt,
+            timezone: club.timezone,
+            lockedAt: lockedInFlight.lockedAt ?? lockedInFlight.scheduledAt,
+            autoAdvanceHours: getAutoAdvance(club.settings),
+          }),
+        club.timezone,
+      )
+    : null;
+  const unconfirmNote = unconfirmLabel && (
+    <p className="tiny dim mt14 unconfirm-note">
+      If nobody answers by {unconfirmLabel}, this week is logged as unconfirmed and the turn moves on.
+    </p>
+  );
 
   let confirmableFilmTitle: string | null = null;
   if (confirmableNight?.winningFilmId) {
@@ -726,9 +759,12 @@ export default async function ClubPage({
       {rsvpableNight && (
         <>
           {openNight && (
-            <h2 className="h-display mt20" style={{ fontSize: 22 }}>
-              This week&apos;s pick, nominated by {pickerName}
-            </h2>
+            <>
+              <h2 className="h-display mt20" style={{ fontSize: 22 }}>
+                This week&apos;s pick, nominated by {pickerName}
+              </h2>
+              {votingClosesLabel && <p className="small muted mt-1 voting-closes">Voting closes {votingClosesLabel}</p>}
+            </>
           )}
 
           <h3 className="sec mt20">RSVP</h3>
@@ -817,6 +853,7 @@ export default async function ClubPage({
               </div>
             </div>
           </div>
+          {unconfirmNote}
         </>
       )}
 
@@ -844,6 +881,7 @@ export default async function ClubPage({
               </button>
             </form>
           </div>
+          {unconfirmNote}
         </>
       )}
 

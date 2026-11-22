@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import {
+  clubs,
   constraints,
   films,
   memberships,
@@ -9,34 +10,36 @@ import {
   nominations,
   rsvps,
 } from "@/db/schema";
+import { getAutoAdvance, getConfirmAt } from "@/lib/clubSettings";
 import { scopeToActiveMembers } from "@/lib/constraints";
 import { filterNomineesAtLock } from "@/lib/eligibility";
 import { pickWinningNomination } from "@/lib/lockTally";
+import { unconfirmAtFor } from "@/lib/nightDeadlines";
 import { votesForLock } from "./historyRead";
 
 // The actual lock work, split out from the "use server" action in
 // actions.ts so it has exactly one caller-independent entry point —
-// usable both from a request (the manual "Lock it in" button) and,
-// eventually, from a scheduled job with no cookie/request context at
-// all. Doesn't touch identity: locking has no attribution column
-// (unlike confirmNight's confirmed_by), so there's nothing here that
-// needs to know who — or what — triggered it.
+// usable both from a request (the manual "Close voting and set the pick"
+// button, owner or admin: "close now") and from the scheduled job, with
+// no cookie or request context at all. Doesn't touch identity: locking
+// has no attribution column (unlike confirmNight's confirmed_by), so
+// there's nothing here that needs to know who — or what — triggered it.
 //
-// SEAM for the scheduled lock job (CLAUDE.md's Stack section: Cloudflare
-// Cron Triggers replace Vercel Cron). Not built here — analysis-v1.md
-// §1.1 stage 8 says lock happens "24 hours before the night," but
-// nothing today reads a per-club offset for that ("the club's lock_time
-// setting" doesn't exist yet in clubs.settings, the same JSONB
-// getNomineesPerTurn reads from). Wiring it needs, in order:
-//   1. A `lockTime` (or similar) key added to clubs.settings, read the
-//      same defensive way lib/clubSettings.ts reads nomineesPerTurn.
-//   2. A Cloudflare Cron Trigger in wrangler.jsonc (e.g. every 15 min)
-//      and a `scheduled` handler exported alongside the Worker.
-//   3. That handler selects every night where state = 'open' and
-//      scheduled_at - lockTime <= now(), and calls lockNightCore(db,
-//      night.id) for each — the same function the button calls, so
-//      "locked by a person" and "locked by the clock" can never drift
-//      into two different code paths with two different bugs.
+// Stored deadlines (ruled 2026-11-21, lib/nightDeadlines.ts). When voting
+// opens, openVoting writes nights.lock_at: lockTime before the night, at
+// least 6 hours from opening, never after the night starts. Here, at lock,
+// nights.unconfirm_at is written: autoAdvance after the "did you watch
+// it?" prompt (or the night, or the lock if later). Both are read from
+// clubs.settings only at those two moments, so a settings change never
+// moves a night already under way. The hourly job (the next step, beside
+// the retention job in worker.ts) needs no settings or timezone math to
+// find what's due: open nights with lock_at <= now come here, the same
+// function the button calls, so "locked by a person" and "locked by the
+// clock" can never drift into two code paths; locked nights with
+// unconfirm_at <= now are logged unconfirmed; drafts still unopened when
+// voting would have closed have their turn passed. Every write waits on
+// the night's state, so the job and a person pressing the button at the
+// same moment can't both act.
 export async function lockNightCore(
   db: ReturnType<typeof getDb>,
   nightId: string,
@@ -46,7 +49,7 @@ export async function lockNightCore(
   if (night.state !== "open") return; // already locked (or never opened) — no-op
 
   const nightNominations = await db
-    .select({ id: nominations.id, filmId: nominations.filmId })
+    .select({ id: nominations.id, filmId: nominations.filmId, position: nominations.position })
     .from(nominations)
     .where(eq(nominations.nightId, nightId));
   if (nightNominations.length === 0) {
@@ -138,15 +141,29 @@ export async function lockNightCore(
   }
   const winningFilmId = kept.find((n) => n.id === winningNominationId)!.filmId;
 
+  // When a night nobody confirms is logged as unconfirmed, stored now from
+  // the club's settings as they are at lock (ruled 2026-11-21).
+  const [club] = await db
+    .select({ settings: clubs.settings, timezone: clubs.timezone })
+    .from(clubs)
+    .where(eq(clubs.id, night.clubId));
+  const unconfirmAt = unconfirmAtFor({
+    confirmAt: getConfirmAt(club?.settings),
+    scheduledAt: night.scheduledAt,
+    timezone: club.timezone,
+    lockedAt: now,
+    autoAdvanceHours: getAutoAdvance(club?.settings),
+  });
+
   // Conditional on state still being "open" — the whole race guard, same
-  // shape as confirmNight: if two members click "Lock it in" at nearly
+  // shape as confirmNight: if two people close voting at nearly
   // the same moment, whichever write lands second matches zero rows and
   // is silently a no-op rather than double-locking or throwing.
   const lock: BatchItem<"pg">[] = [
     ...markDropped,
     db
       .update(nights)
-      .set({ state: "locked", winningFilmId, lockedAt: now })
+      .set({ state: "locked", winningFilmId, lockedAt: now, unconfirmAt })
       .where(and(eq(nights.id, nightId), eq(nights.state, "open"))),
   ];
   await db.batch(lock as [BatchItem<"pg">, ...BatchItem<"pg">[]]);

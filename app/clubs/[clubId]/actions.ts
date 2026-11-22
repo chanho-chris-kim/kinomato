@@ -24,7 +24,9 @@ import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
-import { getAutoAdvance, getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
+import { getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
+import { lockAtFor } from "@/lib/nightDeadlines";
+import { orderNominations } from "@/lib/nominationOrder";
 import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
 import { canChangeRole, canRemove, canTransferOwnership, type Role, type RoleMember } from "@/lib/roles";
 import { planLeave } from "@/lib/clubLeave";
@@ -199,14 +201,23 @@ export async function openVoting(clubId: string, nightId: string, formData: Form
   // the same set Tonight's picker was offered.
   const userId = (await getSessionUserId())!;
   const ownedFilmIds = new Set((await nominatableFilms(db, clubId, userId)).films.map((f) => f.id));
-  const filmIds = requestedFilmIds.filter((id) => ownedFilmIds.has(id));
+  // In the order the picker chose them (ruled 2026-11-21): position 1 is
+  // their first choice, which wins if nobody votes.
+  const filmIds = orderNominations(
+    requestedFilmIds.filter((id) => ownedFilmIds.has(id)),
+    formData.getAll("filmOrder").map(String),
+  );
   if (filmIds.length === 0) {
     throw new Error("None of the selected films are on your watchlist.");
   }
 
+  // When voting closes, stored on the night (ruled 2026-11-21): lockTime
+  // before the night, but at least 6 hours from now, and never after the
+  // night starts. A later settings change never moves it.
+  const lockAt = lockAtFor({ scheduledAt: night.scheduledAt, now: new Date(), lockTimeHours: getLockTime(club?.settings) });
   await db.batch([
-    db.update(nights).set({ state: "open" }).where(eq(nights.id, nightId)),
-    ...filmIds.map((filmId) => db.insert(nominations).values({ nightId, filmId, membershipId })),
+    db.update(nights).set({ state: "open", lockAt }).where(eq(nights.id, nightId)),
+    ...filmIds.map((filmId, i) => db.insert(nominations).values({ nightId, filmId, membershipId, position: i + 1 })),
   ]);
 
   revalidatePath(`/clubs/${clubId}`);
@@ -519,21 +530,23 @@ export async function regenerateInvite(clubId: string, inviteId: string) {
 // Owner or admin, equal powers. Changes apply from the next time they
 // matter and never rewrite a night in flight: nominees per turn is read
 // when the picker next opens voting; the confirm timing applies to
-// whichever night is next confirmable. Validated at write time
+// whichever night is next confirmable; the two deadlines (when voting
+// closes, when a night nobody confirms is logged) are written onto a night
+// when it opens and when it locks, so a change never moves one under way. Validated at write time
 // (lib/clubSettings.ts readClubSettingsForm); a mistake goes back with a
 // fixed ?settingsError= message.
 const settingsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${query}#club-settings`;
 
 export async function updateClubSettings(clubId: string, formData: FormData) {
   const { db } = await requireOwnerOrAdmin(clubId, "change how the club runs");
-  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
   const result = readClubSettingsForm({
     nomineesPerTurn: formData.get("nomineesPerTurn"),
     confirmAt: formData.get("confirmAt"),
-    lockTime: String(getLockTime(club?.settings)),
-    autoAdvance: String(getAutoAdvance(club?.settings)),
+    lockTime: formData.get("lockTime"),
+    autoAdvance: formData.get("autoAdvance"),
   });
   if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ settingsError: result.error })}`));
+  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
   await db
     .update(clubs)
     .set({ settings: mergeClubSettings(club?.settings, result.settings) })

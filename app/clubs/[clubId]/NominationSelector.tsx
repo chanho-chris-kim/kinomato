@@ -47,11 +47,20 @@ export function NominationSelector({ films, cap }: { films: NominableFilm[]; cap
                   onChange={() => toggle(film.id)}
                 />
                 {film.title} ({film.year})
+                {checked && selected.length > 1 && (
+                  <span className="tiny dim choice-rank"> · {ordinal(selected.indexOf(film.id) + 1)} choice</span>
+                )}
               </label>
             </li>
           );
         })}
       </ul>
+      {/* The order picked in (ruled 2026-11-21): with no votes, the first
+          choice wins. Without script the form's order stands. */}
+      {selected.map((id) => (
+        <input key={id} type="hidden" name="filmOrder" value={id} />
+      ))}
+      {cap > 1 && <p className="tiny dim mt8">If nobody votes, your first choice wins.</p>}
       <button
         type="submit"
         disabled={selected.length === 0}
@@ -61,4 +70,8 @@ export function NominationSelector({ films, cap }: { films: NominableFilm[]; cap
       </button>
     </div>
   );
+}
+
+function ordinal(n: number): string {
+  return ["1st", "2nd", "3rd", "4th", "5th"][n - 1] ?? `${n}th`;
 }
