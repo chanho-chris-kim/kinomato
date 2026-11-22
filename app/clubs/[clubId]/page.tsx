@@ -14,7 +14,7 @@ import {
   tags,
 } from "@/db/schema";
 import { getAutoAdvance, getConfirmAt, getLockTime, getNomineesPerTurn } from "@/lib/clubSettings";
-import { autoPassAtFor, unconfirmAtFor } from "@/lib/nightDeadlines";
+import { effectiveLockAt, effectiveUnconfirmAt } from "@/lib/nightDeadlines";
 import { needsHelp } from "@/lib/nominationHelp";
 import { PREFERENCE_WARNING, preferenceWarnings } from "@/lib/preferenceWarnings";
 import { addToWatchlist } from "@/app/watchlist/actions";
@@ -319,24 +319,22 @@ export default async function ClubPage({
   // before they were stored gets a fallback from today's settings, for
   // display only: when voting closes by the setting, and when it would be
   // logged unconfirmed.
+  // The same rules the hourly job acts on (lib/nightDeadlines.ts).
   const votingClosesLabel = openNight
     ? formatNightTime(
-        openNight.lockAt ??
-          autoPassAtFor({ scheduledAt: openNight.scheduledAt, lockTimeHours: getLockTime(club.settings) }),
+        effectiveLockAt({ ...openNight, lockTimeHours: getLockTime(club.settings) }),
         club.timezone,
       )
     : null;
   const lockedInFlight = clubNights.find((n) => n.state === "locked") ?? null;
   const unconfirmLabel = lockedInFlight
     ? formatNightTime(
-        lockedInFlight.unconfirmAt ??
-          unconfirmAtFor({
-            confirmAt,
-            scheduledAt: lockedInFlight.scheduledAt,
-            timezone: club.timezone,
-            lockedAt: lockedInFlight.lockedAt ?? lockedInFlight.scheduledAt,
-            autoAdvanceHours: getAutoAdvance(club.settings),
-          }),
+        effectiveUnconfirmAt({
+          ...lockedInFlight,
+          confirmAt,
+          timezone: club.timezone,
+          autoAdvanceHours: getAutoAdvance(club.settings),
+        }),
         club.timezone,
       )
     : null;

@@ -10,11 +10,14 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // The daily retention job (docs/onboarding-spec.md §11.6): 10:00 UTC,
-  // night in Vancouver. Runs worker.ts's scheduled handler; no route
-  // reaches it.
+  // Two Cron Triggers (the Free plan allows 5 per account), each run by
+  // worker.ts's scheduled handler and told apart by its cron string
+  // (app/scheduledJobs.ts, keep them in step); no route reaches either.
+  // "0 10 * * *": the daily retention job (docs/onboarding-spec.md §11.6),
+  // 10:00 UTC, night in Vancouver. "0 * * * *": the hourly weekly loop
+  // (app/weeklyLoop.ts): locks, unconfirmed nights, unopened drafts.
   "triggers": {
-    "crons": ["0 10 * * *"]
+    "crons": ["0 10 * * *", "0 * * * *"]
   },
   "services": [
     {

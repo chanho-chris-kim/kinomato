@@ -68,9 +68,15 @@ another month over the thing that picks a film faster.
   scheduled jobs. **The Worker's entry is `worker.ts`, not
   `.open-next/worker.js`:** it re-exports OpenNext's generated `fetch`
   and adds `scheduled` (OpenNext's custom-worker pattern), which runs the
-  daily retention job. Wrangler bundles `worker.ts`'s imports outside
-  Next's bundle, so anything it imports is a second copy: keep that
-  import graph small.
+  two Cron Triggers' jobs (`app/scheduledJobs.ts`: the daily retention job
+  and the hourly weekly loop). Wrangler bundles `worker.ts`'s imports
+  outside Next's bundle, so anything it imports is a second copy: keep that
+  import graph small, and **never let it reach Next.js or React**
+  (`lib/scheduledGraph.test.ts` walks it and fails naming the chain).
+  Inside `scheduled`, `process.env` carries the Worker's vars and secrets
+  (`nodejs_compat` with a compatibility date after 2025-04-01; checked
+  under ours with `wrangler dev --test-scheduled`, 2026-11-21);
+  `DATABASE_URL` is still passed explicitly from the run's `env`.
 - **`next/image` works on this deployment without an `env.IMAGES`
   binding — verified, not assumed.** Confirmed by building with
   `opennextjs-cloudflare build`, running the real bundle under `wrangler
@@ -149,15 +155,11 @@ The purpose of v0 is to find out which rulings below are wrong.
 The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
 are the launch foundations' build steps (§11).
 
-**Next: weekly-loop automation, then email reminders.** The night
-deadlines are stored and shown (w1 + w2, 2026-11-21: see "Night deadlines"
-below). Next is the hourly job that acts on them (w3): it locks voting
-at `lock_at`, logs nights nobody confirmed as `unconfirmed` at
-`unconfirm_at` (nothing writes that state yet, so one unanswered prompt
-still holds a club's night in flight forever), and passes the turn of a
-picker who never opened voting. Then late confirmation, then reminders by
-email within the two-pushes-a-week cap. All on the Cron Trigger beside
-retention (`worker.ts`).
+**Next: late confirmation, then email reminders.** The night deadlines are
+stored and shown (w1 + w2) and acted on by the hourly weekly loop (w3 +
+w5, 2026-11-21: see "Night deadlines" below). Next is the late "Yes, we
+watched it" on an unconfirmed night (`lateConfirmOpen`), then reminders by
+email within the two-pushes-a-week cap, on the same hourly trigger.
 
 ## Rulings that are load-bearing
 
@@ -192,11 +194,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   filter and the pick does not change. A lock people can't trust is worthless.
   Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
   writes the winner to `winning_film_id` — two entry points, one shared core
-  (`lockNightCore`): a manual "Close voting and set the pick" button, and a
-  not-yet-built scheduled job that locks at the night's stored `lock_at`
-  (see "Night deadlines" below; `lockNightCore.ts`'s comment describes the
-  design). **The button stays as "close now" for owners and admins**
-  (ruled 2026-11-21), once the job exists too.
+  (`lockNightCore`): a manual "Close voting and set the pick" button, and
+  the hourly weekly loop, which locks at the night's stored `lock_at` (see
+  "Night deadlines" below). **The button stays as "close now" for owners
+  and admins** (ruled 2026-11-21).
   **The button is restricted to owner/admin**, not any club member — this
   overrides an earlier ruling here that any member could lock. Reasoning for
   the change: the button only exists because the cron doesn't yet — it's
@@ -320,7 +321,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   - **A picker who never opens voting:** if a night is still a draft at
     `scheduled_at − lockTime` (when voting would have closed), the job
     passes their turn exactly as Pass my turn does (p1's postponement,
-    "Passed this turn"). Built with the job (w3).
+    "Passed this turn"), through the same request-free core
+    (`app/clubs/[clubId]/passTurnCore.ts` `passDraftCore`, which
+    `passMyTurn` and `passTurnFor` call too).
   - **Late confirmation:** only "Yes, we watched it", for 7 days after a
     night becomes unconfirmed, and only while no later night has
     finished; a late "No" is refused (letting it un-consume the turn would
@@ -328,7 +331,48 @@ Do not quietly change these — they encode decisions that took a while to reach
   - Tonight shows "Voting closes {day time}" on an open night and, on a
     locked one, "If nobody answers by {day time}, this week is logged as
     unconfirmed and the turn moves on." Nights from before the columns
-    existed get a display-only fallback from today's settings.
+    existed get a fallback from today's settings (`effectiveLockAt`,
+    `effectiveUnconfirmAt`), the same one the job acts on.
+  - **The hourly weekly loop (built w3 + w5, 2026-11-21,
+    `app/weeklyLoop.ts` `runWeeklyLoop`).** Cron Trigger `0 * * * *`
+    beside retention's `0 10 * * *` (the Free plan allows 5 per account),
+    dispatched by `controller.cron` (`app/scheduledJobs.ts`). Each run, for
+    every club's night in flight, **paused clubs included** (pausing never
+    ends the night in flight): (a) open nights past `lock_at` →
+    `lockNightCore`, **at most 5 a run**, oldest deadline first, the rest
+    an hour later; (b) locked nights past `unconfirm_at`, with the prompt
+    showing under current settings → `unconfirmed`, `unconfirmed_at` =
+    `confirmed_at` = now, `confirmed_by` NULL (the clock did it), written
+    `WHERE state = 'locked'`; (c) drafts at or past `scheduled_at −
+    lockTime` → `passDraftCore`. Due-ness is `lib/nightDeadlines.ts`
+    (`dueToLock`, `dueToUnconfirm`, `dueToAutoPass`). **Every write waits
+    on the night's state**, so a person pressing the same button in the
+    same instant leaves one result and the other side a no-op, and a
+    second run changes nothing. Each night is tried on its own; failures
+    are collected and thrown at the end, so the run shows as failed. One
+    log line, `[weekly-loop] {"locked":n,"unconfirmed":n,"passed":n,"failed":n}`,
+    plus one line per failed night with its id and what failed, never a
+    name, email or row data. Tested by calling the job directly with a
+    chosen `now` and `clubIds` (`e2e/weekly-loop.spec.ts`); production
+    never passes `clubIds`.
+  - **Ops alert (w5).** A failed run of either job emails `SUPPORT_EMAIL`
+    (`lib/email.ts` `sendOpsAlert`, fails loud if unset): the job, the time
+    and the run's counts only, never an error message or row data, and
+    "See Workers Logs". Then the run still fails. **Where to look:**
+    Workers & Pages → kinomato → Settings → Trigger events (both
+    schedules, and the Cron Events list of each run's outcome), and Logs
+    (the `[weekly-loop]`/`[retention]` lines, each run's `cpuTime`).
+  - **CPU on the Free plan: 10 ms per Cron run.** An idle run is one
+    query. A lock is about ten queries plus a batch; on Workers a
+    subrequest's network time isn't CPU, so the cost is query building
+    and JSON, estimated at 1–2 ms a lock and well under 1 ms per
+    unconfirm or pass. That puts a five-lock run near the limit, which is
+    why the cap is 5. **Unmeasured on Workers:** Node measured 179 ms for
+    five locks, inflated by its own TLS and HTTP-client work that Workers
+    doesn't bill as CPU. Read `cpuTime` on the first runs in Logs; if a
+    run exceeds 10 ms, lower `LOCKS_PER_RUN` or move to Workers Paid (30 s
+    a run). Every write is conditional, so a run cut short is safe to
+    repeat.
 - **Constraints: hard vs soft.** Hard limits are never overridden and never voted
   on, capped at two per person. Soft preferences warn and break ties, never block.
   Scoping is asymmetric: a hard limit applies to everyone who has **not
@@ -551,10 +595,14 @@ Do not quietly change these — they encode decisions that took a while to reach
     (`app/consent.ts` `discardNewAccount`); on `/consent` it runs §11.4's
     anonymisation (`app/anonymise.ts`), the module (f) reuses.
   - **Retention (§11.6, built (h)).** A Cron Trigger, `0 10 * * *`,
-    runs `worker.ts`'s `scheduled` handler → `app/retentionCleanup.ts`
-    (one batch; cutoffs in `lib/retention.ts`; guarded tables through
-    their owners). Never reachable over HTTP. One `[retention]` log line
-    of counts per run; failures throw.
+    runs `worker.ts`'s `scheduled` handler → `app/scheduledJobs.ts` →
+    `app/retentionCleanup.ts` (one batch; cutoffs in `lib/retention.ts`;
+    guarded tables through their owners). Never reachable over HTTP. One
+    `[retention]` log line of counts per run; failures throw, after the
+    ops alert (see "Night deadlines"). Its graph is free of Next.js since
+    2026-11-21: `confirmEmailChange` takes ending the other sessions as a
+    callback from its action, so `app/emailChange.ts` no longer imports
+    `app/session.ts` (cookies).
   - **Delete account (§11.4, built (f)).** `app/accountDeletion.ts`, the
     only code touching `account_deletion_requests`
     (`lib/accountDeletionAccess.test.ts`); `lib/accountDeletion.ts`'s

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { requireSignedInIgnoringConsent, requireUser } from "@/app/auth";
-import { clearSessionCookie, endAllSessions, endSession } from "@/app/session";
+import { clearSessionCookie, endAllSessions, endOtherSessions, endSession } from "@/app/session";
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
 import { optInToLicensing, withdrawFromLicensing } from "@/app/consent";
 import { cancelAccountDeletion, confirmAccountDeletion, requestAccountDeletion } from "@/app/accountDeletion";
@@ -65,7 +65,10 @@ export async function requestEmailChangeAction(formData: FormData) {
 
 export async function confirmEmailChangeAction(formData: FormData) {
   const user = await requireUser("/settings");
-  const result = await confirmEmailChange(getDb(), user, String(formData.get("code") ?? ""), new Date());
+  const db = getDb();
+  const result = await confirmEmailChange(db, user, String(formData.get("code") ?? ""), new Date(), () =>
+    endOtherSessions(db, user.id),
+  );
   if (result.ok) revalidatePath("/", "layout");
   redirect(result.ok ? "/settings?emailChange=changed" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
 }

@@ -1,7 +1,6 @@
 import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { emailChanges, magicLinks, users } from "@/db/schema";
-import { endOtherSessions } from "@/app/session";
 import { checkSendAllowed, codeMatches, generateSignInCode, getAuthSecret, hashCode, CODE_MAX_ATTEMPTS } from "@/lib/authCredentials";
 import { getSupportEmail, sendEmailChangeCode, sendEmailChangedNotice, sendEmailTakenNotice } from "@/lib/email";
 import { maskEmail, normaliseEmail } from "@/lib/emailAddress";
@@ -106,8 +105,18 @@ export async function requestEmailChange(db: Db, user: User, rawNewEmail: string
 }
 
 // Enter the code: the change applies, every other session ends (this one
-// stays), and the old address is told, with the new one masked.
-export async function confirmEmailChange(db: Db, user: User, rawCode: string, now: Date): Promise<EmailChangeResult> {
+// stays), and the old address is told, with the new one masked. Ending the
+// other sessions needs this browser's cookie, so the caller passes it in
+// (app/session.ts endOtherSessions): this module stays free of request
+// context, because the retention job, which worker.ts bundles without
+// Next.js, reaches it through deleteExpiredEmailChanges.
+export async function confirmEmailChange(
+  db: Db,
+  user: User,
+  rawCode: string,
+  now: Date,
+  endOtherSessions: () => Promise<void>,
+): Promise<EmailChangeResult> {
   getSupportEmail(); // fail loud before the change, never after it
   const row = await newestOpen(db, user.id);
   if (!row) return { ok: false, error: "There's no change waiting. Ask for a new code." };
@@ -149,7 +158,7 @@ export async function confirmEmailChange(db: Db, user: User, rawCode: string, no
     }
     throw error;
   }
-  await endOtherSessions(db, user.id);
+  await endOtherSessions();
   await sendEmailChangedNotice(user.email, maskEmail(row.newEmail));
   return { ok: true };
 }
