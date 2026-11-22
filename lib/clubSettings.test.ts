@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { getConfirmAt, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "./clubSettings";
+import {
+  AUTO_ADVANCE_HOURS,
+  getAutoAdvance,
+  getConfirmAt,
+  getLockTime,
+  getNomineesPerTurn,
+  LOCK_TIME_HOURS,
+  mergeClubSettings,
+  readClubSettingsForm,
+} from "./clubSettings";
 
 describe("getNomineesPerTurn", () => {
   it("defaults to 3 when settings is empty", () => {
@@ -73,22 +82,30 @@ describe("getConfirmAt", () => {
   });
 });
 
+const form = (o: Partial<Record<"nomineesPerTurn" | "confirmAt" | "lockTime" | "autoAdvance", unknown>>) => ({
+  nomineesPerTurn: "3",
+  confirmAt: "morning_after",
+  lockTime: "24",
+  autoAdvance: "48",
+  ...o,
+});
+
 describe("readClubSettingsForm (write side: validated at settings-write time)", () => {
   it("accepts 1–5 films and the three implemented confirm timings", () => {
-    expect(readClubSettingsForm({ nomineesPerTurn: "1", confirmAt: "same_night" })).toEqual({
+    expect(readClubSettingsForm(form({ nomineesPerTurn: "1", confirmAt: "same_night" }))).toEqual({
       ok: true,
-      settings: { nomineesPerTurn: 1, confirmAt: "same_night" },
+      settings: { nomineesPerTurn: 1, confirmAt: "same_night", lockTime: 24, autoAdvance: 48 },
     });
-    expect(readClubSettingsForm({ nomineesPerTurn: "5", confirmAt: "manual_only" })).toEqual({
+    expect(readClubSettingsForm(form({ nomineesPerTurn: "5", confirmAt: "manual_only" }))).toEqual({
       ok: true,
-      settings: { nomineesPerTurn: 5, confirmAt: "manual_only" },
+      settings: { nomineesPerTurn: 5, confirmAt: "manual_only", lockTime: 24, autoAdvance: 48 },
     });
-    expect(readClubSettingsForm({ nomineesPerTurn: " 3 ", confirmAt: "morning_after" })).toMatchObject({ ok: true });
+    expect(readClubSettingsForm(form({ nomineesPerTurn: " 3 ", confirmAt: "morning_after" }))).toMatchObject({ ok: true });
   });
 
   it("rejects anything else for films per turn, with a clear message", () => {
     for (const bad of ["0", "6", "2.5", "three", "", "-1", "1e1", null, undefined]) {
-      expect(readClubSettingsForm({ nomineesPerTurn: bad, confirmAt: "same_night" }), String(bad)).toEqual({
+      expect(readClubSettingsForm(form({ nomineesPerTurn: bad, confirmAt: "same_night" })), String(bad)).toEqual({
         ok: false,
         error: "Films each picker nominates must be a whole number from 1 to 5.",
       });
@@ -97,7 +114,7 @@ describe("readClubSettingsForm (write side: validated at settings-write time)", 
 
   it("rejects an unimplemented or unknown confirm timing rather than storing it", () => {
     for (const bad of ["2_days", "off", "", "MORNING_AFTER", null]) {
-      expect(readClubSettingsForm({ nomineesPerTurn: "3", confirmAt: bad }), String(bad)).toEqual({
+      expect(readClubSettingsForm(form({ nomineesPerTurn: "3", confirmAt: bad })), String(bad)).toEqual({
         ok: false,
         error: "Pick when to ask whether you watched it.",
       });
@@ -105,23 +122,75 @@ describe("readClubSettingsForm (write side: validated at settings-write time)", 
   });
 
   it("what it accepts reads back unchanged through the read side", () => {
-    const written = readClubSettingsForm({ nomineesPerTurn: "2", confirmAt: "manual_only" });
+    const written = readClubSettingsForm(form({ nomineesPerTurn: "2", confirmAt: "manual_only", lockTime: "3", autoAdvance: "168" }));
     if (!written.ok) throw new Error("expected ok");
     expect(getNomineesPerTurn(written.settings)).toBe(2);
     expect(getConfirmAt(written.settings)).toBe("manual_only");
+    expect(getLockTime(written.settings)).toBe(3);
+    expect(getAutoAdvance(written.settings)).toBe(168);
+  });
+
+  it("voting closes 1, 3, 6, 12, 24, 48 or 72 hours before the night; nothing else", () => {
+    for (const ok of ["1", "3", "6", "12", "24", "48", "72"]) {
+      expect(readClubSettingsForm(form({ lockTime: ok })), ok).toMatchObject({ ok: true, settings: { lockTime: Number(ok) } });
+    }
+    for (const bad of ["0", "2", "36", "96", "24.0", " ", "", "a day", null, undefined]) {
+      expect(readClubSettingsForm(form({ lockTime: bad })), String(bad)).toEqual({ ok: false, error: "Pick when voting closes." });
+    }
+  });
+
+  it("unconfirmed after 24, 48 or 168 hours; never \"never\"", () => {
+    for (const ok of ["24", "48", "168"]) {
+      expect(readClubSettingsForm(form({ autoAdvance: ok })), ok).toMatchObject({ ok: true, settings: { autoAdvance: Number(ok) } });
+    }
+    for (const bad of ["0", "never", "off", "72", "", null, undefined]) {
+      expect(readClubSettingsForm(form({ autoAdvance: bad })), String(bad)).toEqual({
+        ok: false,
+        error: "Pick when to log a night nobody confirmed.",
+      });
+    }
+  });
+});
+
+describe("getLockTime and getAutoAdvance (stored as hours)", () => {
+  it("the allowed values", () => {
+    expect(LOCK_TIME_HOURS).toEqual([1, 3, 6, 12, 24, 48, 72]);
+    expect(AUTO_ADVANCE_HOURS).toEqual([24, 48, 168]);
+  });
+
+  it("default to 24 and 48 for a club that never set them", () => {
+    expect(getLockTime({})).toBe(24);
+    expect(getAutoAdvance({})).toBe(48);
+    for (const bad of [null, undefined, "x", 5, []]) {
+      expect(getLockTime(bad)).toBe(24);
+      expect(getAutoAdvance(bad)).toBe(48);
+    }
+  });
+
+  it("read a stored value, and fall back on anything not on the list", () => {
+    expect(getLockTime({ lockTime: 72 })).toBe(72);
+    expect(getAutoAdvance({ autoAdvance: 168 })).toBe(168);
+    for (const bad of [0, 2, 25, "24", 24.5, null, -1]) {
+      expect(getLockTime({ lockTime: bad }), String(bad)).toBe(24);
+      expect(getAutoAdvance({ autoAdvance: bad }), String(bad)).toBe(48);
+    }
   });
 });
 
 describe("mergeClubSettings", () => {
   it("replaces only the keys it writes and keeps any others", () => {
-    expect(mergeClubSettings({ lockTime: 24, nomineesPerTurn: 3 }, { nomineesPerTurn: 2, confirmAt: "same_night" })).toEqual({
-      lockTime: 24,
+    expect(mergeClubSettings({ scheduleAnchor: "2026-01-10", nomineesPerTurn: 3 }, { nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 6, autoAdvance: 24 })).toEqual({
+      scheduleAnchor: "2026-01-10",
       nomineesPerTurn: 2,
       confirmAt: "same_night",
+      lockTime: 6,
+      autoAdvance: 24,
     });
-    expect(mergeClubSettings(null, { nomineesPerTurn: 4, confirmAt: "morning_after" })).toEqual({
+    expect(mergeClubSettings(null, { nomineesPerTurn: 4, confirmAt: "morning_after", lockTime: 24, autoAdvance: 48 })).toEqual({
       nomineesPerTurn: 4,
       confirmAt: "morning_after",
+      lockTime: 24,
+      autoAdvance: 48,
     });
   });
 });

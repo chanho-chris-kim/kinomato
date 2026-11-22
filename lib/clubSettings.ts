@@ -53,11 +53,45 @@ export function getConfirmAt(settings: unknown): ConfirmAt {
   return DEFAULT_CONFIRM_AT;
 }
 
+// Night deadlines (ruled 2026-11-21, lib/nightDeadlines.ts), stored as
+// hours. lockTime: how long before the night voting closes. autoAdvance:
+// how long after the "did you watch it?" prompt a night nobody answered is
+// logged as unconfirmed. Never "never" (CLAUDE.md: a club stalled forever
+// on one picker is a dead club). Read when they're written onto a night,
+// so a change never moves a night already under way.
+export const LOCK_TIME_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
+export const AUTO_ADVANCE_HOURS = [24, 48, 168] as const;
+const DEFAULT_LOCK_TIME = 24;
+const DEFAULT_AUTO_ADVANCE = 48;
+
+function readHours(settings: unknown, key: string, allowed: readonly number[], fallback: number): number {
+  if (typeof settings !== "object" || settings === null) return fallback;
+  const value = (settings as Record<string, unknown>)[key];
+  return typeof value === "number" && allowed.includes(value) ? value : fallback;
+}
+
+export function getLockTime(settings: unknown): number {
+  return readHours(settings, "lockTime", LOCK_TIME_HOURS, DEFAULT_LOCK_TIME);
+}
+
+export function getAutoAdvance(settings: unknown): number {
+  return readHours(settings, "autoAdvance", AUTO_ADVANCE_HOURS, DEFAULT_AUTO_ADVANCE);
+}
+
 // ---- Write side ("How this club runs", docs/onboarding-spec.md §5.10) ----
 
 export interface WritableClubSettings {
   nomineesPerTurn: number;
   confirmAt: ConfirmAt;
+  lockTime: number;
+  autoAdvance: number;
+}
+
+// A form value that must be one of `allowed`, as whole digits.
+function formHours(value: unknown, allowed: readonly number[]): number | null {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const hours = Number(value);
+  return allowed.includes(hours) ? hours : null;
 }
 
 // The form's raw values, validated at write time: anything the readers
@@ -66,6 +100,8 @@ export interface WritableClubSettings {
 export function readClubSettingsForm(fields: {
   nomineesPerTurn: unknown;
   confirmAt: unknown;
+  lockTime: unknown;
+  autoAdvance: unknown;
 }): { ok: true; settings: WritableClubSettings } | { ok: false; error: string } {
   const raw = typeof fields.nomineesPerTurn === "string" ? fields.nomineesPerTurn.trim() : "";
   const nominees = /^\d+$/.test(raw) ? Number(raw) : NaN;
@@ -76,7 +112,11 @@ export function readClubSettingsForm(fields: {
   if (typeof confirmAt !== "string" || !IMPLEMENTED_CONFIRM_AT.includes(confirmAt as ConfirmAt)) {
     return { ok: false, error: "Pick when to ask whether you watched it." };
   }
-  return { ok: true, settings: { nomineesPerTurn: nominees, confirmAt: confirmAt as ConfirmAt } };
+  const lockTime = formHours(fields.lockTime, LOCK_TIME_HOURS);
+  if (lockTime === null) return { ok: false, error: "Pick when voting closes." };
+  const autoAdvance = formHours(fields.autoAdvance, AUTO_ADVANCE_HOURS);
+  if (autoAdvance === null) return { ok: false, error: "Pick when to log a night nobody confirmed." };
+  return { ok: true, settings: { nomineesPerTurn: nominees, confirmAt: confirmAt as ConfirmAt, lockTime, autoAdvance } };
 }
 
 // The stored settings with these keys replaced and every other key kept

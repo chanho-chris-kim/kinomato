@@ -24,7 +24,7 @@ import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateMemberName } from "@/lib/memberName";
-import { getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
+import { getAutoAdvance, getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
 import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
 import { canChangeRole, canRemove, canTransferOwnership, type Role, type RoleMember } from "@/lib/roles";
 import { planLeave } from "@/lib/clubLeave";
@@ -526,12 +526,14 @@ const settingsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${q
 
 export async function updateClubSettings(clubId: string, formData: FormData) {
   const { db } = await requireOwnerOrAdmin(clubId, "change how the club runs");
+  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
   const result = readClubSettingsForm({
     nomineesPerTurn: formData.get("nomineesPerTurn"),
     confirmAt: formData.get("confirmAt"),
+    lockTime: String(getLockTime(club?.settings)),
+    autoAdvance: String(getAutoAdvance(club?.settings)),
   });
   if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ settingsError: result.error })}`));
-  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
   await db
     .update(clubs)
     .set({ settings: mergeClubSettings(club?.settings, result.settings) })
