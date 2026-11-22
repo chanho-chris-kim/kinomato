@@ -584,6 +584,21 @@ button.
   `lock_at` and positions, `lockNightCore` writes `unconfirm_at`. Schema:
   `nights.lock_at`, `unconfirm_at`, `unconfirmed_at`, `nominations.position`
   (additive). Nothing acts on the deadlines yet: that's the job (w3).
+- **The job, ruled 2026-11-21:** hourly; locks at `lock_at` (at most 5 a
+  run), logs unconfirmed at `unconfirm_at` once the prompt is showing,
+  passes a draft at `scheduled_at − lockTime` exactly as Pass my turn
+  does. Paused clubs still resolve the night in flight. Every write is
+  conditional on the night's state, so a person's click in the same
+  instant makes one side a no-op. A failed run emails `SUPPORT_EMAIL` the
+  job, the time and the counts, and nothing else.
+- *Built (w3 + w5), 2026-11-21.* `app/weeklyLoop.ts` `runWeeklyLoop`,
+  `app/scheduledJobs.ts` (dispatch by cron string, `withOpsAlert`),
+  `app/clubs/[clubId]/passTurnCore.ts` (`passDraftCore`, shared with Pass
+  my turn), `lib/nightDeadlines.ts` (`dueToLock`, `dueToUnconfirm`,
+  `dueToAutoPass`, `effectiveLockAt`, `effectiveUnconfirmAt`),
+  `lib/email.ts` `sendOpsAlert`. Trigger `0 * * * *` in `wrangler.jsonc`
+  beside retention's. CLAUDE.md's "Night deadlines" has the details, where
+  to see runs, and the CPU note.
 
 **Rulings for passing a turn (2026-11-17):**
 - **Pass my turn** is open to the picker while their night is a draft (no
@@ -1701,7 +1716,9 @@ off the Terms and Privacy text.**
   `wrangler.jsonc`. It calls the `scheduled` handler in `worker.ts`, the
   Worker's entry, which wraps OpenNext's generated `.open-next/worker.js`
   (OpenNext's documented custom-worker pattern) and runs
-  `app/retentionCleanup.ts`: one `db.batch`, the cutoffs from
+  `app/retentionCleanup.ts` (through `app/scheduledJobs.ts` since
+  2026-11-21, which also runs the hourly weekly loop and emails an ops
+  alert on a failed run): one `db.batch`, the cutoffs from
   `lib/retention.ts`, the guarded tables deleted through their owners
   (`deleteExpiredEmailChanges`, `deleteExpiredDeletionRequests`). No route
   reaches it. Each run logs one line, `[retention] {…counts…}`, and

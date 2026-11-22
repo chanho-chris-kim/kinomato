@@ -38,6 +38,7 @@ import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
 import { getOrCreateCurrentSeasonId } from "./season";
+import { passDraftCore } from "./passTurnCore";
 
 // Identity is the session's user, through their membership in this club
 // (./identity.ts). Nothing here trusts a client-supplied membership id —
@@ -936,15 +937,9 @@ async function passDraft(db: ReturnType<typeof getDb>, clubId: string, pickerMem
   if (!draft) {
     redirect(tonightUrl(clubId, `?${new URLSearchParams({ passError: "That turn can't be passed now." })}`));
   }
-  const stillEmptyDraft = sql`exists (select 1 from ${nights} where ${nights.id} = ${draft.id} and ${nights.state} = 'draft' and not exists (select 1 from ${nominations} where ${nominations.nightId} = ${draft.id}))`;
-  await db.batch([
-    db
-      .update(memberships)
-      .set({ postponedAt: draft.scheduledAt })
-      .where(and(eq(memberships.id, pickerMembershipId), stillEmptyDraft)),
-    db.delete(rsvps).where(and(eq(rsvps.nightId, draft.id), stillEmptyDraft)),
-    db.delete(nights).where(and(eq(nights.id, draft.id), stillEmptyDraft)),
-  ]);
+  // The work itself has no request context (passTurnCore.ts): the
+  // scheduled job passes a picker who never opened voting the same way.
+  await passDraftCore(db, draft);
   revalidatePath("/", "layout");
   redirect(tonightUrl(clubId, "?passed=1"));
 }

@@ -1,6 +1,10 @@
 // Email via Brevo's transactional API (docs/onboarding-spec.md §4, §5.9):
-// the sign-in code and link, the email-change code and notices, and the
-// account-deletion code and receipt (§11.4).
+// the sign-in code and link, the email-change code and notices, the
+// account-deletion code and receipt (§11.4), and the ops alert when a
+// scheduled job fails. worker.ts bundles this file for that alert, so it
+// imports nothing from Next.js. Inside the Worker's scheduled handler,
+// process.env carries the Worker's vars and secrets (nodejs_compat with a
+// compatibility date after 2025-04-01; checked under ours on 2026-11-21).
 // Mirrors lib/tmdb.ts's fallback shape: BREVO_API_KEY unset (always true in
 // E2E/CI, on purpose) means no real send and no network access. Codes are
 // stored only as hashes, so E2E never reads them back from here either: it
@@ -16,6 +20,7 @@ const SENDER = { email: "hello@kinomato.com", name: "Kinomato" };
 interface Message {
   kind:
     | "sign-in"
+    | "ops-alert"
     | "invite-only"
     | "email-change-code"
     | "email-taken-notice"
@@ -28,19 +33,48 @@ interface Message {
   replyTo?: string;
 }
 
-// Where the old address's "if this wasn't you, reply" goes. Unknown
-// configuration fails loud (CLAUDE.md): that notice is never sent without
-// somewhere for the reply to land.
+// Where the old address's "if this wasn't you, reply" goes, and where an
+// ops alert is sent. Unknown configuration fails loud (CLAUDE.md): neither
+// is ever sent without it.
 export function getSupportEmail(): string {
   const address = process.env.SUPPORT_EMAIL;
   if (!address) {
     throw new Error(
       "SUPPORT_EMAIL is not set. The email-change notice to the old address asks for a " +
-        "reply if the change wasn't theirs, and needs a Reply-To to send it to. Set it as a " +
-        "Worker secret (wrangler secret put SUPPORT_EMAIL), or in .env locally.",
+        "reply if the change wasn't theirs, and needs a Reply-To to send it to; a failed " +
+        "scheduled job's alert is sent there. Set it as a Worker secret (wrangler secret " +
+        "put SUPPORT_EMAIL), or in .env locally.",
     );
   }
   return address;
+}
+
+// A scheduled job's run failed (app/scheduledJobs.ts). To SUPPORT_EMAIL:
+// the job, the time and the run's counts, and nothing else: never an error
+// message or any row data, which could carry names or emails. The detail
+// is in Workers Logs.
+export async function sendOpsAlert(
+  job: "weekly-loop" | "retention",
+  at: Date,
+  counts: Record<string, number> | null,
+): Promise<void> {
+  const to = getSupportEmail();
+  const countLine = counts
+    ? Object.entries(counts)
+        .filter(([key, value]) => /^[a-z_]+$/.test(key) && Number.isFinite(value))
+        .map(([key, value]) => `${key.replaceAll("_", " ")} ${Number(value)}`)
+        .join(", ")
+    : "none: it stopped before finishing";
+  await send({
+    kind: "ops-alert",
+    to,
+    subject: `Kinomato: the ${job} job failed`,
+    html:
+      `<p>The ${job} job failed at ${at.toISOString()}.</p>` +
+      `<p>Counts: ${countLine}.</p>` +
+      `<p>See Workers Logs for the error: Workers &amp; Pages → kinomato → Logs, and ` +
+      `Settings → Trigger events for the Cron Events list.</p>`,
+  });
 }
 
 async function send(message: Message): Promise<void> {

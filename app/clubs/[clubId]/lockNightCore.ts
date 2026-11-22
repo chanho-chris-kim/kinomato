@@ -40,13 +40,18 @@ import { votesForLock } from "./historyRead";
 // voting would have closed have their turn passed. Every write waits on
 // the night's state, so the job and a person pressing the button at the
 // same moment can't both act.
+// What a call did: "locked" (a pick set), "cancelled" (every nominee
+// excluded at lock, so no pick), or "unchanged" (not open any more: it lost
+// a race, or was never opened). The button ignores it; the job counts it.
+export type LockOutcome = "locked" | "cancelled" | "unchanged";
+
 export async function lockNightCore(
   db: ReturnType<typeof getDb>,
   nightId: string,
-): Promise<void> {
+): Promise<LockOutcome> {
   const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
   if (!night) throw new Error("Night not found.");
-  if (night.state !== "open") return; // already locked (or never opened) — no-op
+  if (night.state !== "open") return "unchanged"; // already locked (or never opened) — no-op
 
   const nightNominations = await db
     .select({ id: nominations.id, filmId: nominations.filmId, position: nominations.position })
@@ -123,10 +128,11 @@ export async function lockNightCore(
       db
         .update(nights)
         .set({ state: "cancelled", confirmedAt: now })
-        .where(and(eq(nights.id, nightId), eq(nights.state, "open"))),
+        .where(and(eq(nights.id, nightId), eq(nights.state, "open")))
+        .returning({ id: nights.id }),
     ];
-    await db.batch(cancel as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
-    return;
+    const results = await db.batch(cancel as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+    return (results.at(-1) as unknown[]).length > 0 ? "cancelled" : "unchanged";
   }
 
   const keptIds = new Set(kept.map((n) => n.id));
@@ -164,7 +170,9 @@ export async function lockNightCore(
     db
       .update(nights)
       .set({ state: "locked", winningFilmId, lockedAt: now, unconfirmAt })
-      .where(and(eq(nights.id, nightId), eq(nights.state, "open"))),
+      .where(and(eq(nights.id, nightId), eq(nights.state, "open")))
+      .returning({ id: nights.id }),
   ];
-  await db.batch(lock as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+  const results = await db.batch(lock as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+  return (results.at(-1) as unknown[]).length > 0 ? "locked" : "unchanged";
 }

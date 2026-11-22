@@ -11,7 +11,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 // @ts-ignore
 import { default as handler } from "./.open-next/worker.js";
 import * as schema from "./db/schema";
-import { runRetentionCleanup } from "./app/retentionCleanup";
+import { runScheduledJob } from "./app/scheduledJobs";
 
 interface Env {
   DATABASE_URL: string;
@@ -20,13 +20,18 @@ interface Env {
 const worker = {
   fetch: handler.fetch,
 
-  // A fresh client per run (never module scope, CLAUDE.md). The secret
-  // comes from the run's own env. Awaited, not waitUntil'd: a throw fails
-  // the run itself, visibly, in Workers Logs and the Cron Events list.
-  async scheduled(_controller: unknown, env: Env) {
-    if (!env.DATABASE_URL) throw new Error("[retention] DATABASE_URL is not set on this Worker.");
+  // Two Cron Triggers (wrangler.jsonc): the daily retention job and the
+  // hourly weekly loop, told apart by controller.cron
+  // (app/scheduledJobs.ts). A fresh client per run (never module scope,
+  // CLAUDE.md). The database URL comes from the run's own env; the email
+  // settings (SUPPORT_EMAIL, BREVO_API_KEY) from process.env, which the
+  // runtime fills from the same vars and secrets. Awaited, not
+  // waitUntil'd: a throw fails the run itself, visibly, in Workers Logs and
+  // the Cron Events list, after the ops alert has gone.
+  async scheduled(controller: { cron: string }, env: Env) {
+    if (!env.DATABASE_URL) throw new Error("[scheduled] DATABASE_URL is not set on this Worker.");
     const db = drizzle(neon(env.DATABASE_URL), { schema });
-    await runRetentionCleanup(db, new Date());
+    await runScheduledJob(controller.cron, db, new Date());
   },
 };
 

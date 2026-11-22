@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   autoPassAtFor,
+  dueToAutoPass,
+  dueToLock,
+  dueToUnconfirm,
+  effectiveLockAt,
+  effectiveUnconfirmAt,
   lateConfirmOpen,
   LATE_CONFIRM_DAYS,
   lockAtFor,
@@ -139,5 +144,93 @@ describe("lateConfirmOpen (built later; ruled 2026-11-21)", () => {
 
   it("is never open for a night that wasn't marked unconfirmed", () => {
     expect(lateConfirmOpen({ unconfirmedAt: null, now: days(1), laterNightFinished: false })).toBe(false);
+  });
+});
+
+// What the hourly job acts on (w3, ruled 2026-11-21). The stored deadline
+// when there is one; for nights from before deadlines were stored, the
+// same fallback Tonight shows.
+describe("effectiveLockAt / effectiveUnconfirmAt (stored, or the fallback)", () => {
+  const night = new Date("2026-11-15T01:00:00Z");
+  const NY = "America/New_York";
+
+  it("uses the stored lock_at; NULL falls back to lockTime before the night", () => {
+    const stored = plus(night, -30);
+    expect(effectiveLockAt({ lockAt: stored, scheduledAt: night, lockTimeHours: 24 })).toEqual(stored);
+    expect(effectiveLockAt({ lockAt: null, scheduledAt: night, lockTimeHours: 12 })).toEqual(plus(night, -12));
+  });
+
+  it("uses the stored unconfirm_at; NULL is computed from locked_at (or the night)", () => {
+    const stored = plus(night, 100);
+    const base = { confirmAt: "same_night" as const, scheduledAt: night, timezone: NY, autoAdvanceHours: 48 };
+    expect(effectiveUnconfirmAt({ ...base, unconfirmAt: stored, lockedAt: plus(night, -24) })).toEqual(stored);
+    expect(effectiveUnconfirmAt({ ...base, unconfirmAt: null, lockedAt: plus(night, 5) })).toEqual(plus(night, 53));
+    expect(effectiveUnconfirmAt({ ...base, unconfirmAt: null, lockedAt: null })).toEqual(plus(night, 48));
+  });
+});
+
+describe("dueToLock (at most a few a run, oldest deadline first)", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const open = (id: string, lockAt: Date | null, scheduledAt = plus(now, 48), lockTimeHours = 24) => ({
+    id,
+    lockAt,
+    scheduledAt,
+    lockTimeHours,
+  });
+
+  it("takes nights whose deadline has come, at or before now", () => {
+    const due = dueToLock([open("a", plus(now, -1)), open("b", now), open("c", plus(now, 1))], now, 5);
+    expect(due.map((n) => n.id)).toEqual(["a", "b"]);
+  });
+
+  it("a NULL lock_at is due once lockTime before the night has passed", () => {
+    expect(dueToLock([open("old", null, plus(now, 23), 24)], now, 5).map((n) => n.id)).toEqual(["old"]);
+    expect(dueToLock([open("old", null, plus(now, 25), 24)], now, 5)).toEqual([]);
+  });
+
+  it("caps the run, oldest deadline first, then id; the rest wait for the next run", () => {
+    const nights = [3, 1, 6, 2, 5, 4, 7].map((h) => open(`n${h}`, plus(now, -h)));
+    expect(dueToLock(nights, now, 5).map((n) => n.id)).toEqual(["n7", "n6", "n5", "n4", "n3"]);
+    expect(dueToLock([open("b", plus(now, -1)), open("a", plus(now, -1))], now, 1).map((n) => n.id)).toEqual(["a"]);
+  });
+});
+
+describe("dueToUnconfirm", () => {
+  const NY = "America/New_York";
+  const night = new Date("2026-11-15T01:00:00Z"); // Sat 8pm; next morning 9am = 14:00Z on the 15th
+  const locked = (o: Partial<Parameters<typeof dueToUnconfirm>[0]> = {}) => ({
+    unconfirmAt: plus(night, 61),
+    confirmAt: "morning_after" as const,
+    scheduledAt: night,
+    timezone: NY,
+    lockedAt: plus(night, -24),
+    autoAdvanceHours: 48,
+    ...o,
+  });
+
+  it("once unconfirm_at has come", () => {
+    expect(dueToUnconfirm(locked(), plus(night, 61))).toBe(true);
+    expect(dueToUnconfirm(locked(), plus(night, 60))).toBe(false);
+  });
+
+  it("never before the prompt has appeared, even if the stored deadline says so", () => {
+    // A deadline stored before the club moved the prompt later.
+    expect(dueToUnconfirm(locked({ unconfirmAt: plus(night, 1) }), plus(night, 2))).toBe(false);
+    expect(dueToUnconfirm(locked({ unconfirmAt: plus(night, 1) }), plus(night, 13))).toBe(true);
+  });
+
+  it("a NULL unconfirm_at is computed the same way", () => {
+    // Next morning (13h after the night) + 48h.
+    expect(dueToUnconfirm(locked({ unconfirmAt: null }), plus(night, 60))).toBe(false);
+    expect(dueToUnconfirm(locked({ unconfirmAt: null }), plus(night, 61))).toBe(true);
+  });
+});
+
+describe("dueToAutoPass (a draft nobody opened)", () => {
+  const night = new Date("2026-11-15T01:00:00Z");
+  it("once voting would have closed", () => {
+    expect(dueToAutoPass({ scheduledAt: night, lockTimeHours: 24 }, plus(night, -24))).toBe(true);
+    expect(dueToAutoPass({ scheduledAt: night, lockTimeHours: 24 }, plus(night, -25))).toBe(false);
+    expect(dueToAutoPass({ scheduledAt: night, lockTimeHours: 1 }, plus(night, 5))).toBe(true);
   });
 });

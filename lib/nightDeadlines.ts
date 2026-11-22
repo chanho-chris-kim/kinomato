@@ -6,7 +6,7 @@
 // clock time: across a DST change "24 hours before" is 23 or 25 hours on
 // the clock, and a 48-hour window is 47 or 49.
 
-import { confirmableAt, type ConfirmAt } from "./confirmTiming";
+import { confirmableAt, isConfirmable, type ConfirmAt } from "./confirmTiming";
 
 const H = 3600_000;
 
@@ -59,4 +59,59 @@ export function lateConfirmOpen(input: {
 }): boolean {
   if (!input.unconfirmedAt || input.laterNightFinished) return false;
   return input.now.getTime() < input.unconfirmedAt.getTime() + LATE_CONFIRM_DAYS * 24 * H;
+}
+
+// ---- What the hourly job acts on (app/weeklyLoop.ts, w3) ----
+// The stored deadline when there is one. Nights from before deadlines were
+// stored get the same fallback Tonight shows: lockTime before the night,
+// and autoAdvance after the prompt (or after the lock, or the night).
+
+export function effectiveLockAt(night: { lockAt: Date | null; scheduledAt: Date; lockTimeHours: number }): Date {
+  return night.lockAt ?? autoPassAtFor(night);
+}
+
+export function effectiveUnconfirmAt(night: {
+  unconfirmAt: Date | null;
+  confirmAt: ConfirmAt;
+  scheduledAt: Date;
+  timezone: string;
+  lockedAt: Date | null;
+  autoAdvanceHours: number;
+}): Date {
+  return night.unconfirmAt ?? unconfirmAtFor({ ...night, lockedAt: night.lockedAt ?? night.scheduledAt });
+}
+
+// Open nights whose voting deadline has come, oldest deadline first (then
+// id), at most `cap` of them: the rest wait for the next run, which is safe
+// because every lock waits on the night still being open.
+export function dueToLock<N extends { id: string; lockAt: Date | null; scheduledAt: Date; lockTimeHours: number }>(
+  nights: N[],
+  now: Date,
+  cap: number,
+): N[] {
+  return nights
+    .map((n) => ({ n, at: effectiveLockAt(n).getTime() }))
+    .filter(({ at }) => at <= now.getTime())
+    .sort((a, b) => a.at - b.at || (a.n.id < b.n.id ? -1 : a.n.id > b.n.id ? 1 : 0))
+    .slice(0, cap)
+    .map(({ n }) => n);
+}
+
+// A locked night is logged unconfirmed once its deadline has come, and
+// never before the "did you watch it?" prompt has appeared under the
+// club's current settings: a deadline stored before the prompt moved later
+// waits for the prompt.
+export function dueToUnconfirm(
+  night: Parameters<typeof effectiveUnconfirmAt>[0],
+  now: Date,
+): boolean {
+  return (
+    effectiveUnconfirmAt(night).getTime() <= now.getTime() &&
+    isConfirmable(night.confirmAt, night.scheduledAt, night.timezone, now)
+  );
+}
+
+// A draft nobody opened has its turn passed once voting would have closed.
+export function dueToAutoPass(draft: { scheduledAt: Date; lockTimeHours: number }, now: Date): boolean {
+  return autoPassAtFor(draft).getTime() <= now.getTime();
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sendSignInEmail } from "./email";
+import { sendOpsAlert, sendSignInEmail } from "./email";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -158,5 +158,52 @@ describe("email-change emails", () => {
     const { sendEmailTakenNotice } = await import("./email");
     await sendEmailTakenNotice("taken@example.com");
     expect(existsSync("/nonexistent-dir/should-not-be-written.jsonl")).toBe(false);
+  });
+});
+
+// A failed scheduled job (app/scheduledJobs.ts): to SUPPORT_EMAIL, the job,
+// the time and the counts, and nothing else.
+describe("sendOpsAlert", () => {
+  const sent = () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response('{"messageId":"x"}', { status: 201 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    return () => JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+  };
+
+  it("goes to SUPPORT_EMAIL with the job, the time, the counts and where to look", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
+    const body = sent();
+    await sendOpsAlert("weekly-loop", new Date("2026-11-21T10:00:00Z"), { locked: 2, unconfirmed: 0, passed: 1, failed: 1 });
+    expect(body().to).toEqual([{ email: "ops@kinomato.test" }]);
+    expect(body().subject).toBe("Kinomato: the weekly-loop job failed");
+    expect(body().htmlContent).toContain("2026-11-21T10:00:00.000Z");
+    expect(body().htmlContent).toContain("Counts: locked 2, unconfirmed 0, passed 1, failed 1.");
+    expect(body().htmlContent).toContain("See Workers Logs");
+  });
+
+  it("with no counts (a run that stopped early), says so", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
+    const body = sent();
+    await sendOpsAlert("retention", new Date("2026-11-21T10:00:00Z"), null);
+    expect(body().htmlContent).toContain("Counts: none: it stopped before finishing.");
+  });
+
+  it("drops anything in counts that isn't a plain name and a number", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
+    const body = sent();
+    const sneaky = { locked: 1, "dana@example.com": 3, note: Number.NaN } as Record<string, number>;
+    await sendOpsAlert("weekly-loop", new Date("2026-11-21T10:00:00Z"), sneaky);
+    expect(body().htmlContent).toContain("Counts: locked 1.");
+    expect(body().htmlContent).not.toContain("dana");
+  });
+
+  it("fails loud when SUPPORT_EMAIL is unset", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-key");
+    vi.stubEnv("SUPPORT_EMAIL", "");
+    sent();
+    await expect(sendOpsAlert("weekly-loop", new Date(), null)).rejects.toThrow(/SUPPORT_EMAIL is not set/);
   });
 });
