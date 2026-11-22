@@ -6,6 +6,7 @@ import {
   type RotationMembership,
 } from "./rotation";
 import { getScheduleAnchor } from "./clubSettings";
+import { lateConfirmOpen } from "./nightDeadlines";
 import { getNextOccurrence, type ScheduleConfig } from "./schedule";
 
 // A club's state, derived the same way on its card on `/` (Ruling A,
@@ -18,6 +19,8 @@ export interface StatusNight {
   state: NightState;
   scheduledAt: Date;
   winningFilmId: string | null;
+  // When it became unconfirmed (nights.unconfirmed_at), for a late "yes".
+  unconfirmedAt?: Date | null;
 }
 
 export interface StatusClub extends ScheduleConfig {
@@ -70,6 +73,24 @@ export function findLockedNight<N extends StatusNight>(
   return nights.find((n) => n.state === "locked" && n.winningFilmId !== null) ?? null;
 }
 
+const FINISHED: readonly NightState[] = ["watched", "cancelled", "unconfirmed"];
+
+// "Did you watch X after all?" (ruled 2026-11-21): the club's latest
+// unconfirmed night, while a late "Yes, we watched it" is still open: 7
+// days after it became unconfirmed, and no later night has finished
+// (lib/nightDeadlines.ts lateConfirmOpen). Only the latest can qualify:
+// any older one has a later finished night, the latest itself.
+export function findLateConfirmableNight<N extends StatusNight>(nights: N[], now: Date): N | null {
+  const latest = nights
+    .filter((n) => n.state === "unconfirmed" && n.winningFilmId !== null)
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0];
+  if (!latest) return null;
+  const laterNightFinished = nights.some(
+    (n) => FINISHED.includes(n.state) && n.scheduledAt.getTime() > latest.scheduledAt.getTime(),
+  );
+  return lateConfirmOpen({ unconfirmedAt: latest.unconfirmedAt ?? null, now, laterNightFinished }) ? latest : null;
+}
+
 // The night ratings are open for: the club's most recently watched one.
 export function findLatestWatchedNight<N extends StatusNight>(nights: N[]): N | null {
   return (
@@ -104,6 +125,7 @@ export type ClubStatus =
   | { kind: "voting"; pickerMembershipId: string }
   | { kind: "locked"; filmId: string }
   | { kind: "confirm"; filmId: string }
+  | { kind: "lateConfirm"; filmId: string }
   | { kind: "rate"; filmId: string }
   | { kind: "next"; pickerMembershipId: string | null };
 
@@ -124,7 +146,8 @@ export interface ClubStatusInput {
 
 // Exactly one status line, in this priority (Ruling A):
 //   your turn to nominate → voting, you haven't voted → confirmable →
-//   rate → voting, you have → locked → who picks next.
+//   confirmable late (an unconfirmed night, ruled 2026-11-21) → rate →
+//   voting, you have → locked → who picks next.
 // Every action line comes before every non-action one, so an action is
 // never hidden ("the most actionable true thing"). All but rate come from
 // the one in-flight night, so they can't overlap each other. Rate comes
@@ -145,6 +168,8 @@ export function getClubStatus(input: ClubStatusInput): ClubStatus {
   if (inFlight?.state === "open" && !input.viewerVotedOnOpenNight) return { kind: "vote" };
   const confirmable = findConfirmableNight(nights, confirmAt, club.timezone, now);
   if (confirmable?.winningFilmId) return { kind: "confirm", filmId: confirmable.winningFilmId };
+  const late = findLateConfirmableNight(nights, now);
+  if (late?.winningFilmId) return { kind: "lateConfirm", filmId: late.winningFilmId };
 
   const watched = findLatestWatchedNight(nights);
   if (
@@ -172,6 +197,7 @@ export function isActionStatus(status: ClubStatus): boolean {
     status.kind === "nominate" ||
     status.kind === "vote" ||
     status.kind === "confirm" ||
+    status.kind === "lateConfirm" ||
     status.kind === "rate"
   );
 }
@@ -198,6 +224,8 @@ export function statusText(
       return `${ctx.filmTitle(status.filmId)}, locked in`;
     case "confirm":
       return `Did you watch ${ctx.filmTitle(status.filmId)}?`;
+    case "lateConfirm":
+      return `Did you watch ${ctx.filmTitle(status.filmId)} after all?`;
     case "rate":
       return `Rate ${ctx.filmTitle(status.filmId)}`;
     case "next":

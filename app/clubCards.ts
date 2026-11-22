@@ -5,6 +5,7 @@ import { viewerVotedOnOpenNights } from "@/app/clubs/[clubId]/historyRead";
 import { getConfirmAt } from "@/lib/clubSettings";
 import {
   findInFlightNight,
+  findLateConfirmableNight,
   findLatestWatchedNight,
   getClubStatus,
   getNextNight,
@@ -67,7 +68,11 @@ export async function loadClubCards(
     .filter((n) => n !== null);
   const openNightIds = inFlight.filter((n) => n.state === "open").map((n) => n.id);
   const watchedIds = latestWatched.map((n) => n.id);
-  const filmIds = [...inFlight, ...latestWatched]
+  // An unconfirmed night still open to a late "yes" names its film too.
+  const lateConfirmable = clubIds
+    .map((id) => findLateConfirmableNight(nightsOf(id), now))
+    .filter((n) => n !== null);
+  const filmIds = [...inFlight, ...latestWatched, ...lateConfirmable]
     .map((n) => n.winningFilmId)
     .filter((id) => id !== null);
 

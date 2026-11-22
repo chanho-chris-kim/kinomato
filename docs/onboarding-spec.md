@@ -380,6 +380,8 @@ has to fit on a card. Each card shows:
    - Your turn to nominate → "**Your turn to nominate**" *(action)*
    - Voting open, you haven't voted → "Voting — **you haven't voted**" *(action)*
    - Confirmable → "**Did you watch *Thief*?**" *(action)*
+   - Unconfirmed, still open to a late yes → "**Did you watch *Thief* after
+     all?**" *(action; added 2026-11-21)*
    - Rating open, you haven't rated → "**Rate *Thief***" *(action)*
    - Voting open, you have → "Voting — Sam is picking"
    - Locked → "*Thief*, locked in"
@@ -571,7 +573,15 @@ button.
   Pass my turn does. Built with the job.
 - **Late confirmation**: only "Yes, we watched it", for 7 days after the
   night became unconfirmed, while no later night has finished. A late
-  "No" is refused. Built later.
+  "No" is refused. Any active member may answer; it moves the night to
+  watched (`confirmed_by`, `confirmed_at`; `unconfirmed_at` kept), ratings
+  open as usual, History shows it watched, and the rotation doesn't
+  change.
+- *Built (w4), 2026-11-21.* `lib/clubStatus.ts` `findLateConfirmableNight`
+  (Tonight's "Did you watch X after all?" with only "Yes, we watched it";
+  the `/` card's matching status) and `confirmNight` accepting "watched"
+  on that night, conditionally. A refused or race-lost answer refreshes
+  the page. The tag page filters `state = 'watched'`.
 - **The manual button stays** as "close now" for owners and admins.
 - Tonight: "Voting closes {day time}" on an open night; on a locked one,
   "If nobody answers by {day time}, this week is logged as unconfirmed and

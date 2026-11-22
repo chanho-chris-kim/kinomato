@@ -21,6 +21,7 @@ import { addToWatchlist } from "@/app/watchlist/actions";
 import {
   findConfirmableNight,
   findInFlightNight,
+  findLateConfirmableNight,
   findLatestWatchedNight,
   findLockedNight,
   formatNightTime,
@@ -343,6 +344,15 @@ export default async function ClubPage({
       If nobody answers by {unconfirmLabel}, this week is logged as unconfirmed and the turn moves on.
     </p>
   );
+
+  // "Did you watch X after all?" (ruled 2026-11-21): the latest unconfirmed
+  // night, while a late "Yes, we watched it" is still open.
+  const lateNight = findLateConfirmableNight(clubNights, new Date(now));
+  let lateFilmTitle: string | null = null;
+  if (lateNight?.winningFilmId) {
+    const [film] = await db.select({ title: films.title }).from(films).where(eq(films.id, lateNight.winningFilmId));
+    lateFilmTitle = film?.title ?? null;
+  }
 
   let confirmableFilmTitle: string | null = null;
   if (confirmableNight?.winningFilmId) {
@@ -713,6 +723,7 @@ export default async function ClubPage({
         !draftNight &&
         !lockedNight &&
         !confirmableNight &&
+        !lateNight &&
         !ratingShown &&
         (adHocNeedsManualNight ? (
           // "ad_hoc" has no computable next occurrence on purpose
@@ -853,6 +864,21 @@ export default async function ClubPage({
           </div>
           {unconfirmNote}
         </>
+      )}
+
+      {/* Only "Yes": a late "No" is refused (ruled 2026-11-21). */}
+      {lateNight && (
+        <section className="late-confirm" aria-labelledby="late-confirm-heading">
+          <p className="eyebrow mt20">Nobody answered in time</p>
+          <h2 id="late-confirm-heading" className="h-display" style={{ fontSize: 22 }}>
+            Did you watch {lateFilmTitle ?? "it"} after all?
+          </h2>
+          <form action={confirmNight.bind(null, clubId, lateNight.id, "watched")} className="mt14">
+            <button type="submit" className="btn primary">
+              Yes, we watched it
+            </button>
+          </form>
+        </section>
       )}
 
       {confirmableNight && (

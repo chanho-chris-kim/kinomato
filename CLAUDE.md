@@ -155,11 +155,11 @@ The purpose of v0 is to find out which rulings below are wrong.
 The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
 are the launch foundations' build steps (§11).
 
-**Next: late confirmation, then email reminders.** The night deadlines are
-stored and shown (w1 + w2) and acted on by the hourly weekly loop (w3 +
-w5, 2026-11-21: see "Night deadlines" below). Next is the late "Yes, we
-watched it" on an unconfirmed night (`lateConfirmOpen`), then reminders by
-email within the two-pushes-a-week cap, on the same hourly trigger.
+**Next: email reminders.** The night deadlines are stored and shown (w1 +
+w2), acted on by the hourly weekly loop (w3 + w5), and an unconfirmed
+night takes a late "Yes, we watched it" (w4), all 2026-11-21: see "Night
+deadlines" below. Next is reminders by email within the two-pushes-a-week
+cap, on the same hourly trigger.
 
 ## Rulings that are load-bearing
 
@@ -324,10 +324,24 @@ Do not quietly change these — they encode decisions that took a while to reach
     "Passed this turn"), through the same request-free core
     (`app/clubs/[clubId]/passTurnCore.ts` `passDraftCore`, which
     `passMyTurn` and `passTurnFor` call too).
-  - **Late confirmation:** only "Yes, we watched it", for 7 days after a
-    night becomes unconfirmed, and only while no later night has
+  - **Late confirmation (built w4, 2026-11-21):** any active member may
+    answer only "Yes, we watched it", for 7 days after a night becomes
+    unconfirmed (`unconfirmed_at`), and only while no later night has
     finished; a late "No" is refused (letting it un-consume the turn would
-    reward waiting out the timer). Built later (`lateConfirmOpen`).
+    reward waiting out the timer). It moves `unconfirmed → watched` with
+    `confirmed_by` that member and `confirmed_at` now, keeping
+    `unconfirmed_at`; the rotation doesn't change. Ratings then open the
+    normal way (it's the club's latest watched night) and History shows it
+    watched. `lib/clubStatus.ts` `findLateConfirmableNight` (on
+    `lateConfirmOpen`) drives Tonight's "Did you watch X after all?" (Yes
+    only), the `/` card's status of the same words (an action, after
+    "Did you watch X?") and `confirmNight`'s own check: "watched" may move
+    a locked night, or that unconfirmed one; "didn't watch" only a locked
+    one. The update is conditional on those states, so with the job
+    logging the night unconfirmed in the same instant, "watched" lands
+    either way. A refused answer, or one that lost a race, still refreshes
+    the page, so a stale tab shows the night as it now is. The tag page
+    reads `state = 'watched'` only, defensively.
   - Tonight shows "Voting closes {day time}" on an open night and, on a
     locked one, "If nobody answers by {day time}, this week is logged as
     unconfirmed and the turn moves on." Nights from before the columns
