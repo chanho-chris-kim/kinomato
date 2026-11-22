@@ -3,7 +3,8 @@ import { PublicShell } from "@/app/shell";
 
 // The signed-out `/` (docs/onboarding-spec.md §5.2): the pitch, Start a
 // club and Sign in, how it works in three steps, and the line about
-// ratings. Describes only what's built. No third-party anything: no
+// ratings. While sign-up is invite-only (§11.1, ruled 2026-11-18), Start a
+// club is replaced by "Invite-only for now": no sign-up button. Describes only what's built. No third-party anything: no
 // scripts, pixels, analytics, embedded fonts from elsewhere or images.
 //
 // Phone: one column, pitch → actions → steps. From 900px: pitch and actions
@@ -28,7 +29,7 @@ const STEPS: { title: string; body: string }[] = [
   },
 ];
 
-export function Marketing() {
+export function Marketing({ signupOpen }: { signupOpen: boolean }) {
   return (
     <PublicShell
       topbarEnd={
@@ -48,9 +49,15 @@ export function Marketing() {
               turns picking, the club votes, the pick locks in, and the club&apos;s history is kept.
             </p>
             <div className="stack gap8 mt20" style={{ maxWidth: 320 }}>
-              <Link href={START_HREF} className="btn primary" style={{ textAlign: "center" }}>
-                Start a club
-              </Link>
+              {signupOpen ? (
+                <Link href={START_HREF} className="btn primary" style={{ textAlign: "center" }}>
+                  Start a club
+                </Link>
+              ) : (
+                <p className="small muted invite-only" style={{ margin: 0, textAlign: "center" }}>
+                  Invite-only for now
+                </p>
+              )}
               <Link href="/login" className="btn ghost" style={{ textAlign: "center" }}>
                 Sign in
               </Link>

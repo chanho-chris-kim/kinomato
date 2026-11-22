@@ -1,7 +1,7 @@
 import type { BrowserContext } from "@playwright/test";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 import { expectYouAre, memberNames } from "./identity";
 
 // Every other spec runs against clubs db/seed.ts pre-populates. This one
@@ -22,6 +22,8 @@ test.describe("club creation and invites", () => {
     try {
       // --- Robin signs up and creates the club, landing in it as owner. ---
       const owner = await newPage();
+      // Sign-up is invite-only (§11.1): Robin's account exists already.
+      await existingAccount("robin.creates@example.com");
       await owner.page.goto("/new");
       await owner.page.getByLabel("Email").fill("robin.creates@example.com");
       await owner.page.getByRole("button", { name: "Send code" }).click();

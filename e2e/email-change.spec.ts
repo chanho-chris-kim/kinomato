@@ -6,7 +6,7 @@ import * as schema from "../db/schema";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { signInAs } from "./session";
-import { finishCodeSignIn, holdSignInAddress, nameYourself, setKnownEmailChangeCode } from "./signIn";
+import { existingAccount, finishCodeSignIn, holdSignInAddress, nameYourself, setKnownEmailChangeCode } from "./signIn";
 
 // Email change (docs/onboarding-spec.md §5.9 rulings; rebuild step 7b).
 // Every account here is made fresh through the real code sign-in, so no
@@ -28,7 +28,10 @@ async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => 
 const userByEmail = (email: string) =>
   withDb(async (db) => (await db.select().from(schema.users).where(eq(schema.users.email, email)))[0] ?? null);
 
+// Sign-up is invite-only (§11.1): an address with no account yet gets a
+// bare one first, then signs in as an existing account does.
 async function signIn(page: Page, email: string) {
+  await existingAccount(email);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send code" }).click();

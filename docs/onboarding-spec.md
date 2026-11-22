@@ -141,7 +141,9 @@ guest to exclude.
    link.
 4. Verifying finds or creates the `users` row for that email and starts a
    session. There is no separate sign-up: **creating an account is just
-   verifying an email for the first time.**
+   verifying an email for the first time.** (While sign-up is invite-only,
+   §11.1, ruled 2026-11-18, only verifying through a live invite creates
+   one.)
 5. If the account has no display name yet, the name step (§5.6) runs once.
 
 ### 4.2 Why the code is primary, not a fallback
@@ -515,8 +517,9 @@ button.
   "Paused" to everyone. On `/`, a paused club's card still shows a night
   in flight's own time, and "Paused" once nothing is in flight
   (`lib/clubStatus.ts` `getNextNight`).
-- *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club aren't
-  built yet.
+- *Built (m1 + m3), 2026-11-10.* Your limits and Leave this club came
+  later: Leave this club in m5 (2026-11-11), Your limits in h2
+  (2026-11-12).
 
 **Rulings for club details (2026-11-10):**
 - **Owner and admin edit the club's name, how often, day, time, timezone
@@ -603,7 +606,7 @@ button.
   data rules; `nominatableFilms` filters, `openVoting` re-checks through
   it, `lockNightCore` drops and cancels in one batch that waits on the
   night still being open, and `clubHistory` leaves dropped nominees out.
-  No limits UI yet: limits can only be seeded.
+  (The limits UI followed in h2, below.)
 - **Tonight's nomination screen always says "Only films that fit everyone
   in this club are shown here."** (ruled 2026-11-13), under "Your turn to
   nominate", whether or not anything was filtered, so the line itself
@@ -888,8 +891,8 @@ alongside the §8.4 list. `docs/prototype.html` already shows this model.
 `watchlist_items` moves from `membership_id` to `user_id`, unique on
 `(user_id, film_id)`. One list per person, carried into every club they
 join. The Watchlist tab (`/watchlist`) is that list, and nomination in any
-club draws from it, filtered by that club's constraints once hard limits
-are wired in (not yet: actions.ts SEAM).
+club draws from it, filtered by every active member's hard limits in that
+club (h1, §5.10).
 
 ### 6.2 What "private" means, precisely
 
@@ -1191,7 +1194,9 @@ Leave these as written until then. They describe the running code:
 4b's list: the `membership_role` enum still has a `guest` value that
 nothing assigns. Dropping an enum value in Postgres means rebuilding the
 type, so it belongs with the next destructive schema change (step 6's
-watchlist move) rather than a change of its own.
+watchlist move) rather than a change of its own. **Still pending
+(2026-11-19):** step 6 shipped without it. Moved to pre-launch
+housekeeping (§11.6), alongside dropping `users.avatar`.
 
 ### 8.5 Build order
 
@@ -1481,6 +1486,34 @@ off the Terms and Privacy text.**
   version change, so everyone re-accepts it.
 - Public pages, `/terms` and `/privacy`, with Privacy · Terms links in the
   footer of every page.
+- **Sign-up is invite-only until the reviewed text is signed off**
+  (ruled 2026-11-18). No public sign-ups until a lawyer has signed off the
+  Terms and Privacy, so **a new account can only be created through a
+  valid personal invite** (unredeemed, unrevoked). Existing accounts sign
+  in as normal and can still create clubs.
+  - At `/login`, an address with no account gets the same "check your
+    email" screen as everyone (no enumeration, §4.3), counts against the
+    same per-address send limits, and is sent a short email instead of a
+    code: "Kinomato is invite-only for now. Ask a member of a club to
+    invite you." Its sign-in row can never be used: the stored code hash
+    is of a random value no 6-digit code matches, and its link token is
+    never sent. A typed code meets the same "didn't match, N tries left".
+  - Completing a sign-in (a code or a `/verify` link) never creates an
+    account without a live invite; it signs nobody in and shows the
+    invite-only message on `/login`.
+  - The invite flow (`startInvite`, then `completeSignIn` with the
+    invite) still creates accounts.
+  - One server setting, `OPEN_SIGNUP`: exactly `"true"` opens sign-up;
+    unset or anything else keeps it closed, so it fails safe.
+    Documented in `.env.example`.
+  - While closed, the marketing page's **Start a club** is replaced by
+    "Invite-only for now" (no sign-up button); **Sign in** stays.
+  - A deleted account's released address (§11.4) is an unknown address
+    like any other: a fresh account needs an invite.
+  - *Built (q1), 2026-11-18.* `lib/signupGate.ts` (`isSignupOpen`,
+    `signInEmailKind`, `mayCreateAccount`), applied in `app/signIn.ts`
+    (`issueSignIn`, `completeSignIn`, `signupOpen`). E2E runs closed;
+    `e2e/open-signup.spec.ts` runs on CI's third server with it open.
 - *Built (b):* the gate covers every signed-in page and server action,
   except `/terms`, `/privacy`, `/consent`, `/welcome`, sign-in, the invite
   landing, `/age-limit` and both sign-outs. `/consent` always has Sign
@@ -1524,7 +1557,7 @@ off the Terms and Privacy text.**
 | Data | What happens |
 |---|---|
 | Name | "Former member" |
-| Email | Released (a tombstone), so a fresh sign-up with it is possible |
+| Email | Released (a tombstone), so a fresh sign-up with it is possible (through an invite while sign-up is invite-only, §11.1) |
 | Watchlist, hard limits and preferences | Deleted |
 | Ratings | Scores kept; hot takes and rating tags removed |
 | Pending invites the person created | Revoked, `invitee_name` cleared |
@@ -1640,7 +1673,9 @@ off the Terms and Privacy text.**
   10 ms of CPU (30 s on Paid); the job is one HTTP round trip, nearly
   all wall time.
 - **Cloudflare logs stay on and are disclosed** (§9).
-- **`users.avatar` is dropped later** (destructive, so last).
+- **`users.avatar` is dropped later** (destructive, so last), **with the
+  unused `guest` value of `membership_role`** (moved here from §8.4 on
+  2026-11-19): one destructive change, before launch.
 - **No cookie banner for now**: every cookie (`kinomato_session`,
   `kinomato_seen_from`, `kinomato_signin_email`, `kinomato_form_echo`) is
   strictly functional, and the Privacy page lists them. To be confirmed at

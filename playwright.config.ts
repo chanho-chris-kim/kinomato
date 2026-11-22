@@ -37,7 +37,15 @@ const SERVER_ENV = {
   // without it). A test value unless one is already set; production's
   // is a Worker secret.
   SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || "support@kinomato.test",
+  // Sign-up closed (invite-only, docs/onboarding-spec.md §11.1), whatever
+  // a developer's own .env says: what dev.kinomato.com runs.
+  OPEN_SIGNUP: "",
 };
+
+// The open path (OPEN_SIGNUP=true) gets its own server on the same build,
+// the same way and for the same reason as the bump server below:
+// e2e/open-signup.spec.ts runs against it alone. CI only.
+const OPEN_SIGNUP_PORT = 3102;
 
 // A version bump in lib/legal.ts must send every signed-in account back
 // through /consent (docs/onboarding-spec.md §11.1). The code under test
@@ -73,7 +81,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: /legal-bump\.spec\.ts$/,
+      testIgnore: /(legal-bump|open-signup)\.spec\.ts$/,
     },
     ...(withBumpServer
       ? [
@@ -81,6 +89,11 @@ export default defineConfig({
             name: "legal-bump",
             testMatch: /legal-bump\.spec\.ts$/,
             use: { ...devices["Desktop Chrome"], baseURL: `http://localhost:${BUMP_PORT}` },
+          },
+          {
+            name: "open-signup",
+            testMatch: /open-signup\.spec\.ts$/,
+            use: { ...devices["Desktop Chrome"], baseURL: `http://localhost:${OPEN_SIGNUP_PORT}` },
           },
         ]
       : []),
@@ -114,6 +127,13 @@ export default defineConfig({
             reuseExistingServer: false,
             timeout: 60_000,
             env: { ...SERVER_ENV, KINOMATO_TEST_TERMS_VERSION: BUMPED_TERMS_VERSION },
+          },
+          {
+            command: `npx next start --port ${OPEN_SIGNUP_PORT}`,
+            url: `http://localhost:${OPEN_SIGNUP_PORT}`,
+            reuseExistingServer: false,
+            timeout: 60_000,
+            env: { ...SERVER_ENV, OPEN_SIGNUP: "true" },
           },
         ]
       : []),

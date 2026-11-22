@@ -8,7 +8,7 @@ import { LEGAL } from "../lib/legal";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { signInAsUser } from "./session";
-import { finishCodeSignIn, KNOWN_CODE } from "./signIn";
+import { existingAccount, KNOWN_CODE } from "./signIn";
 
 // Delete account (docs/onboarding-spec.md §11.4; launch foundations (f)).
 // Builds its own people and clubs, so no seeded club changes:
@@ -336,12 +336,17 @@ test.describe("Delete account", () => {
     }
   });
 
-  test("the old address can sign up fresh afterwards", async ({ page }) => {
+  test("the old address is released: free for a fresh account", async ({ page }) => {
+    // Sign-up is invite-only (§11.1): at /login the released address is
+    // an unknown one, so it gets the invite-only email, not a code, and
+    // never reaches the anonymised account.
     await page.goto("/login");
     await page.getByLabel("Email").fill(P.dee.email);
     await page.getByRole("button", { name: "Send code" }).click();
-    await finishCodeSignIn(page, P.dee.email);
-    await expect(page).toHaveURL(/\/welcome/);
+    await expect(page).toHaveURL(/\/login\/code/);
+    await expect.poll(() => sentTo(P.dee.email).at(-1)?.kind).toBe("invite-only");
+    // A fresh account can take it (an invite would make one the same way).
+    await existingAccount(P.dee.email);
     const rows = await withDb((db) =>
       db
         .select()

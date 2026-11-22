@@ -15,7 +15,7 @@ import { LEGAL } from "../lib/legal";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { signInAs, signInAsUser } from "./session";
-import { finishCodeSignIn } from "./signIn";
+import { existingAccount, finishCodeSignIn } from "./signIn";
 
 // Consent, data licensing and age (docs/onboarding-spec.md §11.1–§11.3;
 // launch foundations (b)–(d)). New accounts give it all on /welcome; the
@@ -55,6 +55,8 @@ async function newAccountOnWelcome(browser: Browser, email: string) {
   const context = await browser.newContext();
   const page = await context.newPage();
   const errors = collectConsoleErrors(page);
+  // Sign-up is invite-only (§11.1): a bare account, not yet through /welcome.
+  await existingAccount(email);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send code" }).click();

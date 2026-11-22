@@ -6,7 +6,7 @@ import * as schema from "../db/schema";
 import { HOME_CLUB, HOME_CLUB_NAME, MEMBERSHIP_HOME } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 
 // The signed-in / (docs/onboarding-spec.md §5.7, Ruling A; rebuild step
 // 5b). Kit is in four seeded clubs, one per card state (db/seed-fixtures.ts
@@ -111,6 +111,7 @@ test.describe("club cards on /", () => {
 
   test("a fresh account sees the empty state", async ({ page }) => {
     const email = "home-empty@example.com";
+    await existingAccount(email);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send code" }).click();

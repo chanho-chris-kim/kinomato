@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { and, eq, gt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sessions } from "@/db/schema";
+import { consentEvents, sessions, users } from "@/db/schema";
 import { hashToken } from "@/lib/authCredentials";
 
 // The one identity cookie: site-wide, resolved once regardless of which
@@ -48,16 +49,32 @@ export async function setSessionCookie(token: string) {
 // construction: `next build` never gets as far as getDb(), which throws
 // without DATABASE_URL — and Workers Builds has none at build time (it's
 // a runtime Worker secret). Signed out costs no database call either.
-export async function getSessionUserId(): Promise<string | null> {
+//
+// One round trip for the session, its account and the account's consent
+// events (the gate in app/auth.ts needs all three), and once per request:
+// React cache() means a page whose metadata, body and gate each ask pays
+// for one query, not three. A row per consent event (a handful), or one
+// with no event when there are none yet.
+export const getSessionAccount = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const [session] = await getDb()
-    .select()
+  const rows = await getDb()
+    .select({ user: users, consent: consentEvents })
     .from(sessions)
+    .innerJoin(users, eq(users.id, sessions.userId))
+    .leftJoin(consentEvents, eq(consentEvents.userId, users.id))
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())));
-  return session?.userId ?? null;
+  if (rows.length === 0) return null;
+  return {
+    user: rows[0].user,
+    consentEvents: rows.flatMap((r) => (r.consent ? [r.consent] : [])),
+  };
+});
+
+export async function getSessionUserId(): Promise<string | null> {
+  return (await getSessionAccount())?.user.id ?? null;
 }
 
 // Sign out everywhere (docs/onboarding-spec.md §4.4, §5.9): deletes every

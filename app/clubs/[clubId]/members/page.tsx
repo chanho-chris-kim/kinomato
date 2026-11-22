@@ -49,10 +49,10 @@ const CONFIRM_AT_LABELS: Record<ConfirmAt, string> = {
 
 // The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c, m1). In
 // order: Members, Invited (only when there are pending invites), Add a
-// person (owners and admins), How this club runs (everyone sees it; owners
-// and admins change it), Leave this club. Not yet built: your limits in
-// this club. No rail here: it would repeat the main column. Its space is
-// kept (reserveRail).
+// person (owners and admins), Your limits in this club (the viewer's own
+// only), How this club runs (everyone sees it; owners and admins change
+// it), Leave this club. No rail here: it would repeat the main column. Its
+// space is kept (reserveRail).
 export default async function MembersPage({
   params,
   searchParams,

@@ -13,7 +13,7 @@ import {
 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
-import { finishCodeSignIn, nameYourself } from "./signIn";
+import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 
 // The global /watchlist (docs/onboarding-spec.md §6.4, §6.2, §5.11.2;
 // rebuild step 6c). Sky is in Apple Club and Birch Club
@@ -55,6 +55,7 @@ async function expectGlobalPage(page: Page) {
 test.describe("global watchlist", () => {
   test("empty list, no clubs: the empty state, search focused, the hint, no chips", async ({ page }) => {
     const email = "global-watchlist@example.com";
+    await existingAccount(email);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send code" }).click();

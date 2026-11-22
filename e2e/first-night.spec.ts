@@ -2,13 +2,14 @@ import type { Browser, BrowserContext, Page } from "@playwright/test";
 import postgres from "postgres";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
-import { agreeToTerms, finishCodeSignIn, nameYourself } from "./signIn";
+import { agreeToTerms, existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 import { expectYouAre } from "./identity";
 
 // The real deliverable this spec proves: a club that didn't exist when the
-// test started goes all the way from the home page through sign-up,
+// test started goes all the way from the home page through sign-in,
 // invites, nomination, voting, lock, confirmation and rating — with zero
-// seeded data. Every other spec runs against clubs db/seed.ts creates;
+// seeded data. Sign-up is invite-only (§11.1), so the founder's account
+// exists, bare and unnamed; everyone else signs up through their invite. Every other spec runs against clubs db/seed.ts creates;
 // this one deliberately doesn't (docs/onboarding-spec.md §8.3).
 //
 // Everyone signs in the real way, once — email, code, name step — and
@@ -43,19 +44,24 @@ test.describe("first night — a brand-new club, start to finish", () => {
   let priya: State;
   let owen: State;
 
-  test("Priya starts from the home page, signs up, names herself, and creates the club", async ({
+  test("Priya starts from the home page, signs in, names herself, and creates the club", async ({
     page,
   }) => {
     const email = "priya.firstnight@example.com";
+    // Sign-up is invite-only (§11.1): Priya's account exists, unnamed, and
+    // the signed-out home page offers Sign in, not Start a club.
+    await existingAccount(email);
     await page.goto("/");
-    await page.getByRole("link", { name: "Start a club" }).click();
-    // /new needs an account: off to sign in, coming back to /new.
-    await expect(page).toHaveURL(/\/login\?returnTo=%2Fnew/);
+    await page.locator("main").getByRole("link", { name: "Sign in" }).click();
+    await expect(page).toHaveURL("/login");
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send code" }).click();
     await finishCodeSignIn(page, email);
     await nameYourself(page, "Priya", "S");
 
+    // Home, with no clubs yet: Start a club is there for an account.
+    await expect(page).toHaveURL("/");
+    await page.locator("main").getByRole("link", { name: "Start a club" }).click();
     await expect(page).toHaveURL("/new");
     await page.getByLabel("Club name").fill("Brand New Club");
     // Weekly, Saturday 8pm (the form's own defaults) — a real cadence, not

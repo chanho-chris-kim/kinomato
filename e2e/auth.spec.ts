@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { CLUB_7_ID, DISPLAY_NAME_7 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
-import { agreeToTerms, finishCodeSignIn, latestSignInRow, setKnownSignIn } from "./signIn";
+import { agreeToTerms, existingAccount, finishCodeSignIn, latestSignInRow, setKnownSignIn } from "./signIn";
 import { expectYouAre } from "./identity";
 
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
@@ -76,6 +76,8 @@ test.describe("auth — sign-in codes and links", () => {
     page,
   }) => {
     const email = "link-user@example.com";
+    // Sign-up is invite-only (§11.1): an existing account, signing in.
+    await existingAccount(email);
     await requestCode(page, email);
     const { token } = await setKnownSignIn(email);
 
