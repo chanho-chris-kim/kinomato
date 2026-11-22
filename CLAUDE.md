@@ -149,11 +149,15 @@ The purpose of v0 is to find out which rulings below are wrong.
 The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
 are the launch foundations' build steps (§11).
 
-**Next: weekly-loop automation, then email reminders.** A scheduled job
-that locks voting and closes out nights nobody confirmed (`unconfirmed`;
-nothing writes that state yet, so one unanswered prompt holds a club's
-night in flight forever), then reminders by email within the two-pushes-
-a-week cap. Both run on the Cron Trigger beside retention (`worker.ts`).
+**Next: weekly-loop automation, then email reminders.** The night
+deadlines are stored and shown (w1 + w2, 2026-11-21: see "Night deadlines"
+below). Next is the hourly job that acts on them (w3): it locks voting
+at `lock_at`, logs nights nobody confirmed as `unconfirmed` at
+`unconfirm_at` (nothing writes that state yet, so one unanswered prompt
+still holds a club's night in flight forever), and passes the turn of a
+picker who never opened voting. Then late confirmation, then reminders by
+email within the two-pushes-a-week cap. All on the Cron Trigger beside
+retention (`worker.ts`).
 
 ## Rulings that are load-bearing
 
@@ -189,8 +193,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   Locking itself (analysis-v1.md §1.1 stage 8) tallies the night's votes and
   writes the winner to `winning_film_id` — two entry points, one shared core
   (`lockNightCore`): a manual "Close voting and set the pick" button, and a
-  not-yet-built scheduled job (SEAM comment in `lockNightCore.ts` — needs a
-  `lockTime` key added to `clubs.settings` and a Cloudflare Cron Trigger).
+  not-yet-built scheduled job that locks at the night's stored `lock_at`
+  (see "Night deadlines" below; `lockNightCore.ts`'s comment describes the
+  design). **The button stays as "close now" for owners and admins**
+  (ruled 2026-11-21), once the job exists too.
   **The button is restricted to owner/admin**, not any club member — this
   overrides an earlier ruling here that any member could lock. Reasoning for
   the change: the button only exists because the cron doesn't yet — it's
@@ -202,7 +208,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   mattering — the clock will beat manual clicks to it in the common case.
   Tie-break chain: most votes, then fewest soft-
   preference conflicts among attending members
-  (`countSoftPreferenceConflicts`), then nomination id ASC as a last-resort
+  (`countSoftPreferenceConflicts`), then the picker's own order
+  (`nominations.position`, ruled 2026-11-21: when nobody votes, the
+  picker's first choice wins), then nomination id ASC as a last-resort
   deterministic fallback — `analysis-v2.md` §2's further "club overlap
   descending" tiebreak key isn't wired in, since it needs a query this
   function doesn't otherwise do (see Open Questions). Once locked: a vote is
@@ -284,7 +292,43 @@ Do not quietly change these — they encode decisions that took a while to reach
   night as `unconfirmed`. History integrity is what makes the rotation
   trustworthy. Auto-advance is always on a bounded timer (24h / 48h / 7 days) —
   never offer "never" as an option. A club stalled forever on one picker is a
-  dead club.
+  dead club. **Ruled 2026-11-19:** a night nobody confirms is marked
+  `unconfirmed` automatically. It consumes the picker's turn (the rotation
+  moves on; `lib/rotation.ts` already counts it), but it is never recorded
+  or counted as watched anywhere: History's watched rendering, the "club
+  watched this" badge, ratings, export, any future aggregate (each reads
+  `state = 'watched'` only). This supersedes `docs/prototype.html`'s "the
+  week logs as unconfirmed and Sam keeps the turn".
+- **Night deadlines (ruled 2026-11-21, `lib/nightDeadlines.ts`).** Stored
+  on the night, so a settings change never moves a night already open or
+  locked; the settings form says so.
+  - **Voting closes** at `nights.lock_at`, written when voting opens:
+    `min(max(scheduled_at − lockTime, now + 6h), scheduled_at)`. Everyone
+    gets at least 6 hours unless the night itself comes first; voting
+    never closes after the night starts. `lockTime` (club setting): 1, 3,
+    6, 12, 24, 48 or 72 hours, default 24.
+  - **Unconfirmed after** `nights.unconfirm_at`, written at lock:
+    `max(confirmableAt ?? scheduled_at, locked_at) + autoAdvance`.
+    `autoAdvance`: 24, 48 or 168 hours, default 48; never "never".
+  - **Durations are absolute hours**, so across a DST change they're
+    23/25 or 47/49 hours on the clock.
+  - **`nights.unconfirmed_at`** records when a night became unconfirmed,
+    and is kept even if a late "yes" later makes it watched.
+  - **The picker's order** is `nominations.position` (1 = first choice),
+    written when voting opens in the order they selected their films;
+    lock's tiebreak uses it before id.
+  - **A picker who never opens voting:** if a night is still a draft at
+    `scheduled_at − lockTime` (when voting would have closed), the job
+    passes their turn exactly as Pass my turn does (p1's postponement,
+    "Passed this turn"). Built with the job (w3).
+  - **Late confirmation:** only "Yes, we watched it", for 7 days after a
+    night becomes unconfirmed, and only while no later night has
+    finished; a late "No" is refused (letting it un-consume the turn would
+    reward waiting out the timer). Built later (`lateConfirmOpen`).
+  - Tonight shows "Voting closes {day time}" on an open night and, on a
+    locked one, "If nobody answers by {day time}, this week is logged as
+    unconfirmed and the turn moves on." Nights from before the columns
+    existed get a display-only fallback from today's settings.
 - **Constraints: hard vs soft.** Hard limits are never overridden and never voted
   on, capped at two per person. Soft preferences warn and break ties, never block.
   Scoping is asymmetric: a hard limit applies to everyone who has **not
@@ -1018,11 +1062,6 @@ and move on.
   count across every member, a separate query `lockNightCore` doesn't
   otherwise make, not a filter over data already in hand the way the soft-
   preference signal is.
-- **`clubs.settings.lockTime` doesn't exist.** Referenced in the lock
-  ruling's scheduled-job seam as what a cron would eventually read (paired
-  with analysis-v1.md §1.1 stage 8's "24 hours before the night" default) —
-  nobody has added the key, a reader for it (the `lib/clubSettings.ts`
-  shape), or any UI to set it.
 - **Member-level rating preferences.** The age-rating ceiling is a club-level
   filter (`films.certification`). Whether an individual member can also set
   their own rating preference, and if so whether it's hard or soft, isn't

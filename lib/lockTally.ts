@@ -3,7 +3,9 @@
 // Tie-break chain: most votes, then fewest soft-preference conflicts
 // among attending members (lib/constraints.ts's
 // countSoftPreferenceConflicts — cheap to wire here since the caller
-// already has films/constraints/rsvps on hand from tallying), then
+// already has films/constraints/rsvps on hand from tallying), then the
+// picker's order (nominations.position, ruled 2026-11-21: with no votes,
+// their first choice wins), then
 // nomination id ASC as a last-resort deterministic fallback, same
 // shape as lib/rotation.ts's trailing id ASC — without it a full tie
 // is nondeterministic.
@@ -31,6 +33,9 @@ import {
 export interface TallyNomination {
   id: string;
   filmId: string;
+  // The picker's order (1 = first choice). Null for nominations made
+  // before it was recorded.
+  position?: number | null;
 }
 
 export interface TallyVote {
@@ -76,5 +81,9 @@ export function pickWinningNomination(input: PickWinnerInput): string | null {
   );
   if (candidates.length === 1) return candidates[0].id;
 
-  return [...candidates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0].id;
+  // Then the picker's own order (ruled 2026-11-21): with no votes, their
+  // first choice wins. Nominations with no position come after, then id
+  // ASC, so a full tie is still deterministic.
+  const rank = (n: TallyNomination) => n.position ?? Number.MAX_SAFE_INTEGER;
+  return [...candidates].sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0].id;
 }
