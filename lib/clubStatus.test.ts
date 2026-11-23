@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findConfirmableNight,
   findInFlightNight,
+  findLateConfirmableNight,
   findLatestWatchedNight,
   findLockedNight,
   formatNightTime,
@@ -391,5 +392,79 @@ describe("sortClubCards", () => {
     const cards = [card("B", false, null), card("A", true, null)];
     sortClubCards(cards);
     expect(cards.map((c) => c.name)).toEqual(["B", "A"]);
+  });
+});
+
+// Late confirmation (ruled 2026-11-21): "Yes, we watched it" on an
+// unconfirmed night, for 7 days after it became unconfirmed, while no later
+// night of the club has finished.
+describe("findLateConfirmableNight", () => {
+  const unconfirmedAt = new Date(NOW.getTime() - 2 * DAY);
+  const unconfirmed = (overrides: Partial<StatusNight> = {}) =>
+    night({
+      state: "unconfirmed",
+      id: "n-unconfirmed",
+      pickerMembershipId: ME,
+      scheduledAt: new Date(NOW.getTime() - 5 * DAY),
+      winningFilmId: FILM,
+      unconfirmedAt,
+      ...overrides,
+    });
+  const day = (n: number) => new Date(unconfirmedAt.getTime() + n * DAY);
+
+  it("open on day 6, closed on day 8", () => {
+    const n = unconfirmed();
+    expect(findLateConfirmableNight([n], day(6))).toBe(n);
+    expect(findLateConfirmableNight([n], day(8))).toBeNull();
+  });
+
+  it("closes once a later night has finished, whatever its ending", () => {
+    const n = unconfirmed();
+    for (const state of ["watched", "cancelled", "unconfirmed"] as const) {
+      const later = night({ state, id: `later-${state}`, scheduledAt: new Date(NOW.getTime() - 1 * DAY), winningFilmId: FILM, unconfirmedAt: day(0) });
+      expect(findLateConfirmableNight([n, later], day(1)), state).toBe(state === "unconfirmed" ? later : null);
+    }
+    // A later night still in flight doesn't close it.
+    expect(findLateConfirmableNight([n, night({ state: "draft" })], day(1))).toBe(n);
+  });
+
+  it("only an unconfirmed night with a winner and a time it became unconfirmed", () => {
+    expect(findLateConfirmableNight([unconfirmed({ unconfirmedAt: null })], day(1))).toBeNull();
+    expect(findLateConfirmableNight([unconfirmed({ winningFilmId: null })], day(1))).toBeNull();
+    expect(findLateConfirmableNight([watched()], day(1))).toBeNull();
+  });
+});
+
+describe("getClubStatus: a late confirmation", () => {
+  const unconfirmed = night({
+    state: "unconfirmed",
+    id: "n-unconfirmed",
+    pickerMembershipId: ME,
+    scheduledAt: new Date(NOW.getTime() - 5 * DAY),
+    winningFilmId: FILM,
+    unconfirmedAt: new Date(NOW.getTime() - 2 * DAY),
+  });
+
+  it("is an action: \"Did you watch Thief after all?\"", () => {
+    const status = getClubStatus(input({ nights: [unconfirmed] }));
+    expect(status).toEqual({ kind: "lateConfirm", filmId: FILM });
+    expect(text(status)).toBe("Did you watch Thief after all?");
+    expect(isActionStatus(status)).toBe(true);
+  });
+
+  it("comes after your turn to nominate and an unvoted vote, before rate", () => {
+    const myDraft = night({ state: "draft", pickerMembershipId: ME });
+    expect(getClubStatus(input({ nights: [unconfirmed, myDraft] })).kind).toBe("nominate");
+    const open = night({ state: "open" });
+    expect(getClubStatus(input({ nights: [unconfirmed, open] })).kind).toBe("vote");
+    const olderWatched = watched({ scheduledAt: new Date(NOW.getTime() - 12 * DAY) });
+    expect(
+      getClubStatus(input({ nights: [unconfirmed, olderWatched], viewerOnLatestWatched: { rsvpYes: true, rated: false } })).kind,
+    ).toBe("lateConfirm");
+  });
+
+  it("past the window, it's just whoever picks next", () => {
+    const status = getClubStatus(input({ nights: [unconfirmed], now: new Date(NOW.getTime() + 6 * DAY) }));
+    expect(status.kind).toBe("next");
   });
 });

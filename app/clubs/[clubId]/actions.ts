@@ -37,6 +37,8 @@ import { HARD_LIMIT_CAP_MESSAGE, readLimitForm } from "@/lib/constraintForm";
 import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
+import { findLateConfirmableNight } from "@/lib/clubStatus";
+import type { NightState } from "@/lib/rotation";
 import { getOrCreateCurrentSeasonId } from "./season";
 import { passDraftCore } from "./passTurnCore";
 
@@ -226,11 +228,19 @@ export async function openVoting(clubId: string, nightId: string, formData: Form
 
 // "Did you watch X?" (analysis-v1.md §1.1 stage 10). Anyone in the club
 // can answer; first answer settles it. The conditional UPDATE below is
-// the whole mechanism for that: it only touches a row still in a
-// non-terminal state, so if two members submit at nearly the same
+// the whole mechanism for that: it only touches a row still in a state
+// that answer may move, so if two members submit at nearly the same
 // moment, whichever write lands second matches zero rows and is
 // silently a no-op — not an error, since losing that race is the
 // expected shape of "first answer wins," not a bug to report.
+//
+// Late confirmation (ruled 2026-11-21): "watched" also moves an
+// unconfirmed night, while lib/clubStatus.ts findLateConfirmableNight
+// says it's still open (7 days, no later night finished). unconfirmed_at
+// is kept. A late "didn't watch" is refused: it never matches an
+// unconfirmed night, so it changes nothing. With the hourly job logging
+// the night unconfirmed in the same instant, "watched" lands either way:
+// before the job (the job then matches nothing) or after it.
 //
 // "We watched something else" is a deliberate omission — CLAUDE.md's
 // Open Questions, not ruled on yet.
@@ -241,21 +251,37 @@ export async function confirmNight(
 ) {
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const membershipId = await requireCurrentMembershipId(clubId);
+  const now = new Date();
 
-  const updated = await db
+  const allowed: NightState[] = [...NON_TERMINAL_STATES];
+  if (outcome === "watched") {
+    const clubNights = await db
+      .select({
+        id: nights.id,
+        state: nights.state,
+        scheduledAt: nights.scheduledAt,
+        pickerMembershipId: nights.pickerMembershipId,
+        winningFilmId: nights.winningFilmId,
+        unconfirmedAt: nights.unconfirmedAt,
+      })
+      .from(nights)
+      .where(eq(nights.clubId, clubId));
+    if (findLateConfirmableNight(clubNights, now)?.id === nightId) allowed.push("unconfirmed");
+  }
+
+  await db
     .update(nights)
-    .set({ state: outcome, confirmedAt: new Date(), confirmedBy: membershipId })
+    .set({ state: outcome, confirmedAt: now, confirmedBy: membershipId })
     .where(
       and(
         eq(nights.id, nightId),
         eq(nights.clubId, clubId),
-        inArray(nights.state, NON_TERMINAL_STATES),
+        inArray(nights.state, allowed),
       ),
-    )
-    .returning({ id: nights.id });
+    );
 
-  if (updated.length === 0) return;
-
+  // Refreshed either way: an answer that was refused, or lost the race,
+  // shows the night as it now is instead of leaving the old buttons up.
   revalidatePath(`/clubs/${clubId}`);
 }
 

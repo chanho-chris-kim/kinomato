@@ -44,7 +44,9 @@ export default async function TagPage({
       .innerJoin(ratings, eq(ratingTags.ratingId, ratings.id))
       .innerJoin(nights, eq(ratings.nightId, nights.id))
       .innerJoin(films, eq(nights.winningFilmId, films.id))
-      .where(eq(ratingTags.tagId, tagRow.id));
+      // Watched nights only, defensively: ratings exist only on watched
+      // nights, and an unconfirmed one is never counted as watched.
+      .where(and(eq(ratingTags.tagId, tagRow.id), eq(nights.state, "watched")));
 
     // Blind reveal extends to tags (CLAUDE.md: "show tags with the
     // revealed ratings") — a tag only surfaces here once its night's
