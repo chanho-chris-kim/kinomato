@@ -194,9 +194,12 @@ only a person's tap signs anyone in.
   6-digit code in plaintext is trivially usable by anyone who can read the
   table. The link token should move to the same hashing, which is the Open
   Question's fix.
-- **Resend cooldown: 30 seconds.** Per-email send cap: 5 per hour. Brevo's
-  free tier is 300/day, and an unthrottled "resend" button is a way to spend
-  it on one inbox.
+- **Resend cooldown: 30 seconds.** Per-email send cap: 5 per hour. An
+  unthrottled "resend" button would spend the SES account's sending quota
+  (a daily maximum and a per-second rate, per account and region; a new
+  account's sandbox allows 200 a day) on one inbox, and mailing one address
+  that often hurts the sender's reputation. (Restated 2026-11-22: this used
+  to cite Brevo's 300-a-day free tier.)
 - **No account enumeration.** "We sent a code to that address" is the
   response whether or not an account exists. It always will exist
   afterwards, since verifying creates it.
@@ -1454,9 +1457,17 @@ hashes exist to breach, and no identity provider (Google, Apple, Auth0,
 Clerk) sees who signs in to what. **It does not mean no processors.** The
 data-flow section of the privacy policy lists, at minimum:
 
-- **Brevo** (Sendinblue SAS, France) — receives every account's email
-  address and every sign-in email. A sub-processor, with a cross-border
-  transfer out of Canada.
+- **Amazon Web Services (Canada)** — Amazon SES in ca-central-1 receives
+  every account's email address and every email we send (sign-in, email
+  change, deletion, ops alerts, reminders), processed in Canada. Replaced
+  **Brevo** (Sendinblue SAS, France) on 2026-11-22.
+- **Every email is sent with no open or click tracking (ruled
+  2026-11-22).** SES can only add an open pixel or rewrite links through a
+  configuration set; `lib/email.ts` never names one, and a unit test pins
+  that no `ConfigurationSetName` is ever sent. (Brevo's transactional
+  tracking could only be anonymised on our plan, not turned off.) The
+  Privacy version moved to 2026-11-22 for the processor change, so
+  everyone re-accepts. The cutover is manual: `docs/ses-cutover.md`.
 - **Neon** — hosts the database, which is all of it.
 - **Cloudflare** — hosts the app and sees every request.
 
@@ -1504,7 +1515,8 @@ weighed against the convenience when the time comes.
     moves (`analysis-v2.md` §3: ownership is always transferable).
   - **Re-signup with the same email** afterwards: a fresh account, or
     refused?
-  - **Processors and backups:** Brevo holds addresses; Neon branches and
+  - **Processors and backups:** the email provider (Brevo then; Amazon SES
+    from 2026-11-22) holds addresses; Neon branches and
     backups keep copies. What does deletion promise, and on what timeline?
   - **Export:** format, scope (my ratings, my watchlist, my clubs'
     history?), and whether it includes other people's names.

@@ -24,7 +24,8 @@ const worker = {
   // hourly weekly loop, told apart by controller.cron
   // (app/scheduledJobs.ts). A fresh client per run (never module scope,
   // CLAUDE.md). The database URL comes from the run's own env; the email
-  // settings (SUPPORT_EMAIL, BREVO_API_KEY) from process.env, which the
+  // settings (SUPPORT_EMAIL, SES_ACCESS_KEY_ID, SES_SECRET_ACCESS_KEY,
+  // SES_REGION) from process.env, which the
   // runtime fills from the same vars and secrets. Awaited, not
   // waitUntil'd: a throw fails the run itself, visibly, in Workers Logs and
   // the Cron Events list, after the ops alert has gone.

@@ -27,9 +27,10 @@ const SERVER_ENV = {
   // has a token at all).
   TMDB_READ_TOKEN: "",
   // Same reasoning: without this, a local run would send real magic
-  // links through Brevo to the seeded @example.com addresses.
-  BREVO_API_KEY: "",
-  // With no Brevo key, lib/email.ts also appends each message here, so
+  // email through Amazon SES to the seeded @example.com addresses.
+  SES_ACCESS_KEY_ID: "",
+  SES_SECRET_ACCESS_KEY: "",
+  // With no SES credentials, lib/email.ts also appends each message here, so
   // specs can check what would have been sent (e2e/outbox.ts). Emptied
   // by global setup at the start of every run.
   EMAIL_OUTBOX_FILE: EMAIL_OUTBOX_FILE,

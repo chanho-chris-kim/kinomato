@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as email from "./email";
 import { sendOpsAlert, sendSignInEmail } from "./email";
 
 afterEach(() => {
@@ -7,15 +8,37 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// No BREVO_API_KEY in this test env (vitest runs the same way CI and
-// E2E do — CLAUDE.md's fixture-fallback pattern). Stubbed to "" rather
-// than trusted to be unset, so a developer's shell env can't turn this
-// into a real send.
-describe("sendSignInEmail (no BREVO_API_KEY — no real send)", () => {
+// Amazon SES v2 in ca-central-1 (docs/onboarding-spec.md §9, ruled
+// 2026-11-22). fetch is stubbed throughout: these pin the request shape
+// against SES's documented SendEmail contract, never a live send.
+
+const SES_URL = "https://email.ca-central-1.amazonaws.com/v2/email/outbound-emails";
+
+// Test credentials, so a developer's shell env can never turn a test into a
+// real send. Without them, the credentials are stubbed to "" (no send).
+function withSes() {
+  vi.stubEnv("SES_ACCESS_KEY_ID", "AKIDTEST");
+  vi.stubEnv("SES_SECRET_ACCESS_KEY", "test-secret");
+  vi.stubEnv("SES_REGION", "");
+}
+function withoutSes() {
+  vi.stubEnv("SES_ACCESS_KEY_ID", "");
+  vi.stubEnv("SES_SECRET_ACCESS_KEY", "");
+}
+function stubFetch(response = () => new Response('{"MessageId":"x"}', { status: 200 })) {
+  const fetchSpy = vi.fn().mockImplementation(async () => response());
+  vi.stubGlobal("fetch", fetchSpy);
+  return fetchSpy;
+}
+const bodies = (fetchSpy: ReturnType<typeof vi.fn>) =>
+  fetchSpy.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+const html = (body: { Content: { Simple: { Body: { Html: { Data: string } } } } }) => body.Content.Simple.Body.Html.Data;
+const subject = (body: { Content: { Simple: { Subject: { Data: string } } } }) => body.Content.Simple.Subject.Data;
+
+describe("sendSignInEmail without SES credentials (no real send)", () => {
   it("resolves without throwing and without a network call", async () => {
-    vi.stubEnv("BREVO_API_KEY", "");
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
+    withoutSes();
+    const fetchSpy = stubFetch();
     vi.spyOn(console, "log").mockImplementation(() => {});
     await expect(
       sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc"),
@@ -23,140 +46,189 @@ describe("sendSignInEmail (no BREVO_API_KEY — no real send)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("logs the code and the link so a developer without a key can still sign in", async () => {
-    vi.stubEnv("BREVO_API_KEY", "");
+  it("logs the code and the link so a developer without credentials can still sign in", async () => {
+    withoutSes();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc");
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dana@example.com"),
-    );
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("https://kinomato.com/verify?token=abc"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("dana@example.com"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("https://kinomato.com/verify?token=abc"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("048213"));
   });
 });
 
-// fetch is stubbed — this pins the request shape against Brevo's
-// documented contract, not a live send.
-describe("sendSignInEmail (BREVO_API_KEY set)", () => {
-  it("POSTs to Brevo's transactional endpoint with an api-key header", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
-    const fetchSpy = vi.fn().mockResolvedValue(new Response('{"messageId":"x"}', { status: 201 }));
-    vi.stubGlobal("fetch", fetchSpy);
-
+describe("sendSignInEmail through SES", () => {
+  it("POSTs SES v2 SendEmail in ca-central-1, signed with SigV4", async () => {
+    withSes();
+    const fetchSpy = stubFetch();
     await sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc");
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
+    expect(url).toBe(SES_URL);
     expect(init.method).toBe("POST");
-    expect(init.headers["api-key"]).toBe("test-key");
     expect(init.headers["content-type"]).toBe("application/json");
-    const body = JSON.parse(init.body);
-    expect(body.sender).toEqual({ email: "hello@kinomato.com", name: "Kinomato" });
-    expect(body.to).toEqual([{ email: "dana@example.com" }]);
+    expect(init.headers["x-amz-date"]).toMatch(/^\d{8}T\d{6}Z$/);
+    expect(init.headers.authorization).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIDTEST\/\d{8}\/ca-central-1\/ses\/aws4_request, SignedHeaders=content-type;host;x-amz-date, Signature=[0-9a-f]{64}$/,
+    );
+    expect(JSON.stringify(init.headers)).not.toContain("test-secret");
+
+    const [body] = bodies(fetchSpy);
+    expect(body.FromEmailAddress).toBe("Kinomato <hello@kinomato.com>");
+    expect(body.Destination).toEqual({ ToAddresses: ["dana@example.com"] });
     // The code leads the subject so it shows in the notification itself,
     // which is where iOS and Android pick up one-time codes to autofill.
-    expect(body.subject).toBe("048213 is your Kinomato sign-in code");
-    expect(body.htmlContent).toContain("048213");
-    expect(body.htmlContent).toContain("https://kinomato.com/verify?token=abc");
+    expect(subject(body)).toBe("048213 is your Kinomato sign-in code");
+    expect(html(body)).toContain("048213");
+    expect(html(body)).toContain("https://kinomato.com/verify?token=abc");
+    expect(body.ReplyToAddresses).toBeUndefined();
   });
 
-  it("throws with Brevo's error message on a non-2xx response", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response('{"code":"unauthorized","message":"Key not found"}', { status: 401 }),
-      ),
-    );
+  it("SES_REGION moves the endpoint and the signature's region", async () => {
+    withSes();
+    vi.stubEnv("SES_REGION", "ca-west-1");
+    const fetchSpy = stubFetch();
+    await sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc");
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe("https://email.ca-west-1.amazonaws.com/v2/email/outbound-emails");
+    expect(init.headers.authorization).toContain("/ca-west-1/ses/aws4_request");
+  });
 
-    await expect(
-      sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc"),
-    ).rejects.toThrow(/401.*Key not found/);
+  it("throws with SES's error message on a non-2xx response, without the recipient's address", async () => {
+    withSes();
+    stubFetch(() => new Response('{"message":"Email address is not verified."}', { status: 400 }));
+    const error = await sendSignInEmail("dana@example.com", "048213", "https://kinomato.com/verify?token=abc").catch((e) => e);
+    expect(String(error)).toMatch(/400.*Email address is not verified/);
+    expect(String(error)).not.toContain("dana@example.com");
+  });
+});
+
+// No tracking, by design (ruled 2026-11-22): SES can only add an open pixel
+// or rewrite links through a configuration set. No email ever names one.
+describe("no configuration set, ever", () => {
+  it("in every email this module sends", async () => {
+    withSes();
+    vi.stubEnv("SUPPORT_EMAIL", "support@kinomato.com");
+    const fetchSpy = stubFetch();
+    await email.sendSignInEmail("a@example.com", "123456", "https://kinomato.com/verify?token=t");
+    await email.sendInviteOnlyEmail("a@example.com");
+    await email.sendEmailChangeCode("a@example.com", "123456");
+    await email.sendEmailTakenNotice("a@example.com");
+    await email.sendEmailChangedNotice("a@example.com", "b•••@example.com");
+    await email.sendAccountDeletionCode("a@example.com", "123456");
+    await email.sendAccountDeletedReceipt("a@example.com");
+    await email.sendOpsAlert("weekly-loop", new Date(), { failed: 1 });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(8);
+    for (const [, init] of fetchSpy.mock.calls) {
+      const raw = (init as RequestInit).body as string;
+      expect(raw).not.toMatch(/ConfigurationSet/i);
+      expect(Object.keys(JSON.parse(raw)).sort()).toEqual(
+        expect.not.arrayContaining(["ConfigurationSetName"]),
+      );
+    }
+  });
+});
+
+describe("credentials", () => {
+  it("half a configuration fails loud", async () => {
+    vi.stubEnv("SES_ACCESS_KEY_ID", "AKIDTEST");
+    vi.stubEnv("SES_SECRET_ACCESS_KEY", "");
+    const fetchSpy = stubFetch();
+    await expect(email.sendInviteOnlyEmail("a@example.com")).rejects.toThrow(/Only one of SES_ACCESS_KEY_ID/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("none in production fails loud (the AUTH_SECRET posture)", async () => {
+    withoutSes();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("EMAIL_OUTBOX_FILE", "");
+    const fetchSpy = stubFetch();
+    await expect(email.sendInviteOnlyEmail("a@example.com")).rejects.toThrow(/SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are not set/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("none on Playwright's production-build server (it sets the outbox): the outbox, no send", async () => {
+    const { mkdtempSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const file = join(mkdtempSync(join(tmpdir(), "outbox-")), "outbox.jsonl");
+    withoutSes();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("EMAIL_OUTBOX_FILE", file);
+    const fetchSpy = stubFetch();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await email.sendInviteOnlyEmail("a@example.com");
+    expect(readFileSync(file, "utf8")).toContain('"kind":"invite-only"');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 
 // Email change (docs/onboarding-spec.md §5.9; rebuild step 7b).
 describe("email-change emails", () => {
-  const sentBodies = (fetchSpy: ReturnType<typeof vi.fn>) =>
-    fetchSpy.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
-
   it("the code goes to the new address, and only there; no link", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
-    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
-    vi.stubGlobal("fetch", fetchSpy);
-    const { sendEmailChangeCode } = await import("./email");
-    await sendEmailChangeCode("new@example.com", "246810");
-    const [body] = sentBodies(fetchSpy);
-    expect(body.to).toEqual([{ email: "new@example.com" }]);
-    expect(body.subject).toContain("246810");
-    expect(body.htmlContent).toContain("246810");
-    expect(body.htmlContent).not.toContain("href");
+    withSes();
+    const fetchSpy = stubFetch();
+    await email.sendEmailChangeCode("new@example.com", "246810");
+    const [body] = bodies(fetchSpy);
+    expect(body.Destination).toEqual({ ToAddresses: ["new@example.com"] });
+    expect(subject(body)).toContain("246810");
+    expect(html(body)).toContain("246810");
+    expect(html(body)).not.toContain("href");
   });
 
   it("the taken-address notice carries no code", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
-    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
-    vi.stubGlobal("fetch", fetchSpy);
-    const { sendEmailTakenNotice } = await import("./email");
-    await sendEmailTakenNotice("taken@example.com");
-    const [body] = sentBodies(fetchSpy);
-    expect(body.to).toEqual([{ email: "taken@example.com" }]);
-    expect(body.htmlContent).toContain("You already have one, so nothing changed.");
-    expect(body.htmlContent).not.toMatch(/\d{6}/);
+    withSes();
+    const fetchSpy = stubFetch();
+    await email.sendEmailTakenNotice("taken@example.com");
+    const [body] = bodies(fetchSpy);
+    expect(body.Destination).toEqual({ ToAddresses: ["taken@example.com"] });
+    expect(html(body)).toContain("You already have one, so nothing changed.");
+    expect(html(body)).not.toMatch(/\d{6}/);
   });
 
   it("the old-address notice shows only the masked new address, with Reply-To from SUPPORT_EMAIL", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "support@kinomato.com");
-    const fetchSpy = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
-    vi.stubGlobal("fetch", fetchSpy);
-    const { sendEmailChangedNotice } = await import("./email");
-    await sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
-    const [body] = sentBodies(fetchSpy);
-    expect(body.to).toEqual([{ email: "old@example.com" }]);
-    expect(body.replyTo).toEqual({ email: "support@kinomato.com" });
-    expect(body.htmlContent).toContain("Your Kinomato email was changed to n•••@gmail.com.");
-    expect(body.htmlContent).toContain("If this wasn't you, reply to this email.");
+    const fetchSpy = stubFetch();
+    await email.sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
+    const [body] = bodies(fetchSpy);
+    expect(body.Destination).toEqual({ ToAddresses: ["old@example.com"] });
+    expect(body.ReplyToAddresses).toEqual(["support@kinomato.com"]);
+    expect(html(body)).toContain("Your Kinomato email was changed to n•••@gmail.com.");
+    expect(html(body)).toContain("If this wasn't you, reply to this email.");
   });
 
   it("SUPPORT_EMAIL unset: throws a clear error and sends nothing", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "");
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-    const { sendEmailChangedNotice } = await import("./email");
-    await expect(sendEmailChangedNotice("old@example.com", "n•••@gmail.com")).rejects.toThrow(/SUPPORT_EMAIL is not set/);
+    const fetchSpy = stubFetch();
+    await expect(email.sendEmailChangedNotice("old@example.com", "n•••@gmail.com")).rejects.toThrow(/SUPPORT_EMAIL is not set/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("without a key, a test outbox file (if set) records the message, and nothing is fetched", async () => {
+  it("without credentials, a test outbox file (if set) records the message, and nothing is fetched", async () => {
     const { mkdtempSync, readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
     const file = join(mkdtempSync(join(tmpdir(), "outbox-")), "outbox.jsonl");
-    vi.stubEnv("BREVO_API_KEY", "");
+    withoutSes();
     vi.stubEnv("EMAIL_OUTBOX_FILE", file);
     vi.stubEnv("SUPPORT_EMAIL", "support@kinomato.com");
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
+    const fetchSpy = stubFetch();
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const { sendEmailChangedNotice } = await import("./email");
-    await sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
+    await email.sendEmailChangedNotice("old@example.com", "n•••@gmail.com");
     const [line] = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     expect(line).toMatchObject({ kind: "email-changed-notice", to: "old@example.com", replyTo: "support@kinomato.com" });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("with a key, the outbox is never written", async () => {
+  it("with credentials, the outbox is never written", async () => {
     const { existsSync } = await import("node:fs");
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("EMAIL_OUTBOX_FILE", "/nonexistent-dir/should-not-be-written.jsonl");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 201 })));
-    const { sendEmailTakenNotice } = await import("./email");
-    await sendEmailTakenNotice("taken@example.com");
+    stubFetch();
+    await email.sendEmailTakenNotice("taken@example.com");
     expect(existsSync("/nonexistent-dir/should-not-be-written.jsonl")).toBe(false);
   });
 });
@@ -165,43 +237,42 @@ describe("email-change emails", () => {
 // the time and the counts, and nothing else.
 describe("sendOpsAlert", () => {
   const sent = () => {
-    const fetchSpy = vi.fn().mockResolvedValue(new Response('{"messageId":"x"}', { status: 201 }));
-    vi.stubGlobal("fetch", fetchSpy);
-    return () => JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+    const fetchSpy = stubFetch();
+    return () => bodies(fetchSpy)[0];
   };
 
   it("goes to SUPPORT_EMAIL with the job, the time, the counts and where to look", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
     const body = sent();
     await sendOpsAlert("weekly-loop", new Date("2026-11-21T10:00:00Z"), { locked: 2, unconfirmed: 0, passed: 1, failed: 1 });
-    expect(body().to).toEqual([{ email: "ops@kinomato.test" }]);
-    expect(body().subject).toBe("Kinomato: the weekly-loop job failed");
-    expect(body().htmlContent).toContain("2026-11-21T10:00:00.000Z");
-    expect(body().htmlContent).toContain("Counts: locked 2, unconfirmed 0, passed 1, failed 1.");
-    expect(body().htmlContent).toContain("See Workers Logs");
+    expect(body().Destination).toEqual({ ToAddresses: ["ops@kinomato.test"] });
+    expect(subject(body())).toBe("Kinomato: the weekly-loop job failed");
+    expect(html(body())).toContain("2026-11-21T10:00:00.000Z");
+    expect(html(body())).toContain("Counts: locked 2, unconfirmed 0, passed 1, failed 1.");
+    expect(html(body())).toContain("See Workers Logs");
   });
 
   it("with no counts (a run that stopped early), says so", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
     const body = sent();
     await sendOpsAlert("retention", new Date("2026-11-21T10:00:00Z"), null);
-    expect(body().htmlContent).toContain("Counts: none: it stopped before finishing.");
+    expect(html(body())).toContain("Counts: none: it stopped before finishing.");
   });
 
   it("drops anything in counts that isn't a plain name and a number", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "ops@kinomato.test");
     const body = sent();
     const sneaky = { locked: 1, "dana@example.com": 3, note: Number.NaN } as Record<string, number>;
     await sendOpsAlert("weekly-loop", new Date("2026-11-21T10:00:00Z"), sneaky);
-    expect(body().htmlContent).toContain("Counts: locked 1.");
-    expect(body().htmlContent).not.toContain("dana");
+    expect(html(body())).toContain("Counts: locked 1.");
+    expect(html(body())).not.toContain("dana");
   });
 
   it("fails loud when SUPPORT_EMAIL is unset", async () => {
-    vi.stubEnv("BREVO_API_KEY", "test-key");
+    withSes();
     vi.stubEnv("SUPPORT_EMAIL", "");
     sent();
     await expect(sendOpsAlert("weekly-loop", new Date(), null)).rejects.toThrow(/SUPPORT_EMAIL is not set/);

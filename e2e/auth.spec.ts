@@ -6,7 +6,7 @@ import { expectYouAre } from "./identity";
 
 const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
 
-// No BREVO_API_KEY in E2E (CLAUDE.md — same fixture-fallback shape as
+// No SES credentials in E2E (CLAUDE.md — same fixture-fallback shape as
 // TMDB_READ_TOKEN), so no email is ever actually sent. Codes and link
 // tokens are stored only as hashes, so tests set a known code on the
 // newest sign-in row instead of reading one (e2e/signIn.ts).

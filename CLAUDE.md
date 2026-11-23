@@ -104,9 +104,19 @@ another month over the thing that picks a film faster.
   the `kinomato.com` custom domain from the landing project to the Worker
   and delete the landing project. The holding page is scaffolding — it
   does not get promoted.
-- Auth: email sign-in via Brevo (`lib/email.ts`, `BREVO_API_KEY`,
-  falls back to a console-logged code and link when unset — same shape
-  as `TMDB_READ_TOKEN`). One email carries a 6-digit code and a link;
+- Auth: email sign-in, sent through **Amazon SES in ca-central-1**
+  (`lib/email.ts`; `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`,
+  `SES_REGION` defaulting to `ca-central-1`; falls back to a
+  console-logged code and link when unset — same shape as
+  `TMDB_READ_TOKEN` — and fails loud in production when unset, as
+  `AUTH_SECRET` does). **Every email is sent with no open or click
+  tracking (ruled 2026-11-22):** SES can only add a pixel or rewrite links
+  through a configuration set, `send()` never names one, and
+  `lib/email.test.ts` pins that no `ConfigurationSetName` is ever sent.
+  Email processing stays in Canada. Requests are signed with
+  `lib/awsSigV4.ts` (Web Crypto, checked against AWS's published SigV4
+  test suite), no SDK. Brevo is replaced; the cutover is manual,
+  `docs/ses-cutover.md`. One email carries a 6-digit code and a link;
   **the code is the primary path** (`/login` → `/login/code`), because
   it's typed into the tab that asked for it, and a link can't reach an
   installed iOS app's separate cookie jar. `/verify` never signs in on
@@ -159,7 +169,10 @@ are the launch foundations' build steps (§11).
 w2), acted on by the hourly weekly loop (w3 + w5), and an unconfirmed
 night takes a late "Yes, we watched it" (w4), all 2026-11-21: see "Night
 deadlines" below. Next is reminders by email within the two-pushes-a-week
-cap, on the same hourly trigger.
+cap, on the same hourly trigger. **The tracking blocker is resolved**
+(2026-11-22): email moved from Brevo, whose transactional tracking can
+only be anonymised on our plan, to Amazon SES with no configuration set
+(see Stack). The SES cutover (`docs/ses-cutover.md`) comes first.
 
 ## Rulings that are load-bearing
 
@@ -232,7 +245,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   and never has to decide between two candidates, because the database
   guarantees there's only ever one.
 - **A night's first `draft` row is created lazily, on `/clubs/[clubId]`
-  page load** — not a cron, not a button. If the club has no
+  page load** — not a cron, not a button. **Amended 2026-11-22 (approved
+  by Chanho; build later, with the reminders):** the hourly job also
+  creates each week's draft night, through the same `getDraftToCreate`,
+  so a club nobody visits still gets its "your turn" reminder and its
+  auto-pass. The "one night in flight" index still settles a race with a
+  page load the same way. If the club has no
   non-terminal night and `getNextPicker` resolves someone, that request
   inserts a `draft` night for them with `scheduledAt` from
   `lib/schedule.ts`'s `getNextOccurrence`; `lib/clubStatus.ts`'s
@@ -663,7 +681,13 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **Two pushes per week per member, across all their clubs — not per club.**
   Plus one extra on their picking week. Notifications dedup across clubs someone
   belongs to. Everything else is in-app. This is a product constraint, not a
-  setting.
+  setting. **Reminder emails, ruled 2026-11-22 (built in the reminders
+  steps):** the same cap applies to them. They default on for friends,
+  with an unsubscribe that's easy to find: normal body-size text near the
+  top of every reminder ("Don't want these? Turn off reminders"), a footer
+  with "Mute only this club", and a one-tap page with two large buttons.
+  Whether reminders need express consent under CASL is on the lawyer's
+  list (see Open Questions).
 - **Free tier caps a club at six members**, enforced server-side twice:
   when an invite is created, where **pending invites hold a seat**
   (`lib/invites.ts`'s `canCreateInvite`: active + pending < 6), and when
@@ -899,7 +923,11 @@ Do not quietly change these — they encode decisions that took a while to reach
 - Don't add third-party tracking pixels anywhere near a film page (VPPA exposure).
 - Don't fetch streaming availability on browse. Nomination and lock only, 24h TTL.
   Film metadata caches indefinitely; availability does not.
-- Don't put the Brevo key, `AUTH_SECRET` or `SUPPORT_EMAIL` in a `NEXT_PUBLIC_` variable.
+- Don't put the SES keys, `AUTH_SECRET` or `SUPPORT_EMAIL` in a `NEXT_PUBLIC_` variable.
+- Don't send any email through an SES configuration set (named in the
+  request, or attached to the identity as its default: check none is,
+  `docs/ses-cutover.md`), or add open or click tracking to any email by
+  any other means.
   Server-side only, same as the TMDB token.
 - Don't build password reset or social login, or any account page
   beyond Settings (`docs/onboarding-spec.md` §5.9 — exactly what it
@@ -1168,10 +1196,15 @@ and move on.
   password hashes exist to breach, and no identity provider (Google,
   Apple, Auth0, Clerk) sees who signs in to what. That is **not** the
   same as having no processors: the privacy policy's data-flow section
-  must disclose **Brevo** (Sendinblue SAS, France — receives every
-  account's email address and every sign-in email; a sub-processor with
-  a cross-border transfer out of Canada), **Neon** (hosts the
-  database), and **Cloudflare** (hosts the app, sees every request).
+  must disclose **Amazon Web Services (Canada)** (Amazon SES in
+  ca-central-1 since 2026-11-22, replacing Brevo, France: receives every
+  account's email address and every email we send, processed in Canada,
+  with no open or click tracking), **Neon** (hosts the database), and
+  **Cloudflare** (hosts the app, sees every request). **For the lawyer
+  (added 2026-11-22):** whether reminder emails are commercial electronic
+  messages under CASL needing express consent, or messages about a
+  relationship the person started, and what consent and unsubscribe rules
+  follow; and whether 13–17s need different reminder defaults.
   Adding a managed auth provider later means adding a sub-processor
   disclosure — weigh that against the convenience when the time comes.
 <!-- BEGIN:nextjs-agent-rules -->

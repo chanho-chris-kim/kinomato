@@ -268,7 +268,8 @@ test.describe("the weekly loop", () => {
   test("a failure fails the run, the rest still run, and an ops alert with no personal data goes to SUPPORT_EMAIL", async () => {
     const saved = { ...process.env };
     // This process loads .env (playwright.config.ts): never a real send.
-    process.env.BREVO_API_KEY = "";
+    process.env.SES_ACCESS_KEY_ID = "";
+    process.env.SES_SECRET_ACCESS_KEY = "";
     process.env.EMAIL_OUTBOX_FILE = EMAIL_OUTBOX_FILE;
     process.env.SUPPORT_EMAIL = "ops-alerts@kinomato.test";
     try {
