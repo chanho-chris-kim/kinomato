@@ -246,17 +246,26 @@ Do not quietly change these — they encode decisions that took a while to reach
   guarantees there's only ever one.
 - **A night's first `draft` row is created lazily, on `/clubs/[clubId]`
   page load** — not a cron, not a button. **Amended 2026-11-22 (approved
-  by Chanho; build later, with the reminders):** the hourly job also
-  creates each week's draft night, through the same `getDraftToCreate`,
-  so a club nobody visits still gets its "your turn" reminder and its
-  auto-pass. The "one night in flight" index still settles a race with a
-  page load the same way. If the club has no
+  by Chanho), built (r4) 2026-11-23:** the hourly job also creates each
+  week's draft night, through the same request-free core the page uses
+  (`app/clubs/[clubId]/draftNightCore.ts` `createDraftNightCore`, on
+  `getDraftToCreate`: rotation, schedule and anchor, paused clubs skipped,
+  ad_hoc never, departed members never picked), so a club nobody visits
+  still moves on and gets its "your turn" reminder and its auto-pass.
+  Whichever runs first wins: the "one night in flight" index rejects the
+  loser's insert (23505, `lib/dbErrors.ts` `isUniqueViolation`), which
+  counts as "raced", not a failure. **The job never creates a draft
+  already due to be auto-passed** (its slot's `scheduled_at − lockTime`
+  has gone by): the next hour's step (c) would pass it, then the next
+  picker the hour after, down the rotation. It leaves that slot and drafts
+  the next occurrence once the slot has gone by. The page doesn't have
+  this guard yet (see Open Questions). If the club has no
   non-terminal night and `getNextPicker` resolves someone, that request
   inserts a `draft` night for them with `scheduledAt` from
   `lib/schedule.ts`'s `getNextOccurrence`; `lib/clubStatus.ts`'s
   `getDraftToCreate` decides. The signed-in `/` calls the same function
   to show a club's next night and whose turn it is, **for display only**:
-  only the club page ever inserts the row. The "one night in flight" index turns
+  only the club page and the hourly job insert the row. The "one night in flight" index turns
   a race between two simultaneous page loads into a rejected insert on
   the loser, caught and re-read rather than thrown — same shape as
   confirmNight and lockNight losing a race to each other. `ad_hoc`
@@ -376,13 +385,18 @@ Do not quietly change these — they encode decisions that took a while to reach
     showing under current settings → `unconfirmed`, `unconfirmed_at` =
     `confirmed_at` = now, `confirmed_by` NULL (the clock did it), written
     `WHERE state = 'locked'`; (c) drafts at or past `scheduled_at −
-    lockTime` → `passDraftCore`. Due-ness is `lib/nightDeadlines.ts`
+    lockTime` → `passDraftCore`; then (e) clubs with nothing in flight →
+    `createDraftNightCore`, **at most 10 a run** (`DRAFTS_PER_RUN`; up
+    to 50 candidates looked at, oldest club first), after a/b/c so a night
+    that just resolved gets its successor in the same run (r4, 2026-11-23,
+    see the lazy-creation ruling). Due-ness is `lib/nightDeadlines.ts`
     (`dueToLock`, `dueToUnconfirm`, `dueToAutoPass`). **Every write waits
     on the night's state**, so a person pressing the same button in the
     same instant leaves one result and the other side a no-op, and a
     second run changes nothing. Each night is tried on its own; failures
     are collected and thrown at the end, so the run shows as failed. One
-    log line, `[weekly-loop] {"locked":n,"unconfirmed":n,"passed":n,"failed":n}`,
+    log line, `[weekly-loop] {"locked":n,"unconfirmed":n,"passed":n,"drafted":n,"failed":n}`
+    (the same counts in the ops alert),
     plus one line per failed night with its id and what failed, never a
     name, email or row data. Tested by calling the job directly with a
     chosen `now` and `clubIds` (`e2e/weekly-loop.spec.ts`); production
@@ -1106,6 +1120,17 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Tell me when something in `docs/` has gone stale so I can update it.
 
 ## Open questions
+
+- **A pass followed by a draft for the same slot (found 2026-11-23).**
+  After a pass, the next picker's draft lands on the same night (its next
+  occurrence), whose auto-pass time (`scheduled_at − lockTime`) may
+  already have gone by, so the next hourly run passes it too, and so on
+  down the rotation. The job guards against creating such a draft (see the
+  lazy-creation ruling); Tonight's lazy creation doesn't yet, so a page
+  load right after a pass still makes one. Needs a ruling: move the guard
+  into `getDraftToCreate` (the slot is skipped and the following week
+  drafted), or give a successor draft its own voting window (needs when
+  the draft was created: a schema change).
 
 Things that aren't ruled on yet. Don't guess at these — ask, or flag them here
 and move on.
