@@ -38,6 +38,7 @@ export async function loadDataExport(db: Db, userId: string, now: Date): Promise
       createdAt: users.createdAt,
       ageBracket: users.ageBracket,
       ageAttestedAt: users.ageAttestedAt,
+      emailReminders: users.emailReminders,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -49,6 +50,7 @@ export async function loadDataExport(db: Db, userId: string, now: Date): Promise
       role: memberships.role,
       joinedAt: memberships.joinedAt,
       leftAt: memberships.leftAt,
+      remindersMutedAt: memberships.remindersMutedAt,
     })
     .from(memberships)
     .innerJoin(clubs, eq(memberships.clubId, clubs.id))

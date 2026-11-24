@@ -10,14 +10,15 @@ const input: ExportInput = {
     createdAt: at("2026-01-01"),
     ageBracket: "18_plus",
     ageAttestedAt: at("2026-01-02"),
+    emailReminders: false,
   },
   consentEvents: [
     { document: "terms", version: "2026-11-06", acceptedAt: at("2026-11-06"), method: "signup" },
   ],
   licensing: [{ wordingVersion: "2026-11-06", optedInAt: at("2026-11-06"), withdrawnAt: null }],
   clubs: [
-    { name: "B Club", role: "member", joinedAt: at("2026-02-01"), leftAt: at("2026-03-01") },
-    { name: "A Club", role: "owner", joinedAt: at("2026-01-01"), leftAt: null },
+    { name: "B Club", role: "member", joinedAt: at("2026-02-01"), leftAt: at("2026-03-01"), remindersMutedAt: null },
+    { name: "A Club", role: "owner", joinedAt: at("2026-01-01"), leftAt: null, remindersMutedAt: at("2026-11-23") },
   ],
   watchlist: [{ title: "Arrival", year: 2016, addedAt: at("2026-04-01"), note: null, tags: ["sci-fi"] }],
   ratings: [
@@ -65,8 +66,14 @@ describe("shapeExport", () => {
       created_at: "2026-01-01T12:00:00.000Z",
       age_bracket: "18_plus",
       age_attested_at: "2026-01-02T12:00:00.000Z",
+      reminder_emails: false,
     });
     expect(out.clubs.find((c) => c.name === "A Club")?.left_at).toBeNull();
+    // Reminder mutes (ruled 2026-11-23): when each club was muted, if it was.
+    expect(out.clubs.map((c) => [c.name, c.reminders_muted_at])).toEqual([
+      ["A Club", "2026-11-23T12:00:00.000Z"],
+      ["B Club", null],
+    ]);
     expect(out.email_change_requests).toEqual([
       {
         new_email: "kit2@example.com",

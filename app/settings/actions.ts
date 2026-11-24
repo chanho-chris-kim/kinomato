@@ -1,10 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
+import { memberships, users } from "@/db/schema";
 import { requireSignedInIgnoringConsent, requireUser } from "@/app/auth";
 import { clearSessionCookie, endAllSessions, endOtherSessions, endSession } from "@/app/session";
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
@@ -77,6 +77,26 @@ export async function cancelEmailChangeAction() {
   const user = await requireUser("/settings");
   await cancelEmailChange(getDb(), user.id, new Date());
   redirect("/settings");
+}
+
+// How we reach you (docs/onboarding-spec.md §5.9, ruled 2026-11-23):
+// reminder emails on or off, and a per-club mute. Only reminders look at
+// these; sign-in codes and account notices always arrive.
+export async function setEmailReminders(on: boolean) {
+  const user = await requireUser("/settings");
+  await getDb().update(users).set({ emailReminders: on }).where(eq(users.id, user.id));
+  redirect("/settings?saved=reminders#reminders");
+}
+
+// Only the viewer's own active membership in that club; anything else (a
+// club they're not in, or have left) changes nothing.
+export async function setClubRemindersMuted(clubId: string, muted: boolean) {
+  const user = await requireUser("/settings");
+  await getDb()
+    .update(memberships)
+    .set({ remindersMutedAt: muted ? new Date() : null })
+    .where(and(eq(memberships.userId, user.id), eq(memberships.clubId, clubId), isNull(memberships.leftAt)));
+  redirect("/settings?saved=reminders#reminders");
 }
 
 // Data sharing (docs/onboarding-spec.md §11.2): 18 or older only, checked

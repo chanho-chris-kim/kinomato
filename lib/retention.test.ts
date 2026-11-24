@@ -5,9 +5,18 @@ const NOW = new Date("2026-11-08T10:00:00Z");
 const ago = (days: number, hours = 0) => new Date(NOW.getTime() - (days * 24 + hours) * 3600_000);
 
 describe("retentionCutoffs", () => {
-  it("is 7 days for expired credentials and sessions, 90 days for revoked invites' names", () => {
-    expect(RETENTION).toEqual({ expiredDays: 7, revokedInviteNameDays: 90 });
-    expect(retentionCutoffs(NOW)).toEqual({ expiredBefore: ago(7), revokedBefore: ago(90) });
+  it("is 7 days for expired credentials and sessions, 90 days for revoked invites' names and unsubscribe tokens", () => {
+    expect(RETENTION).toEqual({ expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90 });
+    expect(retentionCutoffs(NOW)).toEqual({
+      expiredBefore: ago(7),
+      revokedBefore: ago(90),
+      unsubscribeTokensBefore: ago(90),
+    });
+  });
+
+  it("an unsubscribe token is deleted once it stops working (lib/reminderPrefs.ts)", async () => {
+    const { UNSUBSCRIBE_TOKEN_DAYS } = await import("./reminderPrefs");
+    expect(RETENTION.unsubscribeTokenDays).toBe(UNSUBSCRIBE_TOKEN_DAYS);
   });
 });
 

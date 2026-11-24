@@ -687,7 +687,21 @@ Do not quietly change these — they encode decisions that took a while to reach
   top of every reminder ("Don't want these? Turn off reminders"), a footer
   with "Mute only this club", and a one-tap page with two large buttons.
   Whether reminders need express consent under CASL is on the lawyer's
-  list (see Open Questions).
+  list (see Open Questions). **Preferences and the unsubscribe page, ruled
+  2026-11-23 and built (r1):** Settings "How we reach you" is one switch,
+  `users.email_reminders` (default on), plus "Mute reminders from {club}"
+  (`memberships.reminders_muted_at`), with "Sign-in codes and account
+  notices always arrive." (those never look at these settings).
+  `lib/reminderPrefs.ts` `mayGetRemindersFrom` decides who a club's
+  reminders could go to. An unsubscribe link (`/unsubscribe/[token]`) is
+  public, works signed out, is exempt from the consent gate (it can only
+  turn reminders off), and changes nothing on GET: its two large buttons
+  POST. Its token is 256 random bits, never an email, name or id, stored
+  only as a hash, tied to one person and one club, dead after 90 days and
+  deleted by retention; account and club deletion remove tokens. Only
+  `app/reminderUnsubscribe.ts` touches `reminder_unsubscribe_tokens`
+  (`lib/reminderTokenAccess.test.ts`); reminder emails call its
+  `createUnsubscribeLink(db, userId, clubId, origin)`.
 - **Free tier caps a club at six members**, enforced server-side twice:
   when an invite is created, where **pending invites hold a seat**
   (`lib/invites.ts`'s `canCreateInvite`: active + pending < 6), and when

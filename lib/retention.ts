@@ -8,15 +8,18 @@
 // - invites: a revoked invite's invitee_name is cleared once it was
 //   revoked more than 90 days ago. Pending and redeemed invites are never
 //   touched.
+// - reminder_unsubscribe_tokens: deleted once more than 90 days old, when
+//   they stop working (lib/reminderPrefs.ts, ruled 2026-11-23).
 
-export const RETENTION = { expiredDays: 7, revokedInviteNameDays: 90 } as const;
+export const RETENTION = { expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90 } as const;
 
 const DAY_MS = 24 * 3600_000;
 
-export function retentionCutoffs(now: Date): { expiredBefore: Date; revokedBefore: Date } {
+export function retentionCutoffs(now: Date): { expiredBefore: Date; revokedBefore: Date; unsubscribeTokensBefore: Date } {
   return {
     expiredBefore: new Date(now.getTime() - RETENTION.expiredDays * DAY_MS),
     revokedBefore: new Date(now.getTime() - RETENTION.revokedInviteNameDays * DAY_MS),
+    unsubscribeTokensBefore: new Date(now.getTime() - RETENTION.unsubscribeTokenDays * DAY_MS),
   };
 }
 

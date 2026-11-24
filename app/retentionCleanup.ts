@@ -3,6 +3,7 @@ import type { getDb } from "@/db";
 import { invites, magicLinks, sessions } from "@/db/schema";
 import { deleteExpiredDeletionRequests } from "@/app/accountDeletion";
 import { deleteExpiredEmailChanges } from "@/app/emailChange";
+import { deleteExpiredUnsubscribeTokens } from "@/app/reminderUnsubscribe";
 import { retentionCutoffs } from "@/lib/retention";
 
 type Db = ReturnType<typeof getDb>;
@@ -15,6 +16,7 @@ export interface RetentionCounts {
   deletion_requests: number;
   sessions: number;
   invite_names_cleared: number;
+  unsubscribe_links: number;
 }
 
 // The daily retention job (docs/onboarding-spec.md §11.6), run only by the
@@ -24,8 +26,8 @@ export interface RetentionCounts {
 // modules that own them. Logs one line of counts and nothing else; any
 // failure throws, so the run shows as failed in Workers Logs.
 export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionCounts> {
-  const { expiredBefore, revokedBefore } = retentionCutoffs(now);
-  const [links, changes, deletions, oldSessions, names] = await db.batch([
+  const { expiredBefore, revokedBefore, unsubscribeTokensBefore } = retentionCutoffs(now);
+  const [links, changes, deletions, oldSessions, names, unsubscribeLinks] = await db.batch([
     db.delete(magicLinks).where(lt(magicLinks.expiresAt, expiredBefore)).returning({ id: magicLinks.id }),
     deleteExpiredEmailChanges(db, expiredBefore),
     deleteExpiredDeletionRequests(db, expiredBefore),
@@ -35,6 +37,7 @@ export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionC
       .set({ inviteeName: "" })
       .where(and(isNotNull(invites.revokedAt), lt(invites.revokedAt, revokedBefore), ne(invites.inviteeName, "")))
       .returning({ id: invites.id }),
+    deleteExpiredUnsubscribeTokens(db, unsubscribeTokensBefore),
   ]);
   const counts: RetentionCounts = {
     sign_in_codes: links.length,
@@ -42,6 +45,7 @@ export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionC
     deletion_requests: deletions.length,
     sessions: oldSessions.length,
     invite_names_cleared: names.length,
+    unsubscribe_links: unsubscribeLinks.length,
   };
   console.log(`[retention] ${JSON.stringify(counts)}`);
   return counts;

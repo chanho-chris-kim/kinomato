@@ -15,7 +15,10 @@ const RULING = "docs/onboarding-spec.md §11.1/§11.3: every signed-in route goe
 
 // Reachable with consent pending: the legal pages, the consent screens
 // themselves, the sign-in flow, the invite landing, where "Under 13"
-// lands, and where Delete account lands (signed out by then).
+// lands, where Delete account lands (signed out by then), and a reminder's
+// unsubscribe page (ruled 2026-11-23: it works signed out, its token is
+// its only credential, and it can only ever turn that person's reminders
+// off, so stopping them is never blocked behind re-accepting the Terms).
 const EXEMPT_ROUTES = [
   "app/terms/",
   "app/privacy/",
@@ -26,6 +29,7 @@ const EXEMPT_ROUTES = [
   "app/invite/",
   "app/age-limit/",
   "app/account-deleted/",
+  "app/unsubscribe/",
 ];
 // Sign out works whatever the consent state, so nobody is trapped.
 const EXEMPT_ACTIONS = ["app/settings/actions.ts#signOut", "app/settings/actions.ts#signOutEverywhere"];
