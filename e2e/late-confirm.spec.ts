@@ -100,7 +100,7 @@ test.describe("late confirmation", () => {
     page,
   }) => {
     const c = await club("Late Yes Club", hours(-72), hours(-1));
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
     const unconfirmedAt = (await nightRow(c.nightId)).unconfirmedAt!;
 
     await signInAsUser(page, c.users.ana);
@@ -150,7 +150,7 @@ test.describe("late confirmation", () => {
     await expect(no).toBeVisible();
 
     // The job logs it unconfirmed while the tab sits there.
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
     await no.click();
     await expect(page.locator("section.late-confirm")).toBeVisible();
     const night = await nightRow(c.nightId);
@@ -161,7 +161,7 @@ test.describe("late confirmation", () => {
   test("past 7 days: no prompt, and a Yes from a tab left open is refused", async ({ page }) => {
     // Logged unconfirmed 6 days ago: still open.
     const c = await club("Late Expired Club", hours(-24 * 10), hours(-24 * 7));
-    expect(await runWeeklyLoop(db, hours(-24 * 6), { clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
+    expect(await runWeeklyLoop(db, hours(-24 * 6), { reminders: false, clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
     await signInAsUser(page, c.users.ben);
     await page.goto(`/clubs/${c.clubId}`);
     const yes = page.locator("section.late-confirm").getByRole("button", YES);
@@ -178,7 +178,7 @@ test.describe("late confirmation", () => {
 
   test("once a later night has finished, no prompt", async ({ page }) => {
     const c = await club("Late Superseded Club", hours(-72), hours(-1));
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toMatchObject({ unconfirmed: 1 });
     await db.insert(schema.nights).values({
       clubId: c.clubId,
       scheduledAt: hours(-2),

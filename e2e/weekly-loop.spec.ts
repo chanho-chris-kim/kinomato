@@ -114,7 +114,7 @@ async function lockedNight(c: Club, o: { scheduledAt: Date; unconfirmAt: Date | 
 }
 
 const nightRow = async (nightId: string) => (await db.select().from(schema.nights).where(eq(schema.nights.id, nightId)))[0];
-const zero = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, failed: 0 };
+const zero = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, reminded: 0, remind_failed: 0, failed: 0 };
 
 test.describe("the weekly loop", () => {
   test("an open night past lock_at locks, the picker's first choice winning with no votes; a second run changes nothing", async () => {
@@ -122,14 +122,14 @@ test.describe("the weekly loop", () => {
     const due = await openNight(c, hours(-1));
     const notYet = await openNight(await club("Loop Later Club"), hours(1));
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
     const night = await nightRow(due);
     expect(night.state).toBe("locked");
     expect(night.winningFilmId).toBe(c.film("Arrival").id);
     expect(night.unconfirmAt).not.toBeNull();
     expect((await nightRow(notYet)).state).toBe("open");
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
   });
 
   test(`at most ${LOCKS_PER_RUN} locks a run, oldest deadline first; the rest carry over to the next run`, async () => {
@@ -138,15 +138,15 @@ test.describe("the weekly loop", () => {
     const clubIds = clubs.map((c) => c.clubId);
 
     const cpu = process.cpuUsage();
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual({ ...zero, locked: 5 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual({ ...zero, locked: 5 });
     const used = process.cpuUsage(cpu);
     console.log(`[weekly-loop cpu] 5 locks: ${((used.user + used.system) / 1000).toFixed(1)} ms in Node (not workerd)`);
     // The two newest deadlines (1h and 2h ago) wait.
     const states = await Promise.all(nightIds.map(async (n) => (await nightRow(n)).state));
     expect(states).toEqual(["open", "open", "locked", "locked", "locked", "locked", "locked"]);
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual({ ...zero, locked: 2 });
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual({ ...zero, locked: 2 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual(zero);
   });
 
   test("a locked night past unconfirm_at becomes unconfirmed: the turn moves on, and it's never counted as watched", async ({
@@ -155,10 +155,10 @@ test.describe("the weekly loop", () => {
     const c = await club("Loop Unconfirmed Club");
     // Saturday's night 3 days ago; logged two days from now, so travel 3 days on.
     const nightId = await lockedNight(c, { scheduledAt: hours(-72), unconfirmAt: hours(48) });
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
     const later = hours(72);
     // Its successor is drafted in the same run (step e, ruled 2026-11-22).
-    expect(await runWeeklyLoop(db, later, { clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
+    expect(await runWeeklyLoop(db, later, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
 
     const night = await nightRow(nightId);
     expect(night.state).toBe("unconfirmed");
@@ -196,18 +196,18 @@ test.describe("the weekly loop", () => {
     const early = await lockedNight(c, { scheduledAt: hours(2), unconfirmAt: hours(-1) });
     const d = await club("Loop Not Due Club");
     const notDue = await lockedNight(d, { scheduledAt: hours(-30), unconfirmAt: hours(5) });
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId, d.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId, d.clubId] })).toEqual(zero);
     expect((await nightRow(early)).state).toBe("locked");
     expect((await nightRow(notDue)).state).toBe("locked");
     // Once the night has started, the first is due.
-    expect(await runWeeklyLoop(db, hours(3), { clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
+    expect(await runWeeklyLoop(db, hours(3), { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
   });
 
   test("a NULL deadline uses the same fallback: lockTime before the night, autoAdvance after the prompt", async () => {
     const c = await club("Loop Old Night Club", { settings: { lockTime: 6 } });
     const open = await openNight(c, null); // scheduled 30h ahead; due 24h on
-    expect(await runWeeklyLoop(db, hours(23), { clubIds: [c.clubId] })).toEqual(zero);
-    expect(await runWeeklyLoop(db, hours(24), { clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
+    expect(await runWeeklyLoop(db, hours(23), { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, hours(24), { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
     expect((await nightRow(open)).state).toBe("locked");
   });
 
@@ -222,7 +222,7 @@ test.describe("the weekly loop", () => {
       .values({ clubId: (await club("Loop Busy Club")).clubId, scheduledAt: hours(30), pickerMembershipId: c.members.ana, state: "draft" })
       .returning();
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId, opened.clubId] })).toEqual({ ...zero, passed: 1, drafted: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId, opened.clubId] })).toEqual({ ...zero, passed: 1, drafted: 1 });
     expect(await db.select().from(schema.nights).where(eq(schema.nights.id, draft.id))).toEqual([]);
     const [ana] = await db.select().from(schema.memberships).where(eq(schema.memberships.id, c.members.ana));
     expect(ana.postponedAt?.getTime()).toBe(draft.scheduledAt.getTime());
@@ -231,13 +231,13 @@ test.describe("the weekly loop", () => {
     await signInAsUser(page, c.users.ben);
     await page.goto(`/clubs/${c.clubId}/members`);
     await expect(page.locator("main li", { hasText: "Ana L." }).first()).toContainText("Passed this turn");
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
   });
 
   test("a person closing voting in the same instant as the job: one lock", async () => {
     const c = await club("Loop Race Club");
     const nightId = await openNight(c, hours(-1));
-    const [job, button] = await Promise.all([runWeeklyLoop(db, NOW, { clubIds: [c.clubId] }), lockNightCore(db, nightId)]);
+    const [job, button] = await Promise.all([runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] }), lockNightCore(db, nightId)]);
     expect(job.locked + (button === "locked" ? 1 : 0)).toBe(1);
     expect((await nightRow(nightId)).state).toBe("locked");
   });
@@ -248,7 +248,7 @@ test.describe("the weekly loop", () => {
     // confirmNight's own conditional write (it's a server action, so its
     // write is run here directly).
     const [job, answered] = await Promise.all([
-      runWeeklyLoop(db, NOW, { clubIds: [c.clubId] }),
+      runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] }),
       db
         .update(schema.nights)
         .set({ state: "watched", confirmedAt: NOW, confirmedBy: c.members.cal })
@@ -262,7 +262,7 @@ test.describe("the weekly loop", () => {
   test("a paused club's night in flight still resolves", async () => {
     const c = await club("Loop Paused Club", { paused: true });
     const nightId = await openNight(c, hours(-1));
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, locked: 1 });
     expect((await nightRow(nightId)).state).toBe("locked");
   });
 
@@ -281,7 +281,7 @@ test.describe("the weekly loop", () => {
       const runAt = new Date(NOW.getTime() + 1000);
 
       const error = await withOpsAlert("weekly-loop", runAt, () =>
-        runWeeklyLoop(db, runAt, { clubIds: [broken.clubId, fine.clubId] }),
+        runWeeklyLoop(db, runAt, { reminders: false, clubIds: [broken.clubId, fine.clubId] }),
       ).catch((e) => e);
       expect(error).toBeInstanceOf(ScheduledJobFailure);
       expect((error as ScheduledJobFailure).counts).toEqual({ ...zero, locked: 1, failed: 1 });
@@ -292,7 +292,7 @@ test.describe("the weekly loop", () => {
       const text = alerts[0].subject + alerts[0].html;
       expect(alerts[0].subject).toBe("Kinomato: the weekly-loop job failed");
       expect(text).toContain(runAt.toISOString());
-      expect(text).toContain("Counts: locked 1, unconfirmed 0, passed 0, drafted 0, failed 1.");
+      expect(text).toContain("Counts: locked 1, unconfirmed 0, passed 0, drafted 0, reminded 0, remind failed 0, failed 1.");
       expect(text).toContain("See Workers Logs");
       for (const personal of ["Loop Broken Club", "Loop Fine Club", "Ana L.", "@example.com", broken.clubId, "Nothing to lock"]) {
         expect(text).not.toContain(personal);

@@ -5,12 +5,13 @@ const NOW = new Date("2026-11-08T10:00:00Z");
 const ago = (days: number, hours = 0) => new Date(NOW.getTime() - (days * 24 + hours) * 3600_000);
 
 describe("retentionCutoffs", () => {
-  it("is 7 days for expired credentials and sessions, 90 days for revoked invites' names and unsubscribe tokens", () => {
-    expect(RETENTION).toEqual({ expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90 });
+  it("is 7 days for expired credentials and sessions, 90 for revoked invites' names and unsubscribe tokens, 30 for the reminder log", () => {
+    expect(RETENTION).toEqual({ expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90, notificationLogDays: 30 });
     expect(retentionCutoffs(NOW)).toEqual({
       expiredBefore: ago(7),
       revokedBefore: ago(90),
       unsubscribeTokensBefore: ago(90),
+      notificationLogBefore: ago(30),
     });
   });
 

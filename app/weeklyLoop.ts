@@ -6,6 +6,7 @@ import { dueToAutoPass, dueToLock, dueToUnconfirm } from "@/lib/nightDeadlines";
 import { createDraftNightCore } from "./clubs/[clubId]/draftNightCore";
 import { lockNightCore } from "./clubs/[clubId]/lockNightCore";
 import { passDraftCore } from "./clubs/[clubId]/passTurnCore";
+import { sendDueReminders, type ReminderSender } from "./reminders";
 import { ScheduledJobFailure } from "./scheduledJobFailure";
 
 type Db = ReturnType<typeof getDb>;
@@ -31,6 +32,9 @@ type Db = ReturnType<typeof getDb>;
 //      Tonight's lazy creation makes it (draftNightCore.ts, ruled
 //      2026-11-22), at most DRAFTS_PER_RUN a run, after a/b/c so a night
 //      that just resolved gets its successor in the same run.
+//   f. reminder emails (app/reminders.ts, ruled 2026-11-23), last, so they
+//      see every change above; at most 20 a run, each on its own. A send
+//      that fails is counted and fails the run, but never undoes a–e.
 // Nights from before deadlines were stored use the same fallbacks Tonight
 // shows (lib/nightDeadlines.ts). Every write waits on the night's state,
 // so a person pressing the same button at the same moment leaves one
@@ -53,6 +57,8 @@ export interface WeeklyLoopCounts {
   unconfirmed: number;
   passed: number;
   drafted: number;
+  reminded: number;
+  remind_failed: number;
   failed: number;
 }
 
@@ -60,10 +66,13 @@ export async function runWeeklyLoop(
   db: Db,
   now: Date,
   // Tests only: limit the run to these clubs, so a time-travelled run
-  // never touches the seeded ones. Production never passes it.
-  opts: { clubIds?: string[] } = {},
+  // never touches the seeded ones. Production never passes any of these:
+  // origin comes from APP_ORIGIN; `reminders: false` leaves step f out (for
+  // tests about a–e, whose counts shouldn't hang on the time of day);
+  // `sendReminder` replaces the email sender (to force a failure).
+  opts: { clubIds?: string[]; origin?: string; reminders?: boolean; sendReminder?: ReminderSender } = {},
 ): Promise<WeeklyLoopCounts> {
-  const counts: WeeklyLoopCounts = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, failed: 0 };
+  const counts: WeeklyLoopCounts = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, reminded: 0, remind_failed: 0, failed: 0 };
   if (opts.clubIds && opts.clubIds.length === 0) return counts;
 
   const inFlight = await db
@@ -143,8 +152,18 @@ export async function runWeeklyLoop(
   // night that just resolved gets its successor in the same run.
   await draftNextNights(db, now, opts.clubIds, counts, attempt);
 
+  // f. Reminder emails.
+  if (opts.reminders !== false) {
+    try {
+      await sendDueReminders(db, now, { clubIds: opts.clubIds, origin: opts.origin, send: opts.sendReminder }, counts);
+    } catch (err) {
+      counts.remind_failed += 1;
+      console.error(`[weekly-loop] reminders failed: ${err instanceof Error ? err.name : "unknown error"}`);
+    }
+  }
+
   console.log(`[weekly-loop] ${JSON.stringify(counts)}`);
-  if (counts.failed > 0) throw new ScheduledJobFailure("weekly-loop", { ...counts });
+  if (counts.failed > 0 || counts.remind_failed > 0) throw new ScheduledJobFailure("weekly-loop", { ...counts });
   return counts;
 }
 
@@ -154,11 +173,8 @@ export async function runWeeklyLoop(
 // flight, not paused, not ad hoc and with someone active are candidates,
 // oldest first; at most DRAFTS_PER_RUN drafts are made. A page load that
 // won the race leaves "raced", which counts as nothing, not a failure.
-//
-// Never a draft already due to be auto-passed (its slot's voting deadline,
-// scheduled_at − lockTime, has gone by): step c would pass it next hour and
-// the next picker the hour after, down the rotation. That slot is left
-// alone; once it's gone by, the next occurrence is drafted as usual.
+// getDraftToCreate never offers a draft already due to be auto-passed: that
+// slot is skipped and the following one drafted (ruled 2026-11-23).
 async function draftNextNights(
   db: Db,
   now: Date,
@@ -202,7 +218,6 @@ async function draftNextNights(
 
   for (const club of candidates) {
     if (counts.drafted >= DRAFTS_PER_RUN) break;
-    const lockTimeHours = getLockTime(club.settings);
     await attempt(
       "draft",
       club.id,
@@ -213,7 +228,6 @@ async function draftNextNights(
           memberships: allMemberships.filter((m) => m.clubId === club.id),
           nights: allNights.filter((n) => n.clubId === club.id),
           now,
-          accept: (draft) => !dueToAutoPass({ scheduledAt: draft.scheduledAt, lockTimeHours }, now),
         })) === "created",
       "drafted",
     );
