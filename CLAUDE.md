@@ -580,7 +580,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   you, the search badge counts others) and `nominatableFilms` (Tonight's
   picker and `openVoting`'s server check) and `helpFilmsFor` (Tonight's
   "Films your club wants that fit everyone", ruled 2026-11-17: others'
-  visible, eligible films, counts only, never names). **Enforced by a test:**
+  visible, eligible films, counts only, never names). **Choosing clubs
+  when adding a film** (future, ruled 2026-11-24): one club, several, or
+  all, default all, built through this seam (`docs/onboarding-spec.md`
+  §10). **Enforced by a test:**
   `lib/watchlistAccess.test.ts` fails, naming this ruling, if any file
   other than the loader and the own-list files (`app/watchlist/page.tsx`
   and `actions.ts`, which touch only the viewer's own rows) touches
@@ -937,8 +940,17 @@ Do not quietly change these — they encode decisions that took a while to reach
   current, its home (§5.11.2). The watchlist is global, never a club
   page: `/watchlist`, with Watchlist current and no club header, tabs or
   rail. The old `/clubs/[clubId]/list` is only a redirect to
-  `/watchlist?seen={clubId}` (§5.11.2 crossing levels), behind the same
-  member gate. `.main` establishes
+  `/watchlist` (keeping `?q=`), behind the same member gate. **Seen from
+  is removed (ruled 2026-11-24, approved by Chanho; reverses
+  `docs/onboarding-spec.md` §6.4's Seen from):** no chips, no `?seen=`,
+  no `kinomato_seen_from` cookie. Each search badge names its club, one
+  per club where it applies ("2 in Saturday Club want this", "Saturday
+  Club watched this", `lib/watchlistBadges.ts`), and "Everyone wants
+  these" counts a film's overlap in whichever of your clubs has the most.
+  A `?seen=` link or a browser still holding the cookie goes once through
+  `/watchlist/forget-seen-from`, which deletes the cookie (a page can't)
+  and lands on `/watchlist`; it can go after 2027-11-24, when the last
+  cookie has expired. `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -1312,7 +1324,10 @@ Kinoma (former Marvell division) are the nearest existing marks.
   account's email address and every email we send, processed in Canada,
   with no open or click tracking), **Neon** (hosts the database), and
   **Cloudflare** (hosts the app, sees every request). **For the lawyer
-  (added 2026-11-22):** whether reminder emails are commercial electronic
+  (added 2026-11-24):** the Privacy page's cookie list dropped
+  `kinomato_seen_from` (Seen from removed) without a Privacy version
+  bump, since less is collected; the final text comes with the review.
+  **For the lawyer (added 2026-11-22):** whether reminder emails are commercial electronic
   messages under CASL needing express consent, or messages about a
   relationship the person started, and what consent and unsubscribe rules
   follow; and whether 13–17s need different reminder defaults.

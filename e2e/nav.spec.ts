@@ -81,7 +81,7 @@ test.describe("global shell", () => {
 
     // The retired club list lands on the global watchlist (rebuild step 6d).
     await page.goto(`${CLUB_URL}/list`);
-    await expect(page).toHaveURL(`/watchlist?seen=${CLUB_ID}`);
+    await expect(page).toHaveURL("/watchlist");
     await expect(nav(page).getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
     await expect(nav(page).getByRole("link", { name: "Clubs" })).not.toHaveAttribute("aria-current");
     // Back to the club through Clubs, the club list being the switcher.
@@ -136,7 +136,7 @@ test.describe("global shell", () => {
     await expect(page.getByRole("heading", { name: 'Results for "Arrival"' })).toBeVisible();
   });
 
-  test("Watchlist with no clubs works on its own; with several, Seen from lists them by name", async ({ page }) => {
+  test("Watchlist with no clubs works on its own; with several, there's no Seen from", async ({ page }) => {
     await signUp(page, "nav-watchlist@example.com", "Wren", "T");
 
     await page.goto("/watchlist");
@@ -147,10 +147,9 @@ test.describe("global shell", () => {
     await createClub(page, "Nav Club B");
     await createClub(page, "Nav Club A");
     await page.goto("/watchlist");
-    const chips = page.locator("form.seen-from button");
-    await expect(chips).toHaveText(["Nav Club A", "Nav Club B"]);
-    await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "true");
-    await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "false");
+    await expect(nav(page).getByRole("link", { name: "Watchlist" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("form.seen-from")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Nav Club/ })).toHaveCount(0);
   });
 
   test("Sign out on /settings ends the session", async ({ page }) => {

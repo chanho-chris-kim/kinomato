@@ -970,10 +970,10 @@ Tablet and desktop: top bar and club tabs both stick.
   already go to the list; a third control for the same thing is clutter.
   (This replaces §5.10's "back affordance to the list on phones.")
 - **Crossing levels.** A link from inside a club to the watchlist (the
-  empty-list state on nominate, §5.10) goes to `/watchlist?seen={clubId}`.
-  **Watchlist** shows as current, the club tabs disappear because you've
-  left the club level, and **Seen from** is preset to the club you came
-  from (§6.4). The watchlist is global, but it remembers why you opened it.
+  empty-list state on nominate, §5.10) goes to `/watchlist`. **Watchlist**
+  shows as current and the club tabs disappear because you've left the
+  club level. (It used to preset **Seen from** to the club you came from;
+  Seen from is removed, 2026-11-24, §6.4.)
 - **No club switcher inside a club.** The **Clubs** list is the switcher.
   Most people are in one or two clubs; a dropdown on the club name would
   be a second way to do what the list already does.
@@ -1029,6 +1029,9 @@ From the design audit, for the redesign steps that follow it (d0 first).
   8:00pm"). Built in d0.
 - **"Did you watch X?" names the night** ("Saturday night", or "Saturday,
   Nov 7" past a week), not a hard-coded "Sunday morning". Built in d0.
+- **Seen from is removed** (§6.4, which has the ruling): badges name their
+  club, one per club. Built in d0.
+- **Choosing clubs when adding a film** is a future feature (§10).
 - **Members sub-pages** (a later step): the Members tab keeps the people
   (members, invites, Add a person); Your limits, How this club runs, and
   Leave/Pause move to their own pages one level down, still under the
@@ -1097,19 +1100,20 @@ fixes the bug by construction:
 |---|---|
 | **Empty list** (every new account) | "Your list is empty." A search field, focused. Hint: "Try *heat*, or a director." Later: Letterboxd CSV import, which becomes more valuable now that it's once per person, not once per club. |
 | **Films, no clubs** | Shelves and header total as today. **No** overlap badges and no "Everyone wants these" shelf. There's no club to overlap with, and an empty badge is worse than none. |
-| **Films, one club** | Overlap badges and smart shelves against that club, implicitly. |
-| **Films, several clubs** | A chip row, **"Seen from: Saturday Club · Horror Sundays"**, picks which club's overlap the badges and "Everyone wants these" reflect. The choice persists per device. |
+| **Films, one or several clubs** | A search result's badges name their club, one per club where they apply: **"2 in Saturday Club want this"**, **"Saturday Club watched this"**. "Everyone wants these" counts a film's overlap in whichever of your clubs has the most. |
 
-The add sheet's "club watched this · week 9" badge follows the same **Seen
-from** club.
-
-**Seen from, ruled (2026-11-05):**
-- **It persists in a first-party cookie**, validated against the viewer's
-  active memberships on every read.
-- **`?seen=` from a club presets that visit only.** It never overwrites the
-  saved choice.
-- **A `?seen=` (or cookie) club the viewer isn't an active member of is
-  silently ignored**: never a 404, never another club's data.
+**Seen from is removed (ruled 2026-11-24, approved by Chanho; Chanho's
+call).** It reversed the 2026-11-05 ruling that a chip row, "Seen from:
+Saturday Club · Horror Sundays", picks one club for the badges and the
+smart shelf, saved in a cookie and preset by `?seen=`. Now there are no
+chips, no `kinomato_seen_from` cookie (nothing sets it; a browser that
+still has it has it deleted on its next visit, through
+`/watchlist/forget-seen-from`) and no `?seen=` handling: an old `?seen=`
+link lands on `/watchlist`, keeping a search. Links that went to
+`/watchlist?seen={club}` go to `/watchlist`. The cookie left the Privacy
+page's list without a version bump (less is collected; the final text
+comes with the legal review, §11.1). The visibility seam
+(`lib/watchlistVisibility.ts`) stays.
 
 Phone: the grid3 shelves as today. ≥ 1120px: no rail. The watchlist has no
 genuine secondary content (CLAUDE.md).
@@ -1583,6 +1587,11 @@ weighed against the convenience when the time comes.
 
 - **Per-club watchlist visibility** — hiding a film from one club but not
   another (§6.2). Not built. Revisit only if people ask.
+- **Choosing clubs when adding a film** (future, ruled 2026-11-24), in
+  Chanho's words: when adding a film, choose which clubs it's for (one
+  club, several, or all), default all; built through the visibility seam
+  (`lib/watchlistVisibility.ts`'s `visibleToClub`, loaded by
+  `app/watchlistRead.ts`).
 - **Data export and account deletion.** `analysis-v2.md` §10 wants one-click
   export on free accounts, and PIPEDA likely requires a deletion path. Both
   belong with the legal review, not this spec (deferred 2026-11-06 to the
@@ -1846,6 +1855,7 @@ off the Terms and Privacy text.**
   unused `guest` value of `membership_role`** (moved here from §8.4 on
   2026-11-19): one destructive change, before launch.
 - **No cookie banner for now**: every cookie (`kinomato_session`,
-  `kinomato_seen_from`, `kinomato_signin_email`, `kinomato_form_echo`) is
+  `kinomato_signin_email`, `kinomato_form_echo`; `kinomato_seen_from` is
+  gone with Seen from, 2026-11-24) is
   strictly functional, and the Privacy page lists them. To be confirmed at
   the legal review.

@@ -71,7 +71,6 @@ test.describe("legal pages", () => {
     // Every cookie Kinomato sets, as facts.
     await expect(page.locator(".cookies li")).toHaveText([
       /^kinomato_session: keeps you signed in/,
-      /^kinomato_seen_from: remembers which club your Watchlist is seen from/,
       /^kinomato_signin_email: holds the address you're signing in with, for 15 minutes/,
       /^kinomato_form_echo: holds what you typed into a form for a minute/,
     ]);

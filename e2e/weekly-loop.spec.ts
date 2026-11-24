@@ -182,9 +182,9 @@ test.describe("the weekly loop", () => {
     await expect(item).not.toContainText("Came:");
 
     // The "club watched this" badge: Thief (watched) has it, Arrival doesn't.
-    await page.goto(`/watchlist?${new URLSearchParams({ seen: c.clubId, q: "Thief" })}`);
+    await page.goto(`/watchlist?${new URLSearchParams({ q: "Thief" })}`);
     await expect(page.locator(".watched-badge").first()).toBeVisible();
-    await page.goto(`/watchlist?${new URLSearchParams({ seen: c.clubId, q: "Arrival" })}`);
+    await page.goto(`/watchlist?${new URLSearchParams({ q: "Arrival" })}`);
     await expect(page.locator(".result, li").filter({ hasText: "Arrival" }).first()).toBeVisible();
     await expect(page.locator(".watched-badge")).toHaveCount(0);
   });

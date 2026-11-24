@@ -590,14 +590,14 @@ export default async function ClubPage({
               // 2026-11-12): no count, no reason, no limit, no person.
               <p className="small muted mt14 empty-pool">
                 None of your watchlist fits this club right now.{" "}
-                <Link href={`/watchlist?seen=${clubId}`} className="underline">
+                <Link href="/watchlist" className="underline">
                   Add a few more films.
                 </Link>
               </p>
             ) : myWatchlistFilms.length === 0 ? (
               <p className="small muted mt14">
                 Your watchlist is empty.{" "}
-                <Link href={`/watchlist?seen=${clubId}`} className="underline">
+                <Link href="/watchlist" className="underline">
                   Add films to it
                 </Link>{" "}
                 before you can nominate.

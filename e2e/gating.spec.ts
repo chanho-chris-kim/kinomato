@@ -47,11 +47,10 @@ test.describe("gating", () => {
     // And a club Hana is in is a 200, so this isn't a blanket 404.
     const mine = await page.request.get(`/clubs/${CLUB_8_ID}`, { maxRedirects: 0 });
     expect(mine.status()).toBe(200);
-    // A member's old list link lands on the global watchlist, seen from
-    // that club for the visit.
+    // A member's old list link lands on the global watchlist.
     const myList = await page.request.get(`/clubs/${CLUB_8_ID}/list`, { maxRedirects: 0 });
     expect(myList.status()).toBe(307);
-    expect(myList.headers()["location"]).toBe(`/watchlist?seen=${CLUB_8_ID}`);
+    expect(myList.headers()["location"]).toBe("/watchlist");
   });
 
   test("a leftover per-club identity cookie, with no session, opens nothing", async ({ page }) => {

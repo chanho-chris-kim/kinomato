@@ -138,7 +138,7 @@ test.describe("late confirmation", () => {
     await expect(item).not.toContainText("Nobody confirmed");
 
     // The "club watched this" badge.
-    await page.goto(`/watchlist?${new URLSearchParams({ seen: c.clubId, q: "Arrival" })}`);
+    await page.goto(`/watchlist?${new URLSearchParams({ q: "Arrival" })}`);
     await expect(page.locator(".watched-badge").first()).toBeVisible();
   });
 
