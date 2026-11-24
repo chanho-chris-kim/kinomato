@@ -235,7 +235,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   no veto UI yet for a stale tab to leave open (see Open Questions), so
   reaching this path at all means a caller — test or future UI — deserves an
   explicit signal, not a silent swallow. An RSVP change still succeeds — per
-  the ruling above, it just doesn't touch `winning_film_id`.
+  the ruling above, it just doesn't touch `winning_film_id`. **Until the
+  night starts (ruled 2026-11-24, approved by Chanho):** from
+  `scheduled_at`, Tonight shows no RSVP, and `setRsvp` is a silent no-op
+  for a night that has started, isn't open or locked, or isn't this
+  club's (a stale tab). Lock itself is unchanged.
 - **A club has at most one night in flight.** `draft`, `open`, and `locked`
   are non-terminal; `watched`, `cancelled`, and `unconfirmed` are terminal.
   Enforced by a partial unique index — `nights_one_in_flight_per_club` on
@@ -957,7 +961,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   no new query shape, no new write, no new user action, and it only ever
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
-  candidate night for either section).
+  candidate night for either section). Its times use the app's one time
+  format, `formatNightTime`'s "Sat 8:00pm" (ruled 2026-11-24), as does
+  the club header's schedule line ("Saturdays at 8:00pm").
+  **"Did you watch X?" names the night it asks about** (ruled
+  2026-11-24, `lib/clubStatus.ts` `nightName`): "Saturday night" (or
+  morning, afternoon) in the club's timezone while it's within the last
+  week, else "Saturday, Nov 7". It used to be a hard-coded "Sunday
+  morning".
 - **Identity is the session, and nothing else.** One site-wide cookie,
   `kinomato_session` (`app/session.ts`), whose token is stored only as a
   hash; `getIdentityMembershipId` (`app/clubs/[clubId]/identity.ts`) goes
@@ -1167,6 +1178,12 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Tell me when something in `docs/` has gone stale so I can update it.
 
 ## Open questions
+
+- **Rating after a missed RSVP (found 2026-11-24).** Only a yes-RSVP can
+  rate (blind reveal), and RSVP now closes when the night starts, so
+  someone who came without answering can no longer say yes afterwards
+  and rate. Before, they could RSVP until the night was confirmed. Needs
+  a ruling: let "Did you watch it?" record who came, or accept it.
 
 - **Trusted tier is schema room only.** `users.trusted_at`
   (analysis-v2.md §5.1) exists — non-null would mean trusted, same

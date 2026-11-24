@@ -92,20 +92,20 @@ export default async function SettingsPage({
             Saved.
           </p>
         )}
-        <form action={updateName} className="row gap8 mt14" style={{ alignItems: "flex-end" }}>
-          <label className="small muted" style={{ flex: 3, minWidth: 0 }}>
+        <form action={updateName} className="name-row mt14">
+          <label className="small muted name-first">
             First name
             <div className="search mt-1">
               <input name="firstName" defaultValue={firstName} required autoComplete="given-name" />
             </div>
           </label>
-          <label className="small muted" style={{ flex: "0 0 92px", whiteSpace: "nowrap" }}>
+          <label className="small muted name-initial">
             Last initial
             <div className="search mt-1">
               <input name="lastInitial" defaultValue={lastInitial} required maxLength={1} />
             </div>
           </label>
-          <button type="submit" className="btn" style={{ width: "auto", whiteSpace: "nowrap" }}>
+          <button type="submit" className="btn">
             Save name
           </button>
         </form>

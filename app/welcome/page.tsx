@@ -67,14 +67,14 @@ export default async function WelcomePage({
             </p>
           )}
           <form action={saveWelcome} className="consent-form stack gap14 mt20">
-            <div className="row gap8">
-              <label className="small muted" style={{ flex: 3 }}>
+            <div className="name-row">
+              <label className="small muted name-first">
                 First name
                 <div className="search mt-1">
                   <input name="firstName" required autoComplete="given-name" defaultValue={first ?? suggested.firstName} />
                 </div>
               </label>
-              <label className="small muted" style={{ flex: 1 }}>
+              <label className="small muted name-initial">
                 Last initial
                 <div className="search mt-1">
                   <input name="lastInitial" required maxLength={1} defaultValue={initial ?? suggested.lastInitial} />

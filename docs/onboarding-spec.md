@@ -1016,6 +1016,30 @@ labeled sidebar at 900px → optional context rail at 1120px". That becomes
 900px → rail at 1120px on club pages". It gets rewritten with the rebuild,
 alongside the §8.4 list. `docs/prototype.html` already shows this model.
 
+### 5.12 Design rulings, 2026-11-24 (approved by Chanho)
+
+From the design audit, for the redesign steps that follow it (d0 first).
+
+- **RSVP closes when the night starts.** From `scheduled_at`, Tonight
+  shows no RSVP and `setRsvp` does nothing (a stale tab). Lock is
+  unchanged: a locked night that hasn't started still takes an RSVP, and
+  a change after lock still never moves the pick. Built in d0.
+- **One time format**, `formatNightTime`'s "Sat 8:00pm", everywhere a time
+  is shown, the club header's schedule line included ("Saturdays at
+  8:00pm"). Built in d0.
+- **"Did you watch X?" names the night** ("Saturday night", or "Saturday,
+  Nov 7" past a week), not a hard-coded "Sunday morning". Built in d0.
+- **Members sub-pages** (a later step): the Members tab keeps the people
+  (members, invites, Add a person); Your limits, How this club runs, and
+  Leave/Pause move to their own pages one level down, still under the
+  Members tab. This changes §5.10's placement, not who sees or changes
+  what.
+- **Per-club themes, chosen by owner or admin** (a later step): the same
+  role gate as the other club settings, through `clubs.theme`. Still to
+  settle when it's built: what pages outside a club (Clubs, Watchlist,
+  Settings) use, and aligning `clubs.theme`'s default (`late-show`) with
+  the CSS key (`late`), which is a database default and so a migration.
+
 ---
 
 ## 6. Watchlists: global per person

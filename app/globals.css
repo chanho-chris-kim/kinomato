@@ -619,6 +619,37 @@ button {
   border-color: var(--accent);
 }
 
+/* First name + last initial, and a button where there is one (Settings,
+   Members' Add a person, /welcome): one line when it fits, else the button
+   takes its own line at full width, so neither field is ever squeezed to a
+   sliver or pushed out of its card. */
+.name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.name-row .name-first {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.name-row .name-initial {
+  flex: 0 0 92px;
+  /* Else a text input's intrinsic width (about 150px) sets its minimum. */
+  min-width: 0;
+  white-space: nowrap;
+}
+.name-row > .btn {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+@container (max-width: 419.98px) {
+  .name-row > .btn {
+    flex: 1 1 100%;
+  }
+}
+
 /* Club cards on the signed-in / (Ruling A). The dot marks an action for
    you; "Needs you" in visually hidden text says it in words too. */
 .clubcard {

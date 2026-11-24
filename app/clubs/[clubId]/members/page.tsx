@@ -368,22 +368,21 @@ export default async function MembersPage({
           {canCreateInvite(activeMemberships.length, pendingInvites.length) ? (
             <form
               action={createInvite.bind(null, clubId)}
-              className="row gap8 mt14"
-              style={{ alignItems: "flex-end" }}
+              className="name-row mt14"
             >
-              <label className="small muted" style={{ flex: 3, minWidth: 0 }}>
+              <label className="small muted name-first">
                 First name
                 <div className="search mt-1">
                   <input name="firstName" required />
                 </div>
               </label>
-              <label className="small muted" style={{ flex: 1, minWidth: 0 }}>
+              <label className="small muted name-initial">
                 Last initial
                 <div className="search mt-1">
                   <input name="lastInitial" required maxLength={1} />
                 </div>
               </label>
-              <button type="submit" className="btn" style={{ width: "auto", whiteSpace: "nowrap" }}>
+              <button type="submit" className="btn">
                 Create invite
               </button>
             </form>

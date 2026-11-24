@@ -6,6 +6,7 @@ import {
   findLatestWatchedNight,
   findLockedNight,
   formatNightTime,
+  nightName,
   getClubStatus,
   getDraftToCreate,
   getNextNight,
@@ -361,6 +362,34 @@ describe("formatNightTime", () => {
   it("is the club's local time, not the server's", () => {
     expect(formatNightTime(NEXT_SAT, "America/Los_Angeles")).toBe("Sat 5:00pm");
     expect(formatNightTime(NEXT_SAT, "Europe/London")).toBe("Sun 1:00am");
+  });
+});
+
+// The "Did you watch X?" eyebrow (was a hard-coded "Sunday morning"):
+// which night it's asking about, in the club's own time.
+describe("nightName", () => {
+  const TZ = "America/New_York";
+
+  it("the night's weekday and part of the day, while it's within the last week", () => {
+    const after = new Date(NEXT_SAT.getTime() + 13 * 60 * 60 * 1000); // Sun 9am
+    expect(nightName(NEXT_SAT, TZ, after)).toBe("Saturday night");
+    expect(nightName(NEXT_SAT, TZ, new Date(NEXT_SAT.getTime() + 2 * DAY))).toBe("Saturday night");
+    expect(nightName(new Date("2026-11-07T19:00:00Z"), TZ, after)).toBe("Saturday afternoon"); // 2pm
+    expect(nightName(new Date("2026-11-07T15:30:00Z"), TZ, after)).toBe("Saturday morning"); // 10:30am
+    expect(nightName(new Date("2026-11-07T22:00:00Z"), TZ, after)).toBe("Saturday night"); // 5pm
+  });
+
+  it("a night that hasn't happened yet is still named by its own day", () => {
+    expect(nightName(NEXT_SAT, TZ, NOW)).toBe("Saturday night");
+  });
+
+  it("past a week, the date, so the weekday can't point at the wrong week", () => {
+    expect(nightName(NEXT_SAT, TZ, new Date(NEXT_SAT.getTime() + 8 * DAY))).toBe("Saturday, Nov 7");
+  });
+
+  it("is the club's local day, not the server's", () => {
+    // Sat 8pm in New York is Sun 1am in London.
+    expect(nightName(NEXT_SAT, "Europe/London", new Date(NEXT_SAT.getTime() + DAY))).toBe("Sunday morning");
   });
 });
 

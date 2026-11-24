@@ -77,7 +77,7 @@ test.describe("global shell", () => {
     }
     // The club header: name and schedule, the name linking to the club.
     await expect(page.getByRole("heading", { name: "Movie Night Crew" })).toBeVisible();
-    await expect(page.getByText("Weekly, Saturdays at 8pm · In person")).toBeVisible();
+    await expect(page.getByText("Weekly, Saturdays at 8:00pm · In person")).toBeVisible();
 
     // The retired club list lands on the global watchlist (rebuild step 6d).
     await page.goto(`${CLUB_URL}/list`);

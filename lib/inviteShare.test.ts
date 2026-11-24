@@ -7,14 +7,14 @@ const base = {
   activeMemberCount: 2,
   inviterName: "Chris K.",
   clubName: "Saturday Club",
-  scheduleLine: "Weekly, Saturdays at 8pm · In person",
+  scheduleLine: "Weekly, Saturdays at 8:00pm · In person",
 };
 
 describe("inviteShareText (an invite link's preview text)", () => {
   it("a valid invite: who invited you, to which club, and when it meets", () => {
     expect(inviteShareText(base)).toEqual({
       title: "Chris K. invited you to Saturday Club",
-      description: "Join Saturday Club on Kinomato. Weekly, Saturdays at 8pm · In person.",
+      description: "Join Saturday Club on Kinomato. Weekly, Saturdays at 8:00pm · In person.",
     });
   });
 

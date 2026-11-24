@@ -588,6 +588,9 @@ async function main() {
     defaultTime: "20:30",
     timezone: "America/New_York",
     mode: "in_person",
+    // Confirmable at once, so a future night can be confirmed straight
+    // after lock (see the night below).
+    settings: { confirmAt: "manual_only" },
   });
 
   await db.insert(memberships).values([
@@ -619,16 +622,14 @@ async function main() {
     { userId: MEMBER_USER.zoe, filmId: zodiacId },
   ]);
 
-  // 2 days ago, not an hour — see seed-fixtures.ts's comment on why
-  // this doesn't need to change mid-test the way a real night's clock
-  // would. Far enough in the past that confirmAt's default
-  // "morning_after" threshold (9am local the day after scheduledAt) has
-  // already passed once lock.spec.ts's own real lock click produces a
-  // confirmable night, regardless of what time of day the suite runs.
+  // 2 days ahead, with confirmAt "manual_only" on the club: RSVP is
+  // still open (it closes when the night starts, ruled 2026-11-24), and
+  // the night is confirmable as soon as lock.spec.ts's own lock click
+  // locks it, whatever time of day the suite runs. See seed-fixtures.ts.
   await db.insert(nights).values({
     id: NIGHT_5_ID,
     clubId: CLUB_5_ID,
-    scheduledAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
     pickerMembershipId: MEMBERSHIP_5.zoe,
     state: "draft",
   });
