@@ -165,14 +165,14 @@ The purpose of v0 is to find out which rulings below are wrong.
 The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
 are the launch foundations' build steps (§11).
 
-**Next: email reminders.** The night deadlines are stored and shown (w1 +
-w2), acted on by the hourly weekly loop (w3 + w5), and an unconfirmed
-night takes a late "Yes, we watched it" (w4), all 2026-11-21: see "Night
-deadlines" below. Next is reminders by email within the two-pushes-a-week
-cap, on the same hourly trigger. **The tracking blocker is resolved**
-(2026-11-22): email moved from Brevo, whose transactional tracking can
-only be anonymised on our plan, to Amazon SES with no configuration set
-(see Stack). The SES cutover (`docs/ses-cutover.md`) comes first.
+**Next: the SES cutover (`docs/ses-cutover.md`), so email goes out.** The
+weekly loop is automated: night deadlines are stored and shown (w1 + w2),
+the hourly job locks, logs unconfirmed nights and passes stalled turns (w3 +
+w5), late "yes" works (w4), the job drafts each week's night (r4), and
+reminder emails are built with their preferences and unsubscribe page (r1 –
+r3), all 2026-11-21 to 2026-11-23. Email moved from Brevo, whose
+transactional tracking can only be anonymised on our plan, to Amazon SES
+with no configuration set (see Stack).
 
 ## Rulings that are load-bearing
 
@@ -388,13 +388,14 @@ Do not quietly change these — they encode decisions that took a while to reach
     `createDraftNightCore`, **at most 10 a run** (`DRAFTS_PER_RUN`; up
     to 50 candidates looked at, oldest club first), after a/b/c so a night
     that just resolved gets its successor in the same run (r4, 2026-11-23,
-    see the lazy-creation ruling). Due-ness is `lib/nightDeadlines.ts`
+    see the lazy-creation ruling); then (f) reminder emails (see the
+    reminder ruling under "Two pushes per week"). Due-ness is `lib/nightDeadlines.ts`
     (`dueToLock`, `dueToUnconfirm`, `dueToAutoPass`). **Every write waits
     on the night's state**, so a person pressing the same button in the
     same instant leaves one result and the other side a no-op, and a
     second run changes nothing. Each night is tried on its own; failures
     are collected and thrown at the end, so the run shows as failed. One
-    log line, `[weekly-loop] {"locked":n,"unconfirmed":n,"passed":n,"drafted":n,"failed":n}`
+    log line, `[weekly-loop] {"locked":n,"unconfirmed":n,"passed":n,"drafted":n,"reminded":n,"remind_failed":n,"failed":n}`
     (the same counts in the ops alert),
     plus one line per failed night with its id and what failed, never a
     name, email or row data. Tested by calling the job directly with a
@@ -715,6 +716,53 @@ Do not quietly change these — they encode decisions that took a while to reach
   `app/reminderUnsubscribe.ts` touches `reminder_unsubscribe_tokens`
   (`lib/reminderTokenAccess.test.ts`); reminder emails call its
   `createUnsubscribeLink(db, userId, clubId, origin)`.
+  **Reminder emails, built (r2 + r3), ruled 2026-11-23:**
+  - **Budget:** at most 2 reminder emails per person per rolling 7 days
+    across all clubs, plus 1 "your turn" per night they pick. Sign-in,
+    account notices and ops alerts never count. Over budget is dropped,
+    never queued (a later run may still send it if a slot frees while its
+    window is open).
+  - **Kinds, priority order (the first two that apply win):** (1) "Voting
+    closes soon": active members who haven't voted on that open night,
+    `lock_at − 24h` to `lock_at − 1h`; (2) "Movie night is tonight": a
+    locked night, not to anyone who RSVP'd no, 08:00 on the night's day to
+    `scheduled_at − 1h`; (3) "Did you watch it?": a fill-in only if a slot
+    is left, to yes-RSVPs, from the prompt (`confirmableAt`, or the night)
+    to `unconfirm_at − 6h`, not once answered. Plus the picker's "Your turn
+    to pick": a draft, until `autoPassAt − 6h`, not once voting opened.
+    Each is re-checked just before it's sent; a moot one never goes.
+  - **Quiet hours 22:00–08:00** in the club's timezone: a due reminder
+    waits for 08:00 if its window is still open.
+  - **The same kind due for several clubs in one run is one email**,
+    listing the clubs, counting once (its log rows share a `send_id`).
+  - Only to people `mayGetRemindersFrom` allows.
+  - **Content:** plain and short, one link per club to `/clubs/{id}`; never
+    a film title, name, vote, count, RSVP list, limit or preference. Near
+    the top, in body-size text, "Don't want these? Turn off reminders";
+    the footer "At most two reminders a week across your clubs." and "Mute
+    only {club}" per club; a plain-text part.
+  - **One-click unsubscribe (RFC 8058):** every reminder has
+    `List-Unsubscribe` (`/unsubscribe/{token}/one-click`) and
+    `List-Unsubscribe-Post: List-Unsubscribe=One-Click`. A POST with that
+    body stops all reminder emails, no confirmation page; a browser GET
+    there is sent to the two-button page and changes nothing (the same
+    path can't be both a page and a POST handler in Next.js, hence the
+    sibling URL).
+  - **Log:** `notification_log` (user, kind, club, night, `send_id`,
+    sent_at), a `uniqueIndex` per (user, kind, night). Claimed, then
+    sent; a failed send releases its claim so the next hour retries. Only
+    `app/notificationLog.ts` touches it (`lib/notificationLogAccess.test.ts`);
+    retention deletes rows after 30 days; the export has your own rows;
+    account and club deletion remove them; a deleted night takes its rows
+    (cascade).
+  - **"Who hasn't voted"** comes from `historyRead.ts`
+    `membershipsYetToVote`: only ids, only on an open night.
+  - **Step (f) of the weekly loop**, after a–e, at most 20 emails a run,
+    each on its own; `reminded` and `remind_failed` are in the log line
+    and the ops alert, and a failed send fails the run without undoing
+    a–e. Links use `APP_ORIGIN` (a plain var in `wrangler.jsonc`); unset,
+    no reminder goes and the run fails. Pure rules in `lib/reminders.ts`;
+    orchestration in `app/reminders.ts`.
 - **Free tier caps a club at six members**, enforced server-side twice:
   when an invite is created, where **pending invites hold a seat**
   (`lib/invites.ts`'s `canCreateInvite`: active + pending < 6), and when

@@ -20,7 +20,7 @@ const H = 3600_000;
 const NOW = new Date();
 const at = new Date(Date.UTC(2026, 0, 1));
 const TZ = "America/New_York";
-const zero = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, failed: 0 };
+const zero = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, reminded: 0, remind_failed: 0, failed: 0 };
 
 // Ana, Ben and Cal, consent given, joined in that order.
 async function club(
@@ -98,21 +98,21 @@ test.describe("the job drafts each week's night", () => {
     const expected = await expectedDraft(c, NOW);
     expect(expected?.pickerMembershipId).toBe(c.members.ana);
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
     const [draft] = await draftsOf(c.clubId);
     expect(draft.pickerMembershipId).toBe(c.members.ana);
     expect(draft.scheduledAt.getTime()).toBe(expected!.scheduledAt.getTime());
     const [clubRow] = await db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId));
     expect(draft.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, NOW, clubRow.createdAt)!.getTime());
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
     expect(await draftsOf(c.clubId)).toHaveLength(1);
   });
 
   test("a paused club and an ad hoc club get none", async () => {
     const paused = await club("Job Paused Club", { paused: true });
     const adHoc = await club("Job Ad Hoc Club", { cadence: "ad_hoc" });
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [paused.clubId, adHoc.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [paused.clubId, adHoc.clubId] })).toEqual(zero);
     expect(await draftsOf(paused.clubId)).toEqual([]);
     expect(await draftsOf(adHoc.clubId)).toEqual([]);
   });
@@ -120,7 +120,7 @@ test.describe("the job drafts each week's night", () => {
   test("a page load and the job racing leave exactly one draft", async ({ page }) => {
     const c = await club("Job Race Club");
     await signInAsUser(page, c.users.ben);
-    const [job] = await Promise.all([runWeeklyLoop(db, NOW, { clubIds: [c.clubId] }), page.goto(`/clubs/${c.clubId}`)]);
+    const [job] = await Promise.all([runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] }), page.goto(`/clubs/${c.clubId}`)]);
     expect(job.failed).toBe(0);
     expect(await draftsOf(c.clubId)).toHaveLength(1);
     await page.reload();
@@ -148,7 +148,7 @@ test.describe("the job drafts each week's night", () => {
       })
       .returning();
 
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, unconfirmed: 1, drafted: 1 });
     expect((await db.select().from(schema.nights).where(eq(schema.nights.id, locked.id)))[0].state).toBe("unconfirmed");
     const [draft] = await draftsOf(c.clubId);
     expect(draft.pickerMembershipId).toBe(c.members.ben);
@@ -172,7 +172,7 @@ test.describe("the job drafts each week's night", () => {
     };
 
     // Skipped: the slot goes to Ben, and Ana stays postponed.
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [byJob.clubId] })).toEqual({ ...zero, drafted: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [byJob.clubId] })).toEqual({ ...zero, drafted: 1 });
     await draftByPage();
     for (const c of [byJob, byPage]) {
       expect((await draftsOf(c.clubId))[0].pickerMembershipId).toBe(c.members.ben);
@@ -187,7 +187,7 @@ test.describe("the job drafts each week's night", () => {
         .where(and(eq(schema.nights.clubId, c.clubId), eq(schema.nights.state, "draft")));
       await db.insert(schema.nights).values({ clubId: c.clubId, scheduledAt: slot, pickerMembershipId: c.members.ben, state: "watched" });
     }
-    expect(await runWeeklyLoop(db, NOW, { clubIds: [byJob.clubId] })).toEqual({ ...zero, drafted: 1 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [byJob.clubId] })).toEqual({ ...zero, drafted: 1 });
     await draftByPage();
     for (const c of [byJob, byPage]) {
       expect((await draftsOf(c.clubId))[0].pickerMembershipId).toBe(c.members.ana);
@@ -199,9 +199,9 @@ test.describe("the job drafts each week's night", () => {
     const clubs = [];
     for (let i = 0; i < DRAFTS_PER_RUN + 2; i++) clubs.push(await club(`Job Cap Club ${i}`));
     const clubIds = clubs.map((c) => c.clubId);
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual({ ...zero, drafted: DRAFTS_PER_RUN });
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual({ ...zero, drafted: 2 });
-    expect(await runWeeklyLoop(db, NOW, { clubIds })).toEqual(zero);
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual({ ...zero, drafted: DRAFTS_PER_RUN });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual({ ...zero, drafted: 2 });
+    expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds })).toEqual(zero);
     for (const c of clubs) expect(await draftsOf(c.clubId)).toHaveLength(1);
   });
 
@@ -212,12 +212,12 @@ test.describe("the job drafts each week's night", () => {
     // Ten hours before the slot: its voting deadline (24h before) has gone
     // by, so the following week's night is drafted (ruled 2026-11-23).
     const late = new Date(slot.getTime() - 10 * H);
-    expect(await runWeeklyLoop(db, late, { clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
+    expect(await runWeeklyLoop(db, late, { reminders: false, clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
     const [draft] = await draftsOf(c.clubId);
     expect(draft.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, new Date(slot.getTime() + 1), clubRow.createdAt)!.getTime());
     expect(draft.scheduledAt.getTime()).toBeGreaterThan(slot.getTime());
     // And the job doesn't pass it the next hour.
-    expect(await runWeeklyLoop(db, new Date(late.getTime() + H), { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, new Date(late.getTime() + H), { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
   });
 
   test("a page load right after an auto-pass creates no doomed draft", async ({ page }) => {
@@ -249,6 +249,6 @@ test.describe("the job drafts each week's night", () => {
     expect(successor.pickerMembershipId).toBe(c.members.ben);
     expect(successor.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, new Date(slot.getTime() + 1), clubRow.createdAt)!.getTime());
     // So the next hourly run doesn't pass it.
-    expect(await runWeeklyLoop(db, new Date(NOW.getTime() + H), { clubIds: [c.clubId] })).toEqual(zero);
+    expect(await runWeeklyLoop(db, new Date(NOW.getTime() + H), { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
   });
 });

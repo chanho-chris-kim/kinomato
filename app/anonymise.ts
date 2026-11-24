@@ -3,6 +3,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import { deleteEmailChangesOf } from "@/app/emailChange";
 import { deleteUnsubscribeTokensOf } from "@/app/reminderUnsubscribe";
+import { deleteNotificationLogOf } from "@/app/notificationLog";
 import { deleteWatchlistOf } from "@/app/watchlistRead";
 import {
   constraints,
@@ -93,6 +94,8 @@ export async function anonymisationStatements(db: Db, userId: string, now: Date)
     deleteEmailChangesOf(db, userId),
     // Reminder unsubscribe links: deleted (they'd act on this account).
     deleteUnsubscribeTokensOf(db, userId),
+    // Reminder log: deleted.
+    deleteNotificationLogOf(db, userId),
     // An open data-sharing opt-in: withdrawn (§11.4), so nothing it left
     // behind feeds a future aggregate. The row is kept, as every
     // withdrawal is.

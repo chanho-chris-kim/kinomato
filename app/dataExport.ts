@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { ownVotesAndVetoes } from "@/app/clubs/[clubId]/historyRead";
 import { ownEmailChanges } from "@/app/emailChange";
+import { ownNotificationLog } from "@/app/notificationLog";
 import { ownWatchlist } from "@/app/watchlistRead";
 import { type DataExport, shapeExport } from "@/lib/dataExport";
 
@@ -157,6 +158,7 @@ export async function loadDataExport(db: Db, userId: string, now: Date): Promise
       votes: choices.votes,
       vetoes: choices.vetoes,
       emailChanges,
+      remindersSent: await ownNotificationLog(db, userId),
     },
     now,
   );

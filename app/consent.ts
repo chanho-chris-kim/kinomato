@@ -3,6 +3,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import { deleteEmailChangesOf } from "@/app/emailChange";
 import { deleteUnsubscribeTokensOf } from "@/app/reminderUnsubscribe";
+import { deleteNotificationLogOf } from "@/app/notificationLog";
 import {
   consentEvents,
   dataLicensingConsents,
@@ -172,6 +173,7 @@ export async function discardNewAccount(db: Db, userId: string): Promise<void> {
     db.delete(magicLinks).where(eq(magicLinks.email, user.email)),
     deleteEmailChangesOf(db, userId),
     deleteUnsubscribeTokensOf(db, userId),
+    deleteNotificationLogOf(db, userId),
     db.delete(consentEvents).where(eq(consentEvents.userId, userId)),
     db.delete(dataLicensingConsents).where(eq(dataLicensingConsents.userId, userId)),
     db.delete(users).where(eq(users.id, userId)),

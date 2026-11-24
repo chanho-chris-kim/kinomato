@@ -42,6 +42,7 @@ const input: ExportInput = {
   emailChanges: [
     { newEmail: "kit2@example.com", requestedAt: at("2026-06-01"), confirmedAt: null, cancelledAt: at("2026-06-02") },
   ],
+  remindersSent: [{ kind: "voting_closes", clubName: "A Club", sentAt: at("2026-11-20") }],
 };
 
 describe("exportFilename", () => {
@@ -102,6 +103,11 @@ describe("shapeExport", () => {
       "votes",
       "vetoes",
       "email_change_requests",
+      "reminders_sent",
+    ]);
+    // Your own reminder emails (ruled 2026-11-23): kind, club, when.
+    expect(out.reminders_sent).toEqual([
+      { kind: "voting_closes", club: "A Club", sent_at: "2026-11-20T12:00:00.000Z" },
     ]);
     expect(out.consent.data_licensing).toEqual([
       { wording_version: "2026-11-06", opted_in_at: "2026-11-06T12:00:00.000Z", withdrawn_at: null },

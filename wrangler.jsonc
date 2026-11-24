@@ -16,6 +16,12 @@
   // "0 10 * * *": the daily retention job (docs/onboarding-spec.md §11.6),
   // 10:00 UTC, night in Vancouver. "0 * * * *": the hourly weekly loop
   // (app/weeklyLoop.ts): locks, unconfirmed nights, unopened drafts.
+  // The site's own origin, for links in emails the hourly job sends
+  // (reminders, app/reminders.ts): the job has no request to read it from.
+  // Not a secret. Move to https://kinomato.com at launch.
+  "vars": {
+    "APP_ORIGIN": "https://dev.kinomato.com"
+  },
   "triggers": {
     "crons": ["0 10 * * *", "0 * * * *"]
   },

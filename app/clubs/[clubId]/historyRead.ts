@@ -32,6 +32,9 @@ import { loadClubMemberships, nameOf } from "./members";
 // - viewerVotedOnOpenNights: whether *you* have voted, for the club cards.
 // - votesForLock: the nomination ids of an open night's votes, for the
 //   tally that picks the winner at lock.
+// - membershipsYetToVote: of the memberships passed in, the ones with no
+//   vote on an open night, for the "voting closes soon" reminder (ruled
+//   2026-11-23). Never who voted for what; empty unless the night is open.
 // - clubHistory: finished nights' final counts and a veto count. Never who
 //   voted for what, never who vetoed.
 // - ownVotesAndVetoes: *your own* votes and vetoes, for Download my data
@@ -93,6 +96,23 @@ export async function viewerVotedOnOpenNights(
       ),
     );
   return new Set(rows.map((r) => r.nightId));
+}
+
+// For the "voting closes soon" reminder (app/reminders.ts): which of these
+// memberships haven't voted on this open night. Only ids from the list
+// passed in come back, and only the ones without a vote.
+export async function membershipsYetToVote(db: Db, openNightId: string, membershipIds: string[]): Promise<string[]> {
+  if (membershipIds.length === 0 || !(await isOpen(db, openNightId))) return [];
+  const voted = new Set(
+    (
+      await db
+        .select({ membershipId: votes.membershipId })
+        .from(votes)
+        .innerJoin(nominations, eq(votes.nominationId, nominations.id))
+        .where(and(eq(nominations.nightId, openNightId), inArray(votes.membershipId, membershipIds)))
+    ).map((r) => r.membershipId),
+  );
+  return membershipIds.filter((id) => !voted.has(id));
 }
 
 // For lockNightCore: the nomination id of every vote on an open night, so

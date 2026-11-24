@@ -10,16 +10,25 @@
 //   touched.
 // - reminder_unsubscribe_tokens: deleted once more than 90 days old, when
 //   they stop working (lib/reminderPrefs.ts, ruled 2026-11-23).
+// - notification_log: deleted once more than 30 days old (ruled
+//   2026-11-23). The budget looks back 7 days; never-twice is per night,
+//   and no reminder's window reaches 30 days.
 
-export const RETENTION = { expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90 } as const;
+export const RETENTION = { expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90, notificationLogDays: 30 } as const;
 
 const DAY_MS = 24 * 3600_000;
 
-export function retentionCutoffs(now: Date): { expiredBefore: Date; revokedBefore: Date; unsubscribeTokensBefore: Date } {
+export function retentionCutoffs(now: Date): {
+  expiredBefore: Date;
+  revokedBefore: Date;
+  unsubscribeTokensBefore: Date;
+  notificationLogBefore: Date;
+} {
   return {
     expiredBefore: new Date(now.getTime() - RETENTION.expiredDays * DAY_MS),
     revokedBefore: new Date(now.getTime() - RETENTION.revokedInviteNameDays * DAY_MS),
     unsubscribeTokensBefore: new Date(now.getTime() - RETENTION.unsubscribeTokenDays * DAY_MS),
+    notificationLogBefore: new Date(now.getTime() - RETENTION.notificationLogDays * DAY_MS),
   };
 }
 

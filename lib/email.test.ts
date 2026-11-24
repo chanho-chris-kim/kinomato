@@ -118,8 +118,9 @@ describe("no configuration set, ever", () => {
     await email.sendAccountDeletionCode("a@example.com", "123456");
     await email.sendAccountDeletedReceipt("a@example.com");
     await email.sendOpsAlert("weekly-loop", new Date(), { failed: 1 });
+    await email.sendReminderEmail("a@example.com", { subject: "s", html: "<p>h</p>", text: "t" }, "https://kinomato.test/unsubscribe/x/one-click");
 
-    expect(fetchSpy).toHaveBeenCalledTimes(8);
+    expect(fetchSpy).toHaveBeenCalledTimes(9);
     for (const [, init] of fetchSpy.mock.calls) {
       const raw = (init as RequestInit).body as string;
       expect(raw).not.toMatch(/ConfigurationSet/i);
@@ -276,5 +277,27 @@ describe("sendOpsAlert", () => {
     vi.stubEnv("SUPPORT_EMAIL", "");
     sent();
     await expect(sendOpsAlert("weekly-loop", new Date(), null)).rejects.toThrow(/SUPPORT_EMAIL is not set/);
+  });
+});
+
+// Reminders (ruled 2026-11-23): RFC 8058 one-click unsubscribe on every one,
+// and a plain-text part.
+describe("sendReminderEmail", () => {
+  it("carries List-Unsubscribe and List-Unsubscribe-Post, the HTML and the text", async () => {
+    withSes();
+    const fetchSpy = stubFetch();
+    await email.sendReminderEmail(
+      "ana@example.com",
+      { subject: "Voting closes soon in A Club", html: "<p>Voting closes Fri 8:00pm.</p>", text: "Voting closes Fri 8:00pm." },
+      "https://kinomato.test/unsubscribe/abc/one-click",
+    );
+    const [body] = bodies(fetchSpy);
+    expect(body.Destination).toEqual({ ToAddresses: ["ana@example.com"] });
+    expect(body.Content.Simple.Headers).toEqual([
+      { Name: "List-Unsubscribe", Value: "<https://kinomato.test/unsubscribe/abc/one-click>" },
+      { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" },
+    ]);
+    expect(body.Content.Simple.Body.Text.Data).toBe("Voting closes Fri 8:00pm.");
+    expect(html(body)).toBe("<p>Voting closes Fri 8:00pm.</p>");
   });
 });

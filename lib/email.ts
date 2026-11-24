@@ -51,6 +51,7 @@ function sesCredentials(): { accessKeyId: string; secretAccessKey: string; regio
 interface Message {
   kind:
     | "sign-in"
+    | "reminder"
     | "ops-alert"
     | "invite-only"
     | "email-change-code"
@@ -276,5 +277,28 @@ export async function sendAccountDeletedReceipt(email: string): Promise<void> {
     to: email,
     subject: "Your Kinomato account was deleted",
     html: `<p>Your Kinomato account was deleted.</p>`,
+  });
+}
+
+// A reminder email (ruled 2026-11-23; content from lib/reminders.ts
+// reminderContent). Every one carries RFC 8058 one-click unsubscribe:
+// List-Unsubscribe pointing at the link's one-click URL, and
+// List-Unsubscribe-Post, so a mail app's "Unsubscribe" stops all reminder
+// emails with one POST (app/unsubscribe/[token]/one-click/route.ts).
+export async function sendReminderEmail(
+  to: string,
+  content: { subject: string; html: string; text: string },
+  oneClickUrl: string,
+): Promise<void> {
+  await send({
+    kind: "reminder",
+    to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    headers: {
+      "List-Unsubscribe": `<${oneClickUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   });
 }

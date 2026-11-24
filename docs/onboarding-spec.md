@@ -461,8 +461,26 @@ settings page"):
     reminder emails; `/unsubscribe/[token]` (exempt from the consent gate:
     it can only turn reminders off), `/unsubscribe/done`,
     `/unsubscribe/expired`. Settings' "How we reach you"; the export
-    carries `reminder_emails` and each club's `reminders_muted_at`. No
-    reminder is sent yet.
+    carries `reminder_emails` and each club's `reminders_muted_at`.
+- **Rulings for reminder emails (2026-11-23):** two per person per rolling
+  7 days across all clubs, plus one "your turn" per night they pick;
+  sign-in and account notices never count; over budget is dropped. Kinds in
+  priority order: voting closes soon (not yet voted, `lock_at − 24h` to
+  `lock_at − 1h`), movie night is tonight (locked, not RSVP'd no, 08:00 on
+  the day to `scheduled_at − 1h`), did you watch it (a fill-in, yes-RSVPs,
+  prompt to `unconfirm_at − 6h`); the picker's "your turn" until
+  `autoPassAt − 6h`. Quiet 22:00–08:00 in the club's timezone. The same kind
+  in several clubs is one email. Plain content with no titles, names,
+  votes, counts, RSVPs, limits or preferences; "Don't want these? Turn off
+  reminders" near the top; "At most two reminders a week across your
+  clubs." and "Mute only {club}" in the footer; RFC 8058 one-click
+  unsubscribe headers. Logged in `notification_log`, claimed then sent,
+  released on failure; 30 days' retention.
+- *Built (r2 + r3), 2026-11-23.* `lib/reminders.ts` (pure),
+  `app/reminders.ts` (step f of the hourly loop), `app/notificationLog.ts`
+  (the only module touching the log), `historyRead.ts`
+  `membershipsYetToVote`, `lib/email.ts` `sendReminderEmail`,
+  `/unsubscribe/[token]/one-click`. CLAUDE.md has the full ruling.
 - **Sign out** (this browser), and **Sign out everywhere** (every session
   for the account, this browser's included; §4.4).
 - Footer: Privacy, Terms (every page, site-wide; launch-foundations step

@@ -710,3 +710,41 @@ export const invites = pgTable(
   },
   (table) => [index("invites_club_id_idx").on(table.clubId)],
 );
+
+// Reminder emails sent (ruled 2026-11-23, docs/onboarding-spec.md §5.9):
+// one row per person, kind and night, claimed before the email goes and
+// removed again if it fails, so a reminder is sent at most once (the unique
+// index) and the next hour retries a failure. Rows of one email share a
+// send_id: an email listing several clubs counts once against the rolling
+// budget. Deleted after 30 days by the retention job, and with the night (a
+// passed draft), the account or the club. Only app/notificationLog.ts
+// touches this table (lib/notificationLogAccess.test.ts).
+export const notificationKindEnum = pgEnum("notification_kind", ["your_turn", "voting_closes", "tonight", "did_you_watch"]);
+
+export const notificationLog = pgTable(
+  "notification_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: notificationKindEnum("kind").notNull(),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id),
+    nightId: uuid("night_id")
+      .notNull()
+      .references(() => nights.id, { onDelete: "cascade" }),
+    sendId: uuid("send_id").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("notification_log_user_kind_night_idx").on(table.userId, table.kind, table.nightId),
+    index("notification_log_user_sent_at_idx").on(table.userId, table.sentAt),
+    index("notification_log_sent_at_idx").on(table.sentAt),
+    index("notification_log_club_id_idx").on(table.clubId),
+    index("notification_log_send_id_idx").on(table.sendId),
+  ],
+);
