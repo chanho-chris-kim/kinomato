@@ -227,7 +227,7 @@ function ShelfSection({ shelf }: { shelf: Shelf }) {
               {f.title} <span className="dim">({f.year})</span>
             </div>
             <form action={removeFromWatchlist.bind(null, f.id)}>
-              <button type="submit" className="tiny underline">
+              <button type="submit" className="tiny underline tap">
                 Remove
               </button>
             </form>

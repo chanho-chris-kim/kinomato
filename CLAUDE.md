@@ -907,6 +907,19 @@ Do not quietly change these — they encode decisions that took a while to reach
   directly in JSX className props, not reimplemented as Tailwind
   utilities, so the palette and spacing rhythm stay exactly what the
   prototype specifies rather than a hand-translated approximation.
+  **Foundations (ruled 2026-11-24, approved by Chanho):** besides the
+  prototype's palette, a theme sets three semantic tokens, so a theme is
+  only a set of values: `--field-line` (a field's or button's edge, at
+  least 3:1 against `--bg` and `--card`; `--line` stays for cards and
+  dividers), `--focus` (the focus ring, on every control and on a
+  `.search` field as a whole) and `--on-accent` (text on an `--accent`
+  fill). Late show's `--dim` is #958169 (5.06:1 on `--bg`, 4.70:1 on
+  `--card`) and `--field-line` #7a6650 (3.46:1, 3.21:1); the ratios sit
+  beside the tokens in `app/globals.css`, and a new theme checks its own.
+  Every control is at least a 44px target: `.btn`, tabs, selects and
+  fields by their size; a radio or checkbox by its label; a small link or
+  text button by `.tap` (an invisible centred `::after`, so it looks the
+  same). Links inside a sentence are exempt.
   `app/shell.tsx` holds the shells (`docs/onboarding-spec.md` §5.11,
   Ruling D): **bottom tab bar on phones → top bar at 620px → capped
   content column at 900px → rail at 1120px on club pages**, all via
@@ -1111,6 +1124,15 @@ Kinoma (former Marvell division) are the nearest existing marks.
   derived facts: a hostname, or true/false. Shell filters on raw values
   have failed: a quoted `.env` line slipped past one and leaked a
   password.
+- **Design screenshots: `npm run audit:screens`** (`e2e/design/`, ruled
+  2026-11-24). Every page in its real states at 375 and 1280, on the E2E
+  database through a production build, plus `docs/prototype.html`'s
+  screens in each theme and per-page measurements (targets under 44px,
+  unlabelled fields, headings, inline styles) in `metrics.json`. Output
+  is `design-audit/<AUDIT_LABEL>/` (default `latest`), gitignored: a
+  redesign step shoots `before` on `main` and `after` on its branch and
+  compares the pairs. Not part of the E2E run (its file isn't a
+  `.spec.ts`), and never against anything but `E2E_DATABASE_URL`.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every

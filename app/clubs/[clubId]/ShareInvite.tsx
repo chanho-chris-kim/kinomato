@@ -38,7 +38,7 @@ export function ShareInvite({
   return (
     <div className="stack gap8">
       <input
-        className="small"
+        className="small field"
         readOnly
         value={url}
         aria-label={`Invite link for ${inviteeName}`}

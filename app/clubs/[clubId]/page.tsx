@@ -657,7 +657,7 @@ export default async function ClubPage({
               </div>
             ) : (
               <p className="small mt14">
-                <Link href={`/clubs/${clubId}?pass=1`} className="underline">
+                <Link href={`/clubs/${clubId}?pass=1`} className="underline tap">
                   Pass my turn
                 </Link>
               </p>
@@ -687,7 +687,7 @@ export default async function ClubPage({
                 </div>
               ) : (
                 <p className="small mt14">
-                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline">
+                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline tap">
                     Pass {draftPickerName}&apos;s turn
                   </Link>
                 </p>
@@ -954,7 +954,7 @@ export default async function ClubPage({
                         )}
                         className="inline"
                       >
-                        <button type="submit" className="underline">
+                        <button type="submit" className="underline tap" aria-label={`Remove ${t.displayName}`}>
                           remove
                         </button>
                       </form>
@@ -970,6 +970,7 @@ export default async function ClubPage({
                   <input
                     type="text"
                     name="tag"
+                    aria-label="Add a tag"
                     list="club-tag-options"
                     placeholder="Add a tag"
                     maxLength={50}

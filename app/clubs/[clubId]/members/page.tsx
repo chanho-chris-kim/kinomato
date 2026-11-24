@@ -623,11 +623,11 @@ export default async function MembersPage({
               <div>
                 <span className="small muted">In person or remote</span>
                 <div className="row gap14 mt-1">
-                  <label className="small">
+                  <label className="small choice">
                     <input type="radio" name="mode" value="in_person" defaultChecked={details.mode === "in_person"} /> In
                     person
                   </label>
-                  <label className="small">
+                  <label className="small choice">
                     <input type="radio" name="mode" value="remote" defaultChecked={details.mode === "remote"} /> Remote
                   </label>
                 </div>

@@ -100,10 +100,10 @@ export default async function NewClubPage({
           <div>
             <span className="small muted">Mode</span>
             <div className="row gap14 mt-1">
-              <label className="small">
+              <label className="small choice">
                 <input type="radio" name="mode" value="in_person" defaultChecked /> In person
               </label>
-              <label className="small">
+              <label className="small choice">
                 <input type="radio" name="mode" value="remote" /> Remote
               </label>
             </div>
