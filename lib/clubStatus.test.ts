@@ -468,3 +468,29 @@ describe("getClubStatus: a late confirmation", () => {
     expect(status.kind).toBe("next");
   });
 });
+
+// Never a draft already due to be auto-passed (ruled 2026-11-23): if the
+// slot's voting deadline (scheduled_at − lockTime) has gone by, that slot is
+// skipped and the next occurrence drafted. The page and the job both use
+// this, so a pass is never followed by a doomed draft for the same night.
+describe("getDraftToCreate skips a slot whose voting deadline has gone by", () => {
+  const WEEK = 7 * DAY;
+  const H = 60 * 60 * 1000;
+  const draftAt = (now: Date, settings: unknown = {}) =>
+    getDraftToCreate({ club: { ...CLUB, settings }, memberships: [membership(LOU, 1), membership(ME, 2)], nights: [], now })
+      ?.scheduledAt.getTime();
+
+  it("more than lockTime before the slot: that slot", () => {
+    expect(draftAt(new Date(NEXT_SAT.getTime() - 25 * H))).toBe(NEXT_SAT.getTime());
+  });
+
+  it("within lockTime of the slot (and at its edge): the following week's", () => {
+    expect(draftAt(new Date(NEXT_SAT.getTime() - 10 * H))).toBe(NEXT_SAT.getTime() + WEEK);
+    expect(draftAt(new Date(NEXT_SAT.getTime() - 24 * H))).toBe(NEXT_SAT.getTime() + WEEK);
+  });
+
+  it("follows the club's lockTime", () => {
+    expect(draftAt(new Date(NEXT_SAT.getTime() - 48 * H), { lockTime: 72 })).toBe(NEXT_SAT.getTime() + WEEK);
+    expect(draftAt(new Date(NEXT_SAT.getTime() - 2 * H), { lockTime: 1 })).toBe(NEXT_SAT.getTime());
+  });
+});

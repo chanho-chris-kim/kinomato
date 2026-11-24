@@ -254,12 +254,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   still moves on and gets its "your turn" reminder and its auto-pass.
   Whichever runs first wins: the "one night in flight" index rejects the
   loser's insert (23505, `lib/dbErrors.ts` `isUniqueViolation`), which
-  counts as "raced", not a failure. **The job never creates a draft
-  already due to be auto-passed** (its slot's `scheduled_at − lockTime`
-  has gone by): the next hour's step (c) would pass it, then the next
-  picker the hour after, down the rotation. It leaves that slot and drafts
-  the next occurrence once the slot has gone by. The page doesn't have
-  this guard yet (see Open Questions). If the club has no
+  counts as "raced", not a failure. **Never a draft already due to be
+  auto-passed (ruled 2026-11-23):** if a slot's `scheduled_at − lockTime`
+  has gone by, `getDraftToCreate` skips that slot and drafts the following
+  one, for the page and the job alike. Otherwise the next hour's step (c)
+  would pass it, then the next picker the hour after, down the rotation. If the club has no
   non-terminal night and `getNextPicker` resolves someone, that request
   inserts a `draft` night for them with `scheduledAt` from
   `lib/schedule.ts`'s `getNextOccurrence`; `lib/clubStatus.ts`'s
@@ -1120,20 +1119,6 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Tell me when something in `docs/` has gone stale so I can update it.
 
 ## Open questions
-
-- **A pass followed by a draft for the same slot (found 2026-11-23).**
-  After a pass, the next picker's draft lands on the same night (its next
-  occurrence), whose auto-pass time (`scheduled_at − lockTime`) may
-  already have gone by, so the next hourly run passes it too, and so on
-  down the rotation. The job guards against creating such a draft (see the
-  lazy-creation ruling); Tonight's lazy creation doesn't yet, so a page
-  load right after a pass still makes one. Needs a ruling: move the guard
-  into `getDraftToCreate` (the slot is skipped and the following week
-  drafted), or give a successor draft its own voting window (needs when
-  the draft was created: a schema change).
-
-Things that aren't ruled on yet. Don't guess at these — ask, or flag them here
-and move on.
 
 - **Trusted tier is schema room only.** `users.trusted_at`
   (analysis-v2.md §5.1) exists — non-null would mean trusted, same

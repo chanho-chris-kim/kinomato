@@ -23,14 +23,23 @@ const TZ = "America/New_York";
 const zero = { locked: 0, unconfirmed: 0, passed: 0, drafted: 0, failed: 0 };
 
 // Ana, Ben and Cal, consent given, joined in that order.
-async function club(name: string, o: { cadence?: "weekly" | "ad_hoc"; paused?: boolean; settings?: Record<string, unknown> } = {}) {
+async function club(
+  name: string,
+  o: {
+    cadence?: "weekly" | "ad_hoc";
+    paused?: boolean;
+    settings?: Record<string, unknown>;
+    defaultDay?: number;
+    defaultTime?: string;
+  } = {},
+) {
   const clubId = id();
   await db.insert(schema.clubs).values({
     id: clubId,
     name,
     cadence: o.cadence ?? "weekly",
-    defaultDay: 6,
-    defaultTime: "20:00",
+    defaultDay: o.defaultDay ?? 6,
+    defaultTime: o.defaultTime ?? "20:00",
     timezone: TZ,
     mode: "in_person",
     settings: o.settings ?? {},
@@ -196,17 +205,50 @@ test.describe("the job drafts each week's night", () => {
     for (const c of clubs) expect(await draftsOf(c.clubId)).toHaveLength(1);
   });
 
-  test("never a draft already due to be auto-passed: that slot is left, the next one drafted", async () => {
+  test("never a draft already due to be auto-passed: that slot is skipped, the following one drafted", async () => {
     const c = await club("Job Late Slot Club");
     const [clubRow] = await db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId));
     const slot = getNextOccurrence(clubRow, NOW, clubRow.createdAt)!;
-    // Ten hours before the slot: its voting deadline (24h before) has gone by.
-    expect(await runWeeklyLoop(db, new Date(slot.getTime() - 10 * H), { clubIds: [c.clubId] })).toEqual(zero);
-    expect(await draftsOf(c.clubId)).toEqual([]);
-    // Once it's gone by, the following week's is drafted.
-    expect(await runWeeklyLoop(db, new Date(slot.getTime() + H), { clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
+    // Ten hours before the slot: its voting deadline (24h before) has gone
+    // by, so the following week's night is drafted (ruled 2026-11-23).
+    const late = new Date(slot.getTime() - 10 * H);
+    expect(await runWeeklyLoop(db, late, { clubIds: [c.clubId] })).toEqual({ ...zero, drafted: 1 });
     const [draft] = await draftsOf(c.clubId);
-    expect(draft.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, new Date(slot.getTime() + H), clubRow.createdAt)!.getTime());
+    expect(draft.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, new Date(slot.getTime() + 1), clubRow.createdAt)!.getTime());
     expect(draft.scheduledAt.getTime()).toBeGreaterThan(slot.getTime());
+    // And the job doesn't pass it the next hour.
+    expect(await runWeeklyLoop(db, new Date(late.getTime() + H), { clubIds: [c.clubId] })).toEqual(zero);
+  });
+
+  test("a page load right after an auto-pass creates no doomed draft", async ({ page }) => {
+    // A club whose next night is 30 hours away, with voting closing 48
+    // hours before: that night's voting deadline has already gone by.
+    const soon = new Date(NOW.getTime() + 30 * H);
+    const local = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(soon);
+    const part = (t: string) => local.find((p) => p.type === t)!.value;
+    const defaultDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(part("weekday"));
+    const c = await club("Page After Pass Club", { settings: { lockTime: 48 }, defaultDay, defaultTime: `${part("hour")}:${part("minute")}` });
+    const [clubRow] = await db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId));
+    const slot = getNextOccurrence(clubRow, NOW, clubRow.createdAt)!;
+    expect(slot.getTime() - 48 * H).toBeLessThan(NOW.getTime());
+
+    // Ana held that slot and the job passed her turn.
+    const { passDraftCore } = await import("../app/clubs/[clubId]/passTurnCore");
+    const [held] = await db
+      .insert(schema.nights)
+      .values({ clubId: c.clubId, scheduledAt: slot, pickerMembershipId: c.members.ana, state: "draft" })
+      .returning();
+    expect(await passDraftCore(db, held)).toBe(true);
+
+    // A page load now: the successor is Ben's, for the following week, not
+    // the doomed slot.
+    await signInAsUser(page, c.users.ben);
+    await page.goto(`/clubs/${c.clubId}`);
+    await expect(page.locator("main")).toBeVisible();
+    const [successor] = await draftsOf(c.clubId);
+    expect(successor.pickerMembershipId).toBe(c.members.ben);
+    expect(successor.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, new Date(slot.getTime() + 1), clubRow.createdAt)!.getTime());
+    // So the next hourly run doesn't pass it.
+    expect(await runWeeklyLoop(db, new Date(NOW.getTime() + H), { clubIds: [c.clubId] })).toEqual(zero);
   });
 });

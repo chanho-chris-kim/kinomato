@@ -154,11 +154,8 @@ export async function runWeeklyLoop(
 // flight, not paused, not ad hoc and with someone active are candidates,
 // oldest first; at most DRAFTS_PER_RUN drafts are made. A page load that
 // won the race leaves "raced", which counts as nothing, not a failure.
-//
-// Never a draft already due to be auto-passed (its slot's voting deadline,
-// scheduled_at − lockTime, has gone by): step c would pass it next hour and
-// the next picker the hour after, down the rotation. That slot is left
-// alone; once it's gone by, the next occurrence is drafted as usual.
+// getDraftToCreate never offers a draft already due to be auto-passed: that
+// slot is skipped and the following one drafted (ruled 2026-11-23).
 async function draftNextNights(
   db: Db,
   now: Date,
@@ -202,7 +199,6 @@ async function draftNextNights(
 
   for (const club of candidates) {
     if (counts.drafted >= DRAFTS_PER_RUN) break;
-    const lockTimeHours = getLockTime(club.settings);
     await attempt(
       "draft",
       club.id,
@@ -213,7 +209,6 @@ async function draftNextNights(
           memberships: allMemberships.filter((m) => m.clubId === club.id),
           nights: allNights.filter((n) => n.clubId === club.id),
           now,
-          accept: (draft) => !dueToAutoPass({ scheduledAt: draft.scheduledAt, lockTimeHours }, now),
         })) === "created",
       "drafted",
     );

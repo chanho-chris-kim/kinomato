@@ -645,10 +645,14 @@ button.
   Tonight's lazy creation makes it (rotation, schedule and anchor, paused
   skipped, ad hoc never, departed members never picked), at most 10 a run.
   Whichever of the page and the job runs first wins; the loser's insert is
-  rejected by the one-night-in-flight index and counts as nothing. The job
-  never creates a draft already due to be auto-passed: that slot is left,
-  and the next occurrence is drafted once it has gone by. Both use
+  rejected by the one-night-in-flight index and counts as nothing. Both use
   `app/clubs/[clubId]/draftNightCore.ts`.
+- **Never a draft already due to be auto-passed (ruled 2026-11-23):** if a
+  slot's voting deadline (`scheduled_at − lockTime`) has gone by,
+  `lib/clubStatus.ts` `getDraftToCreate` skips that slot and drafts the
+  following one, for Tonight's lazy creation and the job alike. Otherwise
+  a pass close to the night would be followed by a draft for the same
+  night that the job passes an hour later, and so on down the rotation.
 - *Built (w3 + w5), 2026-11-21.* `app/weeklyLoop.ts` `runWeeklyLoop`,
   `app/scheduledJobs.ts` (dispatch by cron string, `withOpsAlert`),
   `app/clubs/[clubId]/passTurnCore.ts` (`passDraftCore`, shared with Pass

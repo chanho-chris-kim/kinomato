@@ -18,10 +18,9 @@ import type { RotationMembership } from "@/lib/rotation";
 // one night in flight" is a partial unique index, so a page load and the
 // job racing leave one draft: the loser's insert is rejected (23505) and
 // comes back as "raced", not a failure. "none" means there was nothing to
-// create. Anything else is a real failure and throws.
-//
-// `accept` lets a caller decline the draft it would create (the job never
-// creates one already due to be auto-passed).
+// create. Anything else is a real failure and throws. getDraftToCreate
+// never offers a draft already due to be auto-passed (ruled 2026-11-23), so
+// the page and the job behave the same.
 export type DraftOutcome = "created" | "raced" | "none";
 
 export async function createDraftNightCore(
@@ -32,7 +31,6 @@ export async function createDraftNightCore(
     memberships: RotationMembership[];
     nights: StatusNight[];
     now: Date;
-    accept?: (draft: { pickerMembershipId: string; scheduledAt: Date }) => boolean;
   },
 ): Promise<DraftOutcome> {
   const draft = getDraftToCreate({
@@ -41,7 +39,7 @@ export async function createDraftNightCore(
     nights: input.nights,
     now: input.now,
   });
-  if (!draft || (input.accept && !input.accept(draft))) return "none";
+  if (!draft) return "none";
   try {
     await db.batch([
       db.insert(nights).values({

@@ -5,8 +5,8 @@ import {
   type NightState,
   type RotationMembership,
 } from "./rotation";
-import { getScheduleAnchor } from "./clubSettings";
-import { lateConfirmOpen } from "./nightDeadlines";
+import { getLockTime, getScheduleAnchor } from "./clubSettings";
+import { dueToAutoPass, lateConfirmOpen } from "./nightDeadlines";
 import { getNextOccurrence, type ScheduleConfig } from "./schedule";
 
 // A club's state, derived the same way on its card on `/` (Ruling A,
@@ -114,8 +114,16 @@ export function getDraftToCreate(input: {
   if (club.cadence === "ad_hoc") return null;
   const picker = getNextPicker({ memberships, nights, clubPausedAt: club.pausedAt });
   if (!picker) return null;
-  const scheduledAt = getNextOccurrence(scheduleOf(club), now, club.createdAt);
+  let scheduledAt = getNextOccurrence(scheduleOf(club), now, club.createdAt);
   if (!scheduledAt) return null;
+  // Never a draft already due to be auto-passed (ruled 2026-11-23): if this
+  // slot's voting deadline (scheduled_at − lockTime) has gone by, the hourly
+  // job would pass it at once, then the next picker, down the rotation.
+  // That slot is skipped and the following one drafted.
+  if (dueToAutoPass({ scheduledAt, lockTimeHours: getLockTime(club.settings) }, now)) {
+    scheduledAt = getNextOccurrence(scheduleOf(club), new Date(scheduledAt.getTime() + 1), club.createdAt);
+    if (!scheduledAt) return null;
+  }
   return { pickerMembershipId: picker.id, scheduledAt };
 }
 
