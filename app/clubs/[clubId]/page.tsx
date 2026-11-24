@@ -5,7 +5,6 @@ import {
   clubs,
   constraints,
   films,
-  memberships,
   nights,
   nominations,
   ratings,
@@ -25,7 +24,6 @@ import {
   findLatestWatchedNight,
   findLockedNight,
   formatNightTime,
-  getDraftToCreate,
 } from "@/lib/clubStatus";
 import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
 import {
@@ -53,6 +51,7 @@ import { loadClubMemberships, nameOf } from "./members";
 import { liveVotes } from "./historyRead";
 import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
 import { NominationSelector } from "./NominationSelector";
+import { createDraftNightCore } from "./draftNightCore";
 import { RatingSlider } from "./RatingSlider";
 
 export default async function ClubPage({
@@ -120,43 +119,19 @@ export default async function ClubPage({
   const adHocNeedsManualNight =
     !hasNonTerminalNight && whoseTurnResult !== null && club.cadence === "ad_hoc";
 
-  const draftToCreate = getDraftToCreate({
+  // The draft itself goes through the request-free core the hourly job
+  // uses too (draftNightCore.ts, ruled 2026-11-22): whichever runs first
+  // wins, and the loser's insert is rejected by the one-night-in-flight
+  // index ("raced"). Re-read after either, so this load shows whichever
+  // draft won.
+  const drafted = await createDraftNightCore(db, {
+    clubId,
     club,
     memberships: rotationMemberships,
     nights: clubNights,
     now: new Date(now),
   });
-  if (draftToCreate) {
-    try {
-      // The night, and its picker's "Passed this turn" cleared, together
-      // (ruled 2026-11-17: postponed_at is cleared when a night is next
-      // created with them as picker).
-      await db.batch([
-        db.insert(nights).values({
-          clubId,
-          scheduledAt: draftToCreate.scheduledAt,
-          pickerMembershipId: draftToCreate.pickerMembershipId,
-          state: "draft",
-        }),
-        db
-          .update(memberships)
-          .set({ postponedAt: null })
-          .where(eq(memberships.id, draftToCreate.pickerMembershipId)),
-      ]);
-    } catch (error) {
-      // "A club has at most one night in flight" (CLAUDE.md) is a
-      // partial unique index — a second concurrent lazy-create is a
-      // rejected insert (Postgres 23505), not a duplicate row. Losing
-      // that race is expected, not a bug: re-read below picks up
-      // whichever request won. Anything else genuinely is a failure.
-      // A batch may report the code on its cause.
-      const codeOf = (e: unknown) =>
-        typeof e === "object" && e !== null && "code" in e ? (e as { code?: unknown }).code : undefined;
-      const isUniqueViolation =
-        codeOf(error) === "23505" ||
-        codeOf(typeof error === "object" && error !== null ? (error as { cause?: unknown }).cause : undefined) === "23505";
-      if (!isUniqueViolation) throw error;
-    }
+  if (drafted !== "none") {
     clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
   }
 
