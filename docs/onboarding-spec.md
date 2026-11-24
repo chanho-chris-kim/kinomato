@@ -428,6 +428,41 @@ settings page"):
   it waits for the notifications feature itself (Web Push, email fallback,
   the two-per-week cap). No toggles for something that doesn't exist, no
   "coming soon".
+- **Rulings for reminder preferences (2026-11-23, approved by Chanho
+  2026-11-22):**
+  - **Reminder emails default on** for everyone (the friend phase).
+    Whether they need opt-in consent under CASL is on the lawyer's list
+    before public launch. Sign-in codes, email-change and deletion notices
+    and ops alerts are never affected by these settings.
+  - **How we reach you** is one switch, "Reminder emails" on/off (email is
+    the only channel for now; Web Push later), and a per-club list, "Mute
+    reminders from {club}", with one plain line: "Sign-in codes and account
+    notices always arrive."
+  - **The unsubscribe is easy to find and use.** Every reminder (built
+    later) carries a link near the top in normal body-size text ("Don't
+    want these? Turn off reminders") and again in the footer with "Mute
+    only this club". The link opens a public page, working signed out,
+    with two large buttons: "Stop all reminder emails" and "Mute only
+    {club}". Opening it changes nothing (scanners pre-open links); only a
+    button does (POST). Afterwards: "Done. You can turn reminders back on
+    in Settings." An unknown or expired link: "This link has expired. You
+    can change reminders in Settings."
+  - **Unsubscribe links carry an opaque token**: 256 random bits, never an
+    email, name, user id or club id; only its hash is stored; each is tied
+    to one person and one club; it stops working after 90 days and the
+    retention job deletes it. Account deletion and club deletion remove
+    them; muting a club the person has since left changes nothing.
+  - *Built (r1), 2026-11-23.* Schema (additive): `users.email_reminders`
+    (default true), `memberships.reminders_muted_at`,
+    `reminder_unsubscribe_tokens`. `lib/reminderPrefs.ts` (the token, the
+    90 days, `mayGetRemindersFrom`); `app/reminderUnsubscribe.ts`, the only
+    module that touches the token table (`lib/reminderTokenAccess.test.ts`),
+    with `createUnsubscribeLink(db, userId, clubId, origin)` for the
+    reminder emails; `/unsubscribe/[token]` (exempt from the consent gate:
+    it can only turn reminders off), `/unsubscribe/done`,
+    `/unsubscribe/expired`. Settings' "How we reach you"; the export
+    carries `reminder_emails` and each club's `reminders_muted_at`. No
+    reminder is sent yet.
 - **Sign out** (this browser), and **Sign out everywhere** (every session
   for the account, this browser's included; §4.4).
 - Footer: Privacy, Terms (every page, site-wide; launch-foundations step

@@ -9,10 +9,17 @@ export const EXPORT_FORMAT_VERSION = 1;
 type When = Date | null;
 
 export interface ExportInput {
-  account: { email: string; displayName: string | null; createdAt: Date; ageBracket: string | null; ageAttestedAt: When };
+  account: {
+    email: string;
+    displayName: string | null;
+    createdAt: Date;
+    ageBracket: string | null;
+    ageAttestedAt: When;
+    emailReminders: boolean;
+  };
   consentEvents: { document: string; version: string; acceptedAt: Date; method: string }[];
   licensing: { wordingVersion: string; optedInAt: Date; withdrawnAt: When }[];
-  clubs: { name: string; role: string; joinedAt: Date; leftAt: When }[];
+  clubs: { name: string; role: string; joinedAt: Date; leftAt: When; remindersMutedAt: When }[];
   watchlist: { title: string; year: number; addedAt: Date; note: string | null; tags: string[] }[];
   ratings: {
     clubName: string;
@@ -57,6 +64,7 @@ export function shapeExport(input: ExportInput, now: Date) {
       created_at: iso(account.createdAt),
       age_bracket: account.ageBracket,
       age_attested_at: iso(account.ageAttestedAt),
+      reminder_emails: account.emailReminders,
     },
     consent: {
       documents: oldestFirst(input.consentEvents, (e) => e.acceptedAt).map((e) => ({
@@ -76,6 +84,7 @@ export function shapeExport(input: ExportInput, now: Date) {
       role: c.role,
       joined_at: iso(c.joinedAt),
       left_at: iso(c.leftAt),
+      reminders_muted_at: iso(c.remindersMutedAt),
     })),
     watchlist: oldestFirst(input.watchlist, (w) => w.addedAt).map((w) => ({
       film: w.title,

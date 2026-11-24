@@ -1,4 +1,6 @@
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
+import { clubs, memberships } from "@/db/schema";
 import { requireUser } from "@/app/auth";
 import { pendingEmailChange } from "@/app/emailChange";
 import { licensingStatusFor } from "@/app/consent";
@@ -13,17 +15,19 @@ import {
   confirmEmailChangeAction,
   optInToLicensingAction,
   requestEmailChangeAction,
+  setClubRemindersMuted,
+  setEmailReminders,
   signOut,
   signOutEverywhere,
   updateName,
   withdrawFromLicensingAction,
 } from "./actions";
 
-// Settings (docs/onboarding-spec.md §5.9): your name, your email, data
+// Settings (docs/onboarding-spec.md §5.9): your name, your email, How we
+// reach you (reminder emails and per-club mutes, ruled 2026-11-23), data
 // sharing for 18 or older (§11.2), Download my data (§11.5), both sign
 // outs, and Delete account (§11.4) (rebuild steps 7a and
-// 7b, launch foundations (c)). Notifications wait for the
-// notifications feature, and the Privacy and Terms links for those pages
+// 7b, launch foundations (c)). Web Push waits for its own feature, and the Privacy and Terms links for those pages
 // (§5.9 rulings). Nothing else goes here until it's built — no "coming
 // soon".
 export default async function SettingsPage({
@@ -50,6 +54,16 @@ export default async function SettingsPage({
   const licensing = canShare ? await licensingStatusFor(getDb(), user.id) : null;
   const sharingNow =
     canShare && licensing ? isLicensingActive(licensing.rows, user.ageBracket, currentLegal().licensing.version) : false;
+  // The viewer's active clubs, for the per-club reminder mute.
+  const reminderClubs = (
+    await getDb()
+      .select({ clubId: clubs.id, clubName: clubs.name, mutedAt: memberships.remindersMutedAt })
+      .from(memberships)
+      .innerJoin(clubs, eq(memberships.clubId, clubs.id))
+      .where(and(eq(memberships.userId, user.id), isNull(memberships.leftAt)))
+  )
+    .map((c) => ({ clubId: c.clubId, clubName: c.clubName, muted: c.mutedAt !== null }))
+    .sort((a, b) => a.clubName.localeCompare(b.clubName));
   // After a mistake, the form shows what was typed; otherwise the saved name.
   const current = parseInviteeName(user.displayName ?? "");
   const firstName = error ? (first ?? "") : current.firstName;
@@ -172,6 +186,49 @@ export default async function SettingsPage({
         </form>
       </section>
 
+      {/* How we reach you (§5.9, ruled 2026-11-23). Email is the only
+          channel for now. */}
+      <section className="mt20" aria-labelledby="reminders-heading" id="reminders">
+        <h2 id="reminders-heading" className="sec">
+          How we reach you
+        </h2>
+        {saved === "reminders" && (
+          <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+            Saved.
+          </p>
+        )}
+        <div className="between mt14" style={{ alignItems: "center", gap: 12 }}>
+          <span className="small reminder-emails-status">
+            Reminder emails: <strong>{user.emailReminders ? "on" : "off"}</strong>
+          </span>
+          <form action={setEmailReminders.bind(null, !user.emailReminders)}>
+            <button type="submit" className="btn" style={{ width: "auto" }}>
+              {user.emailReminders ? "Turn off" : "Turn on"}
+            </button>
+          </form>
+        </div>
+        {reminderClubs.length > 0 && (
+          <ul className="stack gap8 mt14 reminder-mutes" style={{ listStyle: "none", padding: 0, margin: "14px 0 0" }}>
+            {reminderClubs.map((c) => (
+              <li key={c.clubId} className="between" style={{ alignItems: "center", gap: 12 }}>
+                <span className="small">
+                  {c.clubName}
+                  {c.muted && <span className="dim"> · muted</span>}
+                </span>
+                <form action={setClubRemindersMuted.bind(null, c.clubId, !c.muted)}>
+                  <button type="submit" className="btn ghost" style={{ width: "auto" }}>
+                    {c.muted ? `Unmute reminders from ${c.clubName}` : `Mute reminders from ${c.clubName}`}
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="tiny dim" style={{ margin: "12px 0 0" }}>
+          Sign-in codes and account notices always arrive.
+        </p>
+      </section>
+
       {canShare && licensing && (
         <section className="mt20" aria-labelledby="data-sharing">
           <h2 id="data-sharing" className="sec">
@@ -219,9 +276,9 @@ export default async function SettingsPage({
           Your data
         </h2>
         <p className="small muted" style={{ margin: "4px 0 0" }}>
-          Everything Kinomato holds that&apos;s yours, as one JSON file: your account, clubs, watchlist,
-          ratings, nominations, RSVPs, limits and preferences, and your own votes and vetoes. Never anyone
-          else&apos;s.
+          Everything Kinomato holds that&apos;s yours, as one JSON file: your account and reminder settings,
+          clubs, watchlist, ratings, nominations, RSVPs, limits and preferences, and your own votes and
+          vetoes. Never anyone else&apos;s.
         </p>
         {/* A plain link, not next/link: it's a file download from a route
             handler (app/settings/export/route.ts), never prefetched. */}

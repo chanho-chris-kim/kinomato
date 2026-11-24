@@ -113,6 +113,9 @@ export const users = pgTable("users", {
   // Self-attested, asked once (§11.3). Null = not asked yet; no birthdate.
   ageBracket: ageBracketEnum("age_bracket"),
   ageAttestedAt: timestamp("age_attested_at", { withTimezone: true }),
+  // Reminder emails, on by default (ruled 2026-11-23, docs/onboarding-spec.md
+  // §5.9). Never affects sign-in codes, account notices or ops alerts.
+  emailReminders: boolean("email_reminders").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -190,6 +193,32 @@ export const emailChanges = pgTable(
   (table) => [
     index("email_changes_user_id_idx").on(table.userId),
     index("email_changes_new_email_idx").on(table.newEmail),
+  ],
+);
+
+// An unsubscribe link's token (ruled 2026-11-23, docs/onboarding-spec.md
+// §5.9): 256 random bits, stored only as its SHA-256 hash, tied to one
+// person and one club, usable for 90 days and then deleted by the retention
+// job. Only app/reminderUnsubscribe.ts touches this table
+// (lib/reminderTokenAccess.test.ts).
+export const reminderUnsubscribeTokens = pgTable(
+  "reminder_unsubscribe_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("reminder_unsubscribe_tokens_created_at_idx").on(table.createdAt),
+    index("reminder_unsubscribe_tokens_user_id_idx").on(table.userId),
+    index("reminder_unsubscribe_tokens_club_id_idx").on(table.clubId),
   ],
 );
 
@@ -272,6 +301,8 @@ export const memberships = pgTable(
     // Postponement is a membership property, not a night state. Non-null
     // means this member is at the front of the queue, waiting to pick.
     postponedAt: timestamp("postponed_at", { withTimezone: true }),
+    // "Mute reminders from {club}" (ruled 2026-11-23). Non-null = muted.
+    remindersMutedAt: timestamp("reminders_muted_at", { withTimezone: true }),
   },
   (table) => [
     index("memberships_club_id_idx").on(table.clubId),

@@ -16,6 +16,7 @@ import {
   tags,
 } from "@/db/schema";
 import { deleteVotesAndVetoesOfClubs } from "@/app/clubs/[clubId]/historyRead";
+import { deleteUnsubscribeTokensOfClubs } from "@/app/reminderUnsubscribe";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -48,6 +49,7 @@ export function clubDeletionStatements(db: Db, clubIds: string[]): BatchItem<"pg
     db.delete(constraints).where(inArray(constraints.membershipId, clubMemberships)),
     db.delete(memberships).where(inArray(memberships.clubId, clubIds)),
     db.delete(seasons).where(inArray(seasons.clubId, clubIds)),
+    deleteUnsubscribeTokensOfClubs(db, clubIds),
     db.delete(clubs).where(inArray(clubs.id, clubIds)),
   ];
 }
