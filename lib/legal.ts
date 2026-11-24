@@ -28,7 +28,9 @@ export interface Legal {
 
 export const LEGAL: Legal = {
   terms: { version: "2026-11-06", draft: true },
-  privacy: { version: "2026-11-06", draft: true },
+  // 2026-11-22: email delivery moved from Brevo (France) to Amazon SES
+  // (Canada), a processor change, so everyone re-accepts.
+  privacy: { version: "2026-11-22", draft: true },
   licensing: {
     version: "2026-11-06",
     text:

@@ -63,7 +63,7 @@ test.describe("legal pages", () => {
   test("the Privacy page lists its processors and cookies as facts", async ({ page }) => {
     await page.goto("/privacy");
     await expect(page.locator(".processors li")).toHaveText([
-      /^Brevo \(France\): email delivery/,
+      /^Amazon Web Services \(Canada\): email delivery: your email address and the emails we send you/,
       /^Neon: the database/,
       /^Cloudflare: hosting; it sees every request and stores request logs/,
       /^TMDB: film data; it receives film lookups and the search text you type/,

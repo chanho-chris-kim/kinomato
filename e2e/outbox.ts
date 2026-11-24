@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-// What the app would have emailed during an E2E run. With no Brevo key,
+// What the app would have emailed during an E2E run. With no SES credentials,
 // lib/email.ts appends each message to this file when EMAIL_OUTBOX_FILE is
 // set, which only Playwright's server does (playwright.config.ts). Global
 // setup empties it at the start of every run. Never a real send.

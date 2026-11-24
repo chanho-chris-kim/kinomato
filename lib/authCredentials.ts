@@ -70,8 +70,10 @@ export function evaluateSignIn(
 }
 
 // Per email address: a 30-second cooldown after the latest send, and at
-// most 5 sends in any rolling hour (Brevo's free tier is 300 a day; an
-// unthrottled resend button spends it on one inbox). `recentSends` is
+// most 5 sends in any rolling hour: an unthrottled resend button would
+// spend the account's SES sending quota (a daily maximum and a per-second
+// rate, set per account and region) on one inbox, and mailing one address
+// that often hurts the sender's reputation. `recentSends` is
 // every send to that address; older ones are ignored.
 export function checkSendAllowed(
   recentSends: Date[],

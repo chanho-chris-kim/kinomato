@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 // The services that process data for Kinomato (docs/onboarding-spec.md §9).
 // Facts, not legal prose.
 const PROCESSORS: { name: string; role: string }[] = [
-  { name: "Brevo (France)", role: "email delivery: your email address and the emails we send you" },
+  { name: "Amazon Web Services (Canada)", role: "email delivery: your email address and the emails we send you" },
   { name: "Neon", role: "the database" },
   { name: "Cloudflare", role: "hosting; it sees every request and stores request logs" },
   {

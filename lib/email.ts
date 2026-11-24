@@ -1,21 +1,52 @@
-// Email via Brevo's transactional API (docs/onboarding-spec.md §4, §5.9):
+// Email via Amazon SES in ca-central-1 (docs/onboarding-spec.md §4, §5.9, §9):
 // the sign-in code and link, the email-change code and notices, the
 // account-deletion code and receipt (§11.4), and the ops alert when a
 // scheduled job fails. worker.ts bundles this file for that alert, so it
 // imports nothing from Next.js. Inside the Worker's scheduled handler,
 // process.env carries the Worker's vars and secrets (nodejs_compat with a
 // compatibility date after 2025-04-01; checked under ours on 2026-11-21).
-// Mirrors lib/tmdb.ts's fallback shape: BREVO_API_KEY unset (always true in
-// E2E/CI, on purpose) means no real send and no network access. Codes are
-// stored only as hashes, so E2E never reads them back from here either: it
-// overwrites the stored hash with one for a code it chose (e2e/signIn.ts).
+// Mirrors lib/tmdb.ts's fallback shape: no SES credentials (always true in
+// E2E/CI, on purpose) means no real send and no network access. In
+// production that fails loud instead (the AUTH_SECRET posture), except on
+// Playwright's own server, the only thing that sets EMAIL_OUTBOX_FILE.
+// Codes are stored only as hashes, so E2E never reads them back from here
+// either: it overwrites the stored hash with one for a code it chose
+// (e2e/signIn.ts).
 //
-// Plain fetch, no SDK — this file is the whole provider abstraction, so
-// swapping providers stays a one-file change.
-const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
+// No tracking, by design (ruled 2026-11-22): SES can only add an open
+// pixel or rewrite links through a configuration set, and send() never
+// names one (lib/email.test.ts pins that no ConfigurationSetName is ever
+// sent). Email processing stays in Canada (ca-central-1).
+//
+// Plain fetch with a Web Crypto SigV4 signature (lib/awsSigV4.ts), no SDK:
+// this file is the whole provider abstraction, so swapping providers stays
+// a one-file change.
+import { signRequest } from "./awsSigV4";
 
-// kinomato.com is authenticated as a sending domain in Brevo.
-const SENDER = { email: "hello@kinomato.com", name: "Kinomato" };
+const SENDER = "Kinomato <hello@kinomato.com>";
+const DEFAULT_SES_REGION = "ca-central-1";
+
+// The SES credentials, or null when there are none (local dev, E2E/CI).
+// Read per call, not at module load, so tests can stub them. Half a
+// configuration, or none at all in production, fails loud.
+function sesCredentials(): { accessKeyId: string; secretAccessKey: string; region: string } | null {
+  const accessKeyId = process.env.SES_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.SES_SECRET_ACCESS_KEY;
+  if (accessKeyId && secretAccessKey) {
+    return { accessKeyId, secretAccessKey, region: process.env.SES_REGION || DEFAULT_SES_REGION };
+  }
+  if (accessKeyId || secretAccessKey) {
+    throw new Error("Only one of SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY is set. Set both, or neither.");
+  }
+  if (process.env.NODE_ENV === "production" && !process.env.EMAIL_OUTBOX_FILE) {
+    throw new Error(
+      "SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are not set, so no email can be sent. Set them " +
+        "(and SES_REGION if not ca-central-1) as Worker secrets with wrangler secret put before " +
+        "deploying (docs/ses-cutover.md).",
+    );
+  }
+  return null;
+}
 
 interface Message {
   kind:
@@ -30,6 +61,10 @@ interface Message {
   to: string;
   subject: string;
   html: string;
+  // Optional plain-text part, and extra headers (List-Unsubscribe, for
+  // reminders).
+  text?: string;
+  headers?: Record<string, string>;
   replyTo?: string;
 }
 
@@ -78,12 +113,11 @@ export async function sendOpsAlert(
 }
 
 async function send(message: Message): Promise<void> {
-  // Read per call, not at module load, so tests can stub it.
-  const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) {
-    // Local dev without a key, or E2E/CI: never a real send. Logged, not
-    // silent, so a developer can still click through by hand.
-    console.log(`[email:${message.kind}] (no BREVO_API_KEY, not sent) to ${message.to}: ${message.subject}`);
+  const ses = sesCredentials();
+  if (!ses) {
+    // Local dev without credentials, or E2E/CI: never a real send. Logged,
+    // not silent, so a developer can still click through by hand.
+    console.log(`[email:${message.kind}] (no SES credentials, not sent) to ${message.to}: ${message.subject}`);
     // Test-only outbox (Playwright's server sets EMAIL_OUTBOX_FILE; nothing
     // else does), so E2E can check what would have been sent.
     const outbox = process.env.EMAIL_OUTBOX_FILE;
@@ -94,33 +128,54 @@ async function send(message: Message): Promise<void> {
     return;
   }
 
-  const res = await fetch(BREVO_URL, {
-    method: "POST",
-    headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({
-      sender: SENDER,
-      to: [{ email: message.to }],
-      ...(message.replyTo ? { replyTo: { email: message.replyTo } } : {}),
-      subject: message.subject,
-      htmlContent: message.html,
-    }),
+  // SES v2 SendEmail. Never a ConfigurationSetName: that's the only way SES
+  // adds an open pixel or rewrites links.
+  const url = `https://email.${ses.region}.amazonaws.com/v2/email/outbound-emails`;
+  const body = JSON.stringify({
+    FromEmailAddress: SENDER,
+    Destination: { ToAddresses: [message.to] },
+    ...(message.replyTo ? { ReplyToAddresses: [message.replyTo] } : {}),
+    Content: {
+      Simple: {
+        Subject: { Data: message.subject, Charset: "UTF-8" },
+        Body: {
+          Html: { Data: message.html, Charset: "UTF-8" },
+          ...(message.text ? { Text: { Data: message.text, Charset: "UTF-8" } } : {}),
+        },
+        ...(message.headers
+          ? { Headers: Object.entries(message.headers).map(([Name, Value]) => ({ Name, Value })) }
+          : {}),
+      },
+    },
   });
+  const headers = await signRequest({
+    method: "POST",
+    url,
+    headers: { "content-type": "application/json" },
+    body,
+    accessKeyId: ses.accessKeyId,
+    secretAccessKey: ses.secretAccessKey,
+    region: ses.region,
+    service: "ses",
+    now: new Date(),
+  });
+  const res = await fetch(url, { method: "POST", headers, body });
   if (!res.ok) {
-    // Brevo's error body is { code, message }; fall back to raw text if
-    // it isn't JSON.
+    // SES's error body is { message }; fall back to raw text if it isn't
+    // JSON. The recipient's address stays out of the error (and so the logs).
     const text = await res.text();
     let detail = text;
     try {
       detail = (JSON.parse(text) as { message?: string }).message ?? text;
     } catch {}
-    throw new Error(`Brevo failed to send to ${message.to}: ${res.status} ${detail}`);
+    throw new Error(`SES failed to send the ${message.kind} email: ${res.status} ${detail.slice(0, 200)}`);
   }
 }
 
 export async function sendSignInEmail(email: string, code: string, verifyUrl: string): Promise<void> {
   // Still logged in full without a key, so a developer can sign in by hand.
-  if (!process.env.BREVO_API_KEY) {
-    console.log(`[email:sign-in] (no BREVO_API_KEY, not sent) ${email} code ${code} -> ${verifyUrl}`);
+  if (!sesCredentials()) {
+    console.log(`[email:sign-in] (no SES credentials, not sent) ${email} code ${code} -> ${verifyUrl}`);
   }
   await send({
     kind: "sign-in",
@@ -151,8 +206,8 @@ export async function sendInviteOnlyEmail(email: string): Promise<void> {
 // To the NEW address: the code that confirms it. No link: the change is
 // confirmed on /settings, in the session that asked for it (§5.9).
 export async function sendEmailChangeCode(newEmail: string, code: string): Promise<void> {
-  if (!process.env.BREVO_API_KEY) {
-    console.log(`[email:email-change-code] (no BREVO_API_KEY, not sent) ${newEmail} code ${code}`);
+  if (!sesCredentials()) {
+    console.log(`[email:email-change-code] (no SES credentials, not sent) ${newEmail} code ${code}`);
   }
   await send({
     kind: "email-change-code",
@@ -198,8 +253,8 @@ export async function sendEmailChangedNotice(oldEmail: string, maskedNewEmail: s
 // (§11.4). Entered in Settings, where it was asked for; sign-in never
 // accepts it.
 export async function sendAccountDeletionCode(email: string, code: string): Promise<void> {
-  if (!process.env.BREVO_API_KEY) {
-    console.log(`[email:account-deletion-code] (no BREVO_API_KEY, not sent) ${email} code ${code}`);
+  if (!sesCredentials()) {
+    console.log(`[email:account-deletion-code] (no SES credentials, not sent) ${email} code ${code}`);
   }
   await send({
     kind: "account-deletion-code",
