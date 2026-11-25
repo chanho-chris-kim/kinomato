@@ -156,7 +156,7 @@ seasons          id, club_id, started_at, ended_at
 
 **Genre and keyword constraints match on TMDB ids, never on display strings.** `constraints.value` holds the id (as text); `constraints.label` is a UI-only copy for rendering and is never read by matching logic. "Sci-Fi" vs "Science Fiction" must never silently fail a hard limit — a hard limit that silently fails is the worst failure mode in the product. Language constraints stay on ISO 639-1 codes, not ids.
 
-**`films.certification`** is not a member constraint — `rule_type` has no `rating` value. An age-rating ceiling (analysis-v2 §9, "PG-13 and below") is a club-level filter, enforced separately from the per-member hard/soft engine. TMDB sources certification per-country via `release_dates` and coverage is patchy — a missing value is nullable and must be treated as **unknown, never as allowed**, when the ceiling filter runs. Member-level rating preferences are an open question, not built now.
+**`films.certification`** is not a member constraint — `rule_type` has no `rating` value. An age-rating ceiling (analysis-v2 §9, "PG-13 and below") is a club-level filter, enforced separately from the per-member hard/soft engine. TMDB sources certification per-country via `release_dates` and coverage is patchy — a missing value is nullable and must be treated as **unknown, never as allowed**, when the ceiling filter runs. *Answered 2026-11-24 (CLAUDE.md "Age-appropriate films"): per-country certifications in `film_certifications`, mapped to all ages, teen or adult; unknown stays not suitable.* Member-level rating preferences are an open question, not built now.
 
 **Attribution is retained, access is the control.** `votes.membership_id` and `vetoes.membership_id` are never nulled or deleted — they're the audit trail. A single history-read module is the only code path allowed to query `votes` and `vetoes`; it never selects `membership_id` except when a member is reading their own vote back. No other module queries those tables directly.
 
@@ -289,7 +289,7 @@ Second: **the pause button.** Groups take breaks. An app that lets a club pause 
 
 - **Attribution is mandatory.** TMDB requires their logo and a specific notice stating the product uses TMDB but is not endorsed or certified by them. Non-negotiable and easy.
 - **Data minimization.** Store the least possible. Watch history is intimate. This should be a stated principle on the marketing site, not a buried policy.
-- **Minors.** If family mode ships, that's COPPA/age-gating territory. Keep it out of v1 rather than half-doing it.
+- **Minors.** If family mode ships, that's COPPA/age-gating territory. Keep it out of v1 rather than half-doing it. *Reversed for 13–17s only, 2026-11-24 (CLAUDE.md "Age-appropriate films"); still no accounts under 13.*
 - **Never host or stream content.** Deeplink out, always. The moment there's a player, the legal profile changes completely.
 - **Group content moderation.** Private clubs, so the risk is low, but public club pages need a report path before they launch.
 
