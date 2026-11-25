@@ -13,6 +13,9 @@ another month over the thing that picks a film faster.
 
 ## Where the thinking lives
 
+- `docs/roadmap.md` — what gets built in what order, each step with its
+  status and purpose, and the lawyer's list. The plan lives there, not
+  here.
 - `docs/analysis-v2.md` — the current analysis: flow, conflicts and their
   rulings, roles, revenue, market, risks. Read this before proposing product
   changes.
@@ -165,14 +168,8 @@ The purpose of v0 is to find out which rulings below are wrong.
 The onboarding rebuild (`docs/onboarding-spec.md` §8.5) is done, and so
 are the launch foundations' build steps (§11).
 
-**Next: the SES cutover (`docs/ses-cutover.md`), so email goes out.** The
-weekly loop is automated: night deadlines are stored and shown (w1 + w2),
-the hourly job locks, logs unconfirmed nights and passes stalled turns (w3 +
-w5), late "yes" works (w4), the job drafts each week's night (r4), and
-reminder emails are built with their preferences and unsubscribe page (r1 –
-r3), all 2026-11-21 to 2026-11-23. Email moved from Brevo, whose
-transactional tracking can only be anonymised on our plan, to Amazon SES
-with no configuration set (see Stack).
+**Next: see `docs/roadmap.md`**, the ordered plan with each step's status
+(done, next, later); this file holds the rulings, not the plan.
 
 ## Rulings that are load-bearing
 
@@ -454,12 +451,16 @@ Do not quietly change these — they encode decisions that took a while to reach
   runtime being logistics, not safety. Soft preferences never fail closed
   on missing data, or on anything else.
   Unknown **system configuration** fails **loud**, never closed and never
-  silent. An unrecognized age-rating ceiling, or a film certification in a
-  rating scheme nothing maps, throws a descriptive error rather than
-  silently emptying the eligible pool — that's our bug, not a fact about
-  the film. Validate configuration values (e.g. a ceiling) at settings-write
-  time so this can't be stored in the first place; the throw is defense in
-  depth, not the primary guard.
+  silent. An unrecognized club setting (a club's audience, say) throws a
+  descriptive error rather than silently emptying the eligible pool —
+  that's our bug, not a fact about the film. Validate configuration values
+  at settings-write time so this can't be stored in the first place; the
+  throw is defense in depth, not the primary guard. **Amended 2026-11-24
+  (approved by Chanho), for film data only:** a certification TMDB returns
+  that nothing maps is data about a film, not configuration. It's treated
+  as unknown, so not suitable (fails closed), and counted in the logs; it
+  never throws, since a throw would break a whole club's page over one
+  film. See "Age-appropriate films".
 - **Never surface constraint causality in the UI.** The eligible pool just is what
   it is. Never "horror unlocked because Dana is away." **Ruled 2026-11-12:
   nobody but the person sees their limits**, not the owner, not admins;
@@ -699,6 +700,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   having watched it) — that one protects someone who missed the night,
   this one protects the group's honesty while everyone's still rating.
   Both can be true at once; only this one is built in v0.
+- **"I was there" (ruled 2026-11-24, approved by Chanho; built with the
+  Tonight redesign).** A member who didn't RSVP no can join the rating step
+  until the night's ratings are revealed, and is then waited on like any
+  yes-RSVP. Never after the reveal: a revealed night never goes back to
+  hidden. RSVP itself still closes when the night starts. This answers
+  "rating after a missed RSVP": someone who came without answering can
+  still rate.
 - **Two pushes per week per member, across all their clubs — not per club.**
   Plus one extra on their picking week. Notifications dedup across clubs someone
   belongs to. Everything else is in-app. This is a product constraint, not a
@@ -770,6 +778,48 @@ Do not quietly change these — they encode decisions that took a while to reach
     a–e. Links use `APP_ORIGIN` (a plain var in `wrangler.jsonc`); unset,
     no reminder goes and the run fails. Pure rules in `lib/reminders.ts`;
     orchestration in `app/reminders.ts`.
+- **No tracking or behavioral ads, ever (ruled 2026-11-24, approved by
+  Chanho; his decision, permanent).** It strengthens the privacy rulings
+  (no third-party pixels, aggregate-only data licensing, no tracking in
+  any email). Ads are contextual and privacy-safe only: no third-party
+  trackers, pixels or cookies, and nothing that sends viewing data (film
+  titles, watchlists, votes, ratings, RSVPs) to an ad provider. Never
+  behavioral, for anyone, of any age. **Direct-sold sponsorships are the
+  long-term ad model.** Ad slots are placed by design, never as filler.
+  **Never inside a private club** (`analysis-v2.md` §1.3, unchanged, and
+  re-affirmed 2026-11-24): the redesign's one slot is designed into global
+  pages (the Clubs list, Watchlist) and, later, public clubs, never into a
+  private club's Tonight, History or Members.
+- **Age-appropriate films (ruled 2026-11-24, approved by Chanho; built in
+  `docs/roadmap.md` a1–a6).** It reverses "family mode is dead, no
+  successor" (`docs/onboarding-spec.md` §0) and `analysis-v1.md` §8's
+  "keep it out of v1", **for 13–17 support only** (Chanho's decision).
+  There are still no accounts under 13.
+  - **Audience**, in `clubs.settings`: All ages (13+) or Adults only
+    (18+), owner or admin, like the other club settings. Adults-only clubs
+    refuse 13–17 members (invites and joining).
+  - **All-ages clubs allow only films at "teen" level or below**, as a
+    club rule that applies whoever is in the club, so it never reveals
+    anyone's age. It's a club filter, not a member constraint, applied
+    where hard limits are: nomination, `openVoting` and lock, and "Films
+    your club wants".
+  - **13–17s only search and add teen-or-below films.**
+  - **Levels:** US G and PG, and CA G and PG → all ages; US PG-13 and CA
+    14A → teen; US R and NC-17, and CA 18A, R and A → adult. Within one
+    country, the most restrictive release entry wins; across CA and US,
+    the stricter of the two wins. No rating, NR, E, or anything
+    unrecognised → unknown → not suitable, counted in the logs and never
+    thrown (the missing-data amendment above). Stored per country in
+    `film_certifications(film_id, country, certification)`, as decided in
+    advance. A GB/AU fallback is deferred.
+  - **Ratings are re-checked weekly for about a year after release**, a
+    narrow exception to "film metadata caches indefinitely": TMDB adds
+    ratings after release.
+  - **Existing clubs become Adults only**, unless an active member is
+    13–17; then All ages.
+  - **13–17s can self-attest up to 18+ in Settings, upward only.**
+  - A refused switch to Adults only says only "This club can't be
+    adults-only right now." It never says why or names anyone.
 - **Free tier caps a club at six members**, enforced server-side twice:
   when an invite is created, where **pending invites hold a seat**
   (`lib/invites.ts`'s `canCreateInvite`: active + pending < 6), and when
@@ -1031,9 +1081,12 @@ Do not quietly change these — they encode decisions that took a while to reach
 - Don't scrape IMDb for trivia. Derive facts from TMDB fields, or use Wikidata.
 - Don't call the Letterboxd API. CSV import of a user's own export only.
 - Don't put the TMDB key in a `NEXT_PUBLIC_` variable. Server-side only.
-- Don't add third-party tracking pixels anywhere near a film page (VPPA exposure).
+- Don't add third-party trackers, pixels or cookies anywhere, or send
+  viewing data to an ad provider (VPPA exposure; the ad ruling).
 - Don't fetch streaming availability on browse. Nomination and lock only, 24h TTL.
-  Film metadata caches indefinitely; availability does not.
+  Film metadata caches indefinitely; availability does not. One narrow
+  exception: certifications are re-checked weekly for about a year after
+  release (the age-appropriate films ruling).
 - Don't put the SES keys, `AUTH_SECRET` or `SUPPORT_EMAIL` in a `NEXT_PUBLIC_` variable.
 - Don't send any email through an SES configuration set (named in the
   request, or attached to the identity as its default: check none is,
@@ -1213,12 +1266,6 @@ Kinoma (former Marvell division) are the nearest existing marks.
 
 ## Open questions
 
-- **Rating after a missed RSVP (found 2026-11-24).** Only a yes-RSVP can
-  rate (blind reveal), and RSVP now closes when the night starts, so
-  someone who came without answering can no longer say yes afterwards
-  and rate. Before, they could RSVP until the night was confirmed. Needs
-  a ruling: let "Did you watch it?" record who came, or accept it.
-
 - **Trusted tier is schema room only.** `users.trusted_at`
   (analysis-v2.md §5.1) exists — non-null would mean trusted, same
   "nullable timestamp as a flag" shape as `paused_at`/`left_at` — but
@@ -1275,25 +1322,10 @@ Kinoma (former Marvell division) are the nearest existing marks.
   count across every member, a separate query `lockNightCore` doesn't
   otherwise make, not a filter over data already in hand the way the soft-
   preference signal is.
-- **Member-level rating preferences.** The age-rating ceiling is a club-level
-  filter (`films.certification`). Whether an individual member can also set
-  their own rating preference, and if so whether it's hard or soft, isn't
-  ruled on.
-- **Multi-country certification.** `films.certification` is one global value,
-  but TMDB certification is genuinely per-country. Deliberately deferred —
-  analysis-v2.md §9 keeps family mode out of v1 entirely, so nothing depends
-  on this yet, and the age-ceiling setting isn't exposed in any UI. When it
-  is built: a `film_certifications(film_id, country, certification)` table,
-  not a JSONB map — decided in advance so this doesn't need a fresh ruling
-  later, even though building it is still open.
-- **Certification strings, CA and US.** The MPAA mapping in
-  `lib/ageCeiling.ts` only covers G/PG/PG-13/R/NC-17. Canada has no
-  national rating system — ratings are provincial, and BC, Ontario,
-  Quebec, and the Maritimes all differ — while TMDB returns the country
-  code "CA" without saying which board issued the rating. Establish what
-  TMDB actually returns for CA before building the mapping; note that
-  Quebec's system differs from BC's, so "CA" alone may not be enough to
-  resolve a single scheme.
+- **Member-level rating preferences.** A club's audience is a club-level
+  filter (the age-appropriate films ruling). Whether an individual member
+  can also set their own rating preference, and if so whether it's hard or
+  soft, isn't ruled on.
 - **Postponement duration.** Partly ruled 2026-11-17: passing a turn
   postpones for one night only (the rotation ruling above), and
   `postponed_at` clears when their next night is created, so it can't sit
@@ -1302,7 +1334,9 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - **Veto-exhaustion timing.** If every nominee gets vetoed close to the
   nomination deadline, does the picker get a deadline extension to
   re-nominate, or does the round proceed toward lock with nothing decided?
-- **Legal review before any public launch.** Three distinct areas, none of
+- **Legal review before any public launch.** The full list of questions
+  for the lawyer is in `docs/roadmap.md` ("The lawyer's list"). Three
+  distinct areas, none of
   which block v0 with six friends — all of which block a public launch:
   (1) TMDB terms — attribution wording, the commercial-use threshold, and
   their prohibition on use in AI/ML training; (2) privacy — PIPEDA and BC

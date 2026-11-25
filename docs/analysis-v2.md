@@ -27,7 +27,7 @@ And the thing that makes that scale reachable is your second call. Private frien
 
 - **No member subscriptions.** Agreed. Charging people to join their friend's club kills club formation.
 - **No paid themes.** Agreed and conceded — you're right that club identity drives attachment, and attachment is retention. Themes are free, all of them, including custom colors. It's one of the cheapest loyalty features available.
-- **No behavioral ad networks.** See §1.5 — this collides badly with minors and with the trust positioning.
+- **No behavioral ad networks.** See §1.5 — this collides badly with minors and with the trust positioning. *Strengthened 2026-11-24 (CLAUDE.md, the ad ruling): no tracking or behavioral ads ever, for anyone; contextual, privacy-safe ads only, with direct-sold sponsorships as the long-term model.*
 
 ### 1.2 Line 1 — Commerce: food, and the timing hook
 
@@ -47,7 +47,7 @@ A distributor with a new release, a boutique label with a restoration, or a stre
 
 Hard rules, because this is the line that can destroy the product:
 - Always labeled, always skippable, **never auto-nominated.**
-- Only in public clubs. **Never inside a private friend club.** The private club is a sacred space; putting an ad in it is the end of the product.
+- Only in public clubs. **Never inside a private friend club.** The private club is a sacred space; putting an ad in it is the end of the product. *Re-affirmed 2026-11-24: the redesign's one ad slot goes on global pages (the Clubs list, Watchlist) and later public clubs, never inside a private club.*
 - Never a paid placement that wins a vote. It's a suggestion, and the group can ignore it.
 
 This is the highest-value ad format available here and the one most likely to survive contact with users.
@@ -68,7 +68,7 @@ The **Video Privacy Protection Act** is a 1988 US federal statute that prohibits
 
 1. **Aggregate only.** License counts, trends, and cohort signals. Never user-level records, never anything joinable back to a person.
 2. **Explicit opt-in, separately from the terms of service.** A checkbox at signup that says plainly: *"Include my ratings in anonymous industry trend data."* Default unchecked. This is also your best marketing — being the company that asked is a differentiator.
-3. **No third-party tracking pixels anywhere near a film page.** This is what the majority of VPPA suits actually target. It also means no Meta Pixel, no ad-network retargeting — which independently rules out behavioral advertising.
+3. **No third-party tracking pixels anywhere near a film page.** This is what the majority of VPPA suits actually target. It also means no Meta Pixel, no ad-network retargeting — which independently rules out behavioral advertising. *Widened 2026-11-24 (CLAUDE.md, the ad ruling): no third-party trackers, pixels or cookies anywhere, and no viewing data to any ad provider.*
 4. **This is a year-three line.** It requires scale and it requires a lawyer. Build the consent architecture now; don't plan revenue from it until there's something to license.
 
 ### 1.6 Line 5 — Organizations pay
@@ -253,7 +253,7 @@ This is a meaningfully different product sharing the same engine, and it's worth
 | Rotation | Everyone's turn | Curator picks, or top-voted, or rotating among a moderator pool |
 | Discussion | Hot takes after | Threaded, and the main draw |
 | Moderation | None needed | **Required** |
-| Ads | Never | Sponsored picks, labeled |
+| Ads | Never (re-affirmed 2026-11-24) | Sponsored picks, labeled; contextual only |
 
 The "radio for a genre" framing you described — something on while you eat, in the company of people who like the same stuff — is a real and underserved use case. The key design difference is that **it's asynchronous**: the club picks a film for the week, members watch it whenever, and the discussion opens on a fixed day. Nobody has to be free at 8pm Saturday.
 
@@ -267,14 +267,14 @@ Two things this segment requires that the private product doesn't:
 
 ## 9. Age and minors
 
-*The "Family clubs" bullet is superseded by `onboarding-spec.md` §0 — dead, not replaced. The rest of this section stands.*
+*The "Family clubs" bullet is superseded by `onboarding-spec.md` §0 — dead, not replaced. The rest of this section stands, except as marked below. 13–17 support is ruled in CLAUDE.md "Age-appropriate films" (2026-11-24), without family clubs or under-13s.*
 
 You're right to flag this, and it interacts badly with the ad model.
 
 - **13+ minimum.** No accounts below 13, full stop — under-13 data collection triggers COPPA in the US and equivalent regimes elsewhere, and it is not worth the compliance burden for a product like this.
-- **13–17: no personalized or behavioral advertising, ever.** Advertising to minors is separately regulated in most jurisdictions. Sponsored picks that are contextual to the club (a horror film in a horror club) are far safer than anything based on a user profile — which is another independent reason the sponsored-pick model beats an ad network.
+- **13–17: no personalized or behavioral advertising, ever.** *Superseded 2026-11-24 by a stronger rule: no behavioral advertising for anyone, at any age (CLAUDE.md, the ad ruling).* Advertising to minors is separately regulated in most jurisdictions. Sponsored picks that are contextual to the club (a horror film in a horror club) are far safer than anything based on a user profile — which is another independent reason the sponsored-pick model beats an ad network.
 - **Family clubs:** the parent owns the club, children participate as guests. Guest data never enters public aggregates anyway, which conveniently means the minors' ratings are already excluded from the data-licensing path.
-- **Age-rating ceiling as a club setting.** A family club sets "PG-13 and below" and the constraint engine enforces it like any other hard limit.
+- **Age-rating ceiling as a club setting.** A family club sets "PG-13 and below" and the constraint engine enforces it like any other hard limit. *Answered 2026-11-24 (CLAUDE.md "Age-appropriate films"): a club's Audience, All ages (13+) or Adults only (18+); all-ages clubs allow teen-or-below films (US up to PG-13, CA up to 14A) as a club filter applied where hard limits are, not a member constraint.*
 - **Don't collect birthdates.** Collect a self-attested age bracket at signup. Less data, less liability.
 
 ---
@@ -316,7 +316,7 @@ Export must be one click and must work on free accounts. An app you can leave is
 | Sponsored picks damage trust | The private club is the emotional core | Public clubs only. Never a private club. No exceptions. |
 | Public clubs need moderation | Unmoderated public communities fail loudly | Don't launch public until moderation tooling exists. |
 | Setting sprawl | Ten toggles is ten arguments in a group chat | Presets first, advanced hidden. |
-| Minors plus advertising | Two regulated areas intersecting | 13+, contextual only, no behavioral targeting. |
+| Minors plus advertising | Two regulated areas intersecting | 13+, contextual only, no behavioral targeting. *Strengthened 2026-11-24: no behavioral targeting for anyone (CLAUDE.md, the ad ruling).* |
 | Creator payouts convert the company | Owner revenue share changes what you're building | Deferred. Door open in the schema, closed in the product. |
 
 ---
