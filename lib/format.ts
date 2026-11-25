@@ -14,16 +14,17 @@ export function formatRuntime(totalMinutes: number): string {
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-// "20:00" / "20:30:00" (Postgres's time format) -> "8pm" / "8:30pm".
+// "20:00" / "20:30:00" (Postgres's time format) -> "8:00pm" / "8:30pm":
+// the one time format the app uses (lib/clubStatus.ts formatNightTime).
 function spokenTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
   const suffix = h < 12 ? "am" : "pm";
   const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${hour12}${suffix}` : `${hour12}:${String(m).padStart(2, "0")}${suffix}`;
+  return `${hour12}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
 // The club header's schedule line (docs/onboarding-spec.md §5.10), e.g.
-// "Weekly, Saturdays at 8pm · In person". Only what the club has set;
+// "Weekly, Saturdays at 8:00pm · In person". Only what the club has set;
 // a missing day or time is left out, never invented. "Monthly" is the Nth
 // weekday of the month (lib/schedule.ts), so the line names the weekday
 // without claiming which one.

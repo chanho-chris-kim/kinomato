@@ -18,9 +18,19 @@
   --accent-soft: #3a2a12;
   --fg: #f0e6d6;
   --mut: #b99a78;
-  --dim: #7a6a55;
+  /* 5.06:1 on --bg, 4.70:1 on --card (was #7a6a55, 3.62 and 3.36):
+     small text in --dim passes WCAG AA's 4.5:1 on both. */
+  --dim: #958169;
   --ok: #7fbf6a;
   --warn: #e07a5f;
+  /* Semantic tokens (2026-11-24), so a theme is only a set of values:
+     --field-line, the edge of a field or button, 3.46:1 on --bg and 3.21:1
+     on --card (WCAG's 3:1 for a control's boundary; --line, 1.23:1, stays
+     for cards and dividers, which aren't controls); --focus, the focus
+     ring, 8.77:1 on --bg; --on-accent, text on an --accent fill, 8.77:1. */
+  --field-line: #7a6650;
+  --focus: var(--accent);
+  --on-accent: #14100e;
   --display: var(--font-oswald), Impact, sans-serif;
   --display-tr: 0.02em;
   --display-w: 500;
@@ -66,8 +76,32 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* A small control's target, grown to at least 44×44 without changing how
+   it looks (WCAG 2.5.8 asks 24, Apple and Android 44): an invisible
+   ::after centred on it. Links inside a sentence don't need it. */
+.tap,
+a.chip,
+button.chip,
+.btn.limit-remove,
+footer a {
+  position: relative;
+}
+.tap::after,
+a.chip::after,
+button.chip::after,
+.btn.limit-remove::after,
+footer a::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
 }
 
 /* ---------- app shell: top bar / tab bar / main / rail ----------
@@ -98,6 +132,9 @@ button {
   line-height: 1;
   color: var(--fg);
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 /* Global nav in the top bar: hidden on phones (the tab bar has it). */
 .topnav {
@@ -107,6 +144,9 @@ button {
   gap: 2px;
 }
 .topnav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--mut);
   font-size: 13px;
   padding: 6px 10px;
@@ -194,6 +234,10 @@ button {
 }
 .segc a {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   text-align: center;
   color: var(--mut);
   padding: 8px 4px;
@@ -349,7 +393,7 @@ button {
 .chip.on {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
 }
 .pill {
   background: var(--accent-soft);
@@ -365,17 +409,21 @@ button {
 }
 .btn {
   background: none;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   color: var(--fg);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 14px;
+  /* 22 + 20 + 2 = 44px tall, a link styled as a button included (min-height
+     doesn't reach an inline box). */
+  line-height: 22px;
+  min-height: 44px;
   width: 100%;
 }
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
 }
 .btn.ghost {
   color: var(--mut);
@@ -461,11 +509,19 @@ button {
   color: var(--fg);
   display: block;
 }
+/* A nominee you tick (NominationSelector): the label fills the card, so
+   the whole card is the checkbox's target. */
+.nominee > label {
+  margin: -12px -13px;
+  padding: 12px 13px;
+  cursor: pointer;
+}
 .sel {
   background: var(--card);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   color: var(--fg);
   border-radius: 7px;
+  min-height: 44px;
   padding: 6px 8px;
   font-size: 12px;
   font-family: inherit;
@@ -486,22 +542,38 @@ button {
   align-items: center;
   gap: 9px;
   background: var(--card);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 9px;
-  padding: 9px 12px;
+  padding: 0 12px;
 }
 .search input {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
+  padding: 9px 0;
   background: none;
   border: 0;
   color: var(--fg);
   font: inherit;
   font-size: 15px;
-  min-width: 0;
 }
-.search input:focus {
+/* The ring goes on the whole field, not the bare input inside it. */
+.search input:focus-visible {
   outline: none;
+}
+.search:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* A field outside .search (the invite link): the same edge and height. */
+.field {
+  background: var(--card);
+  border: 1px solid var(--field-line);
+  border-radius: 9px;
+  color: var(--fg);
+  font: inherit;
+  min-height: 44px;
+  padding: 0 12px;
 }
 .search input[type="time"],
 .search input[type="text"] {
@@ -538,6 +610,7 @@ button {
 }
 .slider {
   width: 100%;
+  min-height: 44px;
   accent-color: var(--accent);
 }
 .note {
@@ -558,6 +631,9 @@ button {
    (pitch, actions, steps); from 900px the pitch sits beside a sample
    Tonight card, which is hidden below that. */
 .topbar-end {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   margin-left: auto;
   color: var(--mut);
   font-size: 13px;
@@ -606,17 +682,35 @@ button {
   }
 }
 
-/* Seen from chips on /watchlist (§6.4): the chosen club is aria-pressed,
-   and styled to match the current tab. */
-.seen-from .chip {
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
+/* First name + last initial, and a button where there is one (Settings,
+   Members' Add a person, /welcome): one line when it fits, else the button
+   takes its own line at full width, so neither field is ever squeezed to a
+   sliver or pushed out of its card. */
+.name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
 }
-.seen-from .chip[aria-pressed="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: var(--accent);
+.name-row .name-first {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.name-row .name-initial {
+  flex: 0 0 92px;
+  /* Else a text input's intrinsic width (about 150px) sets its minimum. */
+  min-width: 0;
+  white-space: nowrap;
+}
+.name-row > .btn {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+@container (max-width: 419.98px) {
+  .name-row > .btn {
+    flex: 1 1 100%;
+  }
 }
 
 /* Club cards on the signed-in / (Ruling A). The dot marks an action for
@@ -657,10 +751,24 @@ button {
 .consent-choice {
   display: flex;
   gap: 10px;
-  align-items: flex-start;
+  align-items: center;
+  /* The whole row is the radio's or checkbox's target. */
+  min-height: 44px;
   font-size: 14px;
   line-height: 1.45;
   color: var(--fg);
+}
+/* A long choice (its text in a span: the Terms, data sharing) keeps the
+   box by its first line. */
+.consent-choice:has(> span) {
+  align-items: flex-start;
+}
+/* A short inline choice (In person or remote): its label is the target. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
 }
 .consent-choice input {
   accent-color: var(--accent);
@@ -721,6 +829,7 @@ button {
   width: auto;
   padding: 4px 10px;
   font-size: 12px;
+  line-height: 1.5;
   min-height: 0;
 }
 

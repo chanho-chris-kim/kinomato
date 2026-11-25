@@ -283,6 +283,29 @@ export function formatNightTime(at: Date, timeZone: string): string {
   return `${part("weekday")} ${part("hour")}:${part("minute")}${part("dayPeriod").toLowerCase()}`;
 }
 
+// Which night "Did you watch X?" is asking about, in the club's own time:
+// "Saturday night" (or morning, afternoon) while it's within the last
+// week, else "Saturday, Nov 7", so a weekday never points at the wrong
+// week. Named by the night itself, not by when the prompt appears, which
+// depends on the club's confirm timing and lasts until it's answered.
+export function nightName(at: Date, timeZone: string, now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  if (now.getTime() - at.getTime() > 7 * 24 * 60 * 60 * 1000) {
+    return `${part("weekday")}, ${part("month")} ${part("day")}`;
+  }
+  const hour = Number(part("hour"));
+  const time = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "night";
+  return `${part("weekday")} ${time}`;
+}
+
 // Clubs needing your action first, then the soonest night (no date last),
 // then name.
 export function sortClubCards<T extends { action: boolean; nextAt: Date | null; name: string }>(

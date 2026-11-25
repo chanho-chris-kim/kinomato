@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
-import { CLUB_ID, HOME_CLUB, MEMBER_USER, MEMBERSHIP, MEMBERSHIP_HOME } from "../db/seed-fixtures";
+import { CLUB_ID, MEMBER_USER, MEMBERSHIP, MEMBERSHIP_HOME } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 
@@ -14,9 +14,9 @@ import { signInAs } from "./session";
 test.describe.configure({ mode: "serial" });
 
 const PRIVACY = "Your clubs can see which films you've added, one film at a time, never your whole list.";
-// One list, seen from a given club (rebuild step 6d retired the per-club
-// list pages; ?seen= is how a club's view of it is reached now).
-const listUrl = (clubId: string) => `/watchlist?seen=${clubId}`;
+// One list, the same wherever you open it from (rebuild step 6d retired the
+// per-club list pages; Seen from is gone too, 2026-11-24).
+const LIST_URL = "/watchlist";
 
 async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -38,7 +38,7 @@ const tile = (page: Page, title: string) => page.locator(".watchlist-item", { ha
 test.describe("one watchlist per person", () => {
   test("the privacy line, under the heading, on an empty list", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_HOME.kit.vote);
-    await page.goto(listUrl(HOME_CLUB.vote));
+    await page.goto(LIST_URL);
     await expect(page.getByRole("heading", { name: "Your watchlist" })).toBeVisible();
     await expect(page.getByText(PRIVACY, { exact: true })).toBeVisible();
     await expect(page.getByText("Your list is empty.")).toBeVisible();
@@ -55,19 +55,19 @@ test.describe("one watchlist per person", () => {
 
   test("a film added in one club is on the same person's list in another", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_HOME.kit.vote);
-    await page.goto(listUrl(HOME_CLUB.vote));
+    await page.goto(LIST_URL);
     await search(page, "Arrival");
     await page.locator("li", { hasText: "Arrival" }).getByRole("button", { name: "Add" }).click();
     await expect(tile(page, "Arrival")).toHaveCount(1);
 
-    await page.goto(listUrl(HOME_CLUB.next));
+    await page.goto(LIST_URL);
     await expect(tile(page, "Arrival")).toHaveCount(1);
     await expect(page.getByText("1 films")).toBeVisible();
     // Adding it again from this club changes nothing: it's one list.
     await search(page, "Arrival");
     await expect(page.locator("li", { hasText: "Arrival" }).getByRole("button", { name: "Added" })).toBeVisible();
     await page.locator("li", { hasText: "Arrival" }).getByRole("button", { name: "Added" }).click();
-    await page.goto(listUrl(HOME_CLUB.next));
+    await page.goto(LIST_URL);
     await expect(tile(page, "Arrival")).toHaveCount(1);
     // The privacy line is still there with films on the list.
     await expect(page.getByText(PRIVACY, { exact: true })).toBeVisible();
@@ -75,16 +75,16 @@ test.describe("one watchlist per person", () => {
 
   test("removing it in one club removes it everywhere", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_HOME.kit.next);
-    await page.goto(listUrl(HOME_CLUB.next));
+    await page.goto(LIST_URL);
     await tile(page, "Arrival").getByRole("button", { name: "Remove" }).click();
     await expect(tile(page, "Arrival")).toHaveCount(0);
 
-    for (const club of [HOME_CLUB.vote, HOME_CLUB.locked]) {
-      await page.goto(listUrl(club));
-      await expect(page.getByRole("heading", { name: "Your watchlist" })).toBeVisible();
-      await expect(tile(page, "Arrival")).toHaveCount(0);
-      await expect(page.getByText("Your list is empty.")).toBeVisible();
-    }
+    // Signed in through another club's membership: the same one list.
+    await signInAs(page, MEMBERSHIP_HOME.kit.locked);
+    await page.goto(LIST_URL);
+    await expect(page.getByRole("heading", { name: "Your watchlist" })).toBeVisible();
+    await expect(tile(page, "Arrival")).toHaveCount(0);
+    await expect(page.getByText("Your list is empty.")).toBeVisible();
   });
 
   test.describe("overlap counts active members only", () => {
@@ -116,16 +116,16 @@ test.describe("one watchlist per person", () => {
 
     test("a member who has left doesn't count; where they're active, they do", async ({ page }) => {
       await signInAs(page, MEMBERSHIP.dana);
-      await page.goto(listUrl(CLUB_ID));
+      await page.goto(LIST_URL);
       await search(page, "Hereditary");
       // Priya and Marco, not Lou: 2, not 3.
-      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("2 others in Movie Night Crew want this");
+      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("2 in Movie Night Crew want this");
 
       // Lou is active in Kit's clubs, so there his film counts.
       await signInAs(page, MEMBERSHIP_HOME.kit.vote);
-      await page.goto(listUrl(HOME_CLUB.vote));
+      await page.goto(LIST_URL);
       await search(page, "Hereditary");
-      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("1 other in Ninth Club wants this");
+      await expect(page.locator("li", { hasText: "Hereditary" })).toContainText("1 in Ninth Club wants this");
     });
   });
 });

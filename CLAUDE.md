@@ -235,7 +235,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   no veto UI yet for a stale tab to leave open (see Open Questions), so
   reaching this path at all means a caller — test or future UI — deserves an
   explicit signal, not a silent swallow. An RSVP change still succeeds — per
-  the ruling above, it just doesn't touch `winning_film_id`.
+  the ruling above, it just doesn't touch `winning_film_id`. **Until the
+  night starts (ruled 2026-11-24, approved by Chanho):** from
+  `scheduled_at`, Tonight shows no RSVP, and `setRsvp` is a silent no-op
+  for a night that has started, isn't open or locked, or isn't this
+  club's (a stale tab). Lock itself is unchanged.
 - **A club has at most one night in flight.** `draft`, `open`, and `locked`
   are non-terminal; `watched`, `cancelled`, and `unconfirmed` are terminal.
   Enforced by a partial unique index — `nights_one_in_flight_per_club` on
@@ -576,7 +580,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   you, the search badge counts others) and `nominatableFilms` (Tonight's
   picker and `openVoting`'s server check) and `helpFilmsFor` (Tonight's
   "Films your club wants that fit everyone", ruled 2026-11-17: others'
-  visible, eligible films, counts only, never names). **Enforced by a test:**
+  visible, eligible films, counts only, never names). **Choosing clubs
+  when adding a film** (future, ruled 2026-11-24): one club, several, or
+  all, default all, built through this seam (`docs/onboarding-spec.md`
+  §10). **Enforced by a test:**
   `lib/watchlistAccess.test.ts` fails, naming this ruling, if any file
   other than the loader and the own-list files (`app/watchlist/page.tsx`
   and `actions.ts`, which touch only the viewer's own rows) touches
@@ -903,6 +910,19 @@ Do not quietly change these — they encode decisions that took a while to reach
   directly in JSX className props, not reimplemented as Tailwind
   utilities, so the palette and spacing rhythm stay exactly what the
   prototype specifies rather than a hand-translated approximation.
+  **Foundations (ruled 2026-11-24, approved by Chanho):** besides the
+  prototype's palette, a theme sets three semantic tokens, so a theme is
+  only a set of values: `--field-line` (a field's or button's edge, at
+  least 3:1 against `--bg` and `--card`; `--line` stays for cards and
+  dividers), `--focus` (the focus ring, on every control and on a
+  `.search` field as a whole) and `--on-accent` (text on an `--accent`
+  fill). Late show's `--dim` is #958169 (5.06:1 on `--bg`, 4.70:1 on
+  `--card`) and `--field-line` #7a6650 (3.46:1, 3.21:1); the ratios sit
+  beside the tokens in `app/globals.css`, and a new theme checks its own.
+  Every control is at least a 44px target: `.btn`, tabs, selects and
+  fields by their size; a radio or checkbox by its label; a small link or
+  text button by `.tap` (an invisible centred `::after`, so it looks the
+  same). Links inside a sentence are exempt.
   `app/shell.tsx` holds the shells (`docs/onboarding-spec.md` §5.11,
   Ruling D): **bottom tab bar on phones → top bar at 620px → capped
   content column at 900px → rail at 1120px on club pages**, all via
@@ -920,8 +940,17 @@ Do not quietly change these — they encode decisions that took a while to reach
   current, its home (§5.11.2). The watchlist is global, never a club
   page: `/watchlist`, with Watchlist current and no club header, tabs or
   rail. The old `/clubs/[clubId]/list` is only a redirect to
-  `/watchlist?seen={clubId}` (§5.11.2 crossing levels), behind the same
-  member gate. `.main` establishes
+  `/watchlist` (keeping `?q=`), behind the same member gate. **Seen from
+  is removed (ruled 2026-11-24, approved by Chanho; reverses
+  `docs/onboarding-spec.md` §6.4's Seen from):** no chips, no `?seen=`,
+  no `kinomato_seen_from` cookie. Each search badge names its club, one
+  per club where it applies ("2 in Saturday Club want this", "Saturday
+  Club watched this", `lib/watchlistBadges.ts`), and "Everyone wants
+  these" counts a film's overlap in whichever of your clubs has the most.
+  A `?seen=` link or a browser still holding the cookie goes once through
+  `/watchlist/forget-seen-from`, which deletes the cookie (a page can't)
+  and lands on `/watchlist`; it can go after 2027-11-24, when the last
+  cookie has expired. `.main` establishes
   its *own* nested container context specifically so `.grid3`'s column
   count responds to `.main`'s actual rendered width, not `.app`'s full
   width — without that, a page with no rail (full-bleed `.main` at
@@ -957,7 +986,14 @@ Do not quietly change these — they encode decisions that took a while to reach
   no new query shape, no new write, no new user action, and it only ever
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
-  candidate night for either section).
+  candidate night for either section). Its times use the app's one time
+  format, `formatNightTime`'s "Sat 8:00pm" (ruled 2026-11-24), as does
+  the club header's schedule line ("Saturdays at 8:00pm").
+  **"Did you watch X?" names the night it asks about** (ruled
+  2026-11-24, `lib/clubStatus.ts` `nightName`): "Saturday night" (or
+  morning, afternoon) in the club's timezone while it's within the last
+  week, else "Saturday, Nov 7". It used to be a hard-coded "Sunday
+  morning".
 - **Identity is the session, and nothing else.** One site-wide cookie,
   `kinomato_session` (`app/session.ts`), whose token is stored only as a
   hash; `getIdentityMembershipId` (`app/clubs/[clubId]/identity.ts`) goes
@@ -1100,6 +1136,15 @@ Kinoma (former Marvell division) are the nearest existing marks.
   derived facts: a hostname, or true/false. Shell filters on raw values
   have failed: a quoted `.env` line slipped past one and leaked a
   password.
+- **Design screenshots: `npm run audit:screens`** (`e2e/design/`, ruled
+  2026-11-24). Every page in its real states at 375 and 1280, on the E2E
+  database through a production build, plus `docs/prototype.html`'s
+  screens in each theme and per-page measurements (targets under 44px,
+  unlabelled fields, headings, inline styles) in `metrics.json`. Output
+  is `design-audit/<AUDIT_LABEL>/` (default `latest`), gitignored: a
+  redesign step shoots `before` on `main` and `after` on its branch and
+  compares the pairs. Not part of the E2E run (its file isn't a
+  `.spec.ts`), and never against anything but `E2E_DATABASE_URL`.
 - Club settings live in a single JSONB column, not eight nullable fields.
 - TMDB attribution notice stays in the footer from the first commit.
 - CI (`.github/workflows/ci.yml`) runs typecheck, lint, and test on every
@@ -1167,6 +1212,12 @@ Kinoma (former Marvell division) are the nearest existing marks.
 - Tell me when something in `docs/` has gone stale so I can update it.
 
 ## Open questions
+
+- **Rating after a missed RSVP (found 2026-11-24).** Only a yes-RSVP can
+  rate (blind reveal), and RSVP now closes when the night starts, so
+  someone who came without answering can no longer say yes afterwards
+  and rate. Before, they could RSVP until the night was confirmed. Needs
+  a ruling: let "Did you watch it?" record who came, or accept it.
 
 - **Trusted tier is schema room only.** `users.trusted_at`
   (analysis-v2.md §5.1) exists — non-null would mean trusted, same
@@ -1273,7 +1324,10 @@ Kinoma (former Marvell division) are the nearest existing marks.
   account's email address and every email we send, processed in Canada,
   with no open or click tracking), **Neon** (hosts the database), and
   **Cloudflare** (hosts the app, sees every request). **For the lawyer
-  (added 2026-11-22):** whether reminder emails are commercial electronic
+  (added 2026-11-24):** the Privacy page's cookie list dropped
+  `kinomato_seen_from` (Seen from removed) without a Privacy version
+  bump, since less is collected; the final text comes with the review.
+  **For the lawyer (added 2026-11-22):** whether reminder emails are commercial electronic
   messages under CASL needing express consent, or messages about a
   relationship the person started, and what consent and unsubscribe rules
   follow; and whether 13–17s need different reminder defaults.

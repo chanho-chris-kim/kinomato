@@ -89,7 +89,7 @@ export default async function CodePage({
           </button>
         </form>
         <p className="small mt14">
-          <Link href={differentEmail} className="underline">
+          <Link href={differentEmail} className="underline tap">
             Use a different email
           </Link>
         </p>

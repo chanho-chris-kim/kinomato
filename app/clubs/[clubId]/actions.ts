@@ -148,6 +148,20 @@ export async function setRsvp(
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const membershipId = await requireCurrentMembershipId(clubId);
 
+  // Only an open or locked night of this club that hasn't started (ruled
+  // 2026-11-24: Tonight stops offering RSVP once it starts). Anything else
+  // is a stale tab: a silent no-op, like a vote after lock.
+  const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
+  if (
+    !night ||
+    night.clubId !== clubId ||
+    (night.state !== "open" && night.state !== "locked") ||
+    night.scheduledAt.getTime() <= Date.now()
+  ) {
+    revalidatePath(`/clubs/${clubId}`);
+    return;
+  }
+
   await db
     .insert(rsvps)
     .values({ nightId, membershipId, status })

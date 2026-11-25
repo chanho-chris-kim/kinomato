@@ -24,6 +24,7 @@ import {
   findLatestWatchedNight,
   findLockedNight,
   formatNightTime,
+  nightName,
 } from "@/lib/clubStatus";
 import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
 import {
@@ -157,9 +158,13 @@ export default async function ClubPage({
   // RSVP stays live through lock — "the RSVP-flip problem" (analysis-
   // v1.md §1.2) has Dana change her answer *after* lock; the ruling is
   // that it doesn't re-run the filter or change the pick, not that the
-  // form disappears. Voting and locking are strictly "open"-only below.
+  // form disappears. It goes once the night has started (ruled
+  // 2026-11-24): by then nobody is deciding whether to come. Voting and
+  // locking are strictly "open"-only below.
   const rsvpableNight =
-    clubNights.find((n) => n.state === "open" || n.state === "locked") ?? null;
+    clubNights.find(
+      (n) => (n.state === "open" || n.state === "locked") && n.scheduledAt.getTime() > now,
+    ) ?? null;
 
   let pickerName: string | null = null;
   let nomineeRows: {
@@ -359,15 +364,11 @@ export default async function ClubPage({
       .where(eq(films.id, lockedNight.winningFilmId));
     lockedFilm = film ?? null;
 
-    const timeFormat = new Intl.DateTimeFormat("en-US", {
-      timeZone: club.timezone,
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    lockedStartsLabel = timeFormat.format(lockedNight.scheduledAt);
+    // The app's one time format, "Sat 8:00pm" (formatNightTime).
+    lockedStartsLabel = formatNightTime(lockedNight.scheduledAt, club.timezone);
     if (lockedFilm?.runtime) {
       const endsAt = new Date(lockedNight.scheduledAt.getTime() + lockedFilm.runtime * 60_000);
-      lockedOutByLabel = timeFormat.format(endsAt);
+      lockedOutByLabel = formatNightTime(endsAt, club.timezone);
     }
   }
 
@@ -589,14 +590,14 @@ export default async function ClubPage({
               // 2026-11-12): no count, no reason, no limit, no person.
               <p className="small muted mt14 empty-pool">
                 None of your watchlist fits this club right now.{" "}
-                <Link href={`/watchlist?seen=${clubId}`} className="underline">
+                <Link href="/watchlist" className="underline">
                   Add a few more films.
                 </Link>
               </p>
             ) : myWatchlistFilms.length === 0 ? (
               <p className="small muted mt14">
                 Your watchlist is empty.{" "}
-                <Link href={`/watchlist?seen=${clubId}`} className="underline">
+                <Link href="/watchlist" className="underline">
                   Add films to it
                 </Link>{" "}
                 before you can nominate.
@@ -656,7 +657,7 @@ export default async function ClubPage({
               </div>
             ) : (
               <p className="small mt14">
-                <Link href={`/clubs/${clubId}?pass=1`} className="underline">
+                <Link href={`/clubs/${clubId}?pass=1`} className="underline tap">
                   Pass my turn
                 </Link>
               </p>
@@ -686,7 +687,7 @@ export default async function ClubPage({
                 </div>
               ) : (
                 <p className="small mt14">
-                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline">
+                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline tap">
                     Pass {draftPickerName}&apos;s turn
                   </Link>
                 </p>
@@ -740,17 +741,17 @@ export default async function ClubPage({
           <p className="small muted mt20">No open vote right now.</p>
         ))}
 
+      {openNight && (
+        <>
+          <h2 className="h-display mt20" style={{ fontSize: 22 }}>
+            This week&apos;s pick, nominated by {pickerName}
+          </h2>
+          {votingClosesLabel && <p className="small muted mt-1 voting-closes">Voting closes {votingClosesLabel}</p>}
+        </>
+      )}
+
       {rsvpableNight && (
         <>
-          {openNight && (
-            <>
-              <h2 className="h-display mt20" style={{ fontSize: 22 }}>
-                This week&apos;s pick, nominated by {pickerName}
-              </h2>
-              {votingClosesLabel && <p className="small muted mt-1 voting-closes">Voting closes {votingClosesLabel}</p>}
-            </>
-          )}
-
           <h3 className="sec mt20">RSVP</h3>
           <p className="small muted">Current answer: {myRsvpStatus ?? "no answer yet"}</p>
           <div className="row gap8 mt14">
@@ -858,7 +859,9 @@ export default async function ClubPage({
 
       {confirmableNight && (
         <>
-          <p className="eyebrow mt20">Sunday morning</p>
+          <p className="eyebrow mt20 confirm-night">
+            {nightName(confirmableNight.scheduledAt, club.timezone, new Date(now))}
+          </p>
           <h2 className="h-display" style={{ fontSize: 22 }}>
             Did you watch {confirmableFilmTitle ?? "it"}?
           </h2>
@@ -951,7 +954,7 @@ export default async function ClubPage({
                         )}
                         className="inline"
                       >
-                        <button type="submit" className="underline">
+                        <button type="submit" className="underline tap" aria-label={`Remove ${t.displayName}`}>
                           remove
                         </button>
                       </form>
@@ -967,6 +970,7 @@ export default async function ClubPage({
                   <input
                     type="text"
                     name="tag"
+                    aria-label="Add a tag"
                     list="club-tag-options"
                     placeholder="Add a tag"
                     maxLength={50}

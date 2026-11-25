@@ -4,7 +4,6 @@ import { currentLegal, LEGAL } from "@/lib/legal";
 import { FORM_ECHO_COOKIE } from "@/app/formEcho";
 import { SESSION_COOKIE_NAME } from "@/app/session";
 import { SIGN_IN_EMAIL_COOKIE } from "@/app/signInCookie";
-import { SEEN_FROM_COOKIE } from "@/app/watchlist/seenFromCookie";
 
 // Draft legal text isn't for search engines.
 export const metadata: Metadata = {
@@ -34,7 +33,6 @@ const COLLECTED = [
 // the list can't drift. Facts, not legal prose.
 const COOKIES: { name: string; role: string }[] = [
   { name: SESSION_COOKIE_NAME, role: "keeps you signed in" },
-  { name: SEEN_FROM_COOKIE, role: "remembers which club your Watchlist is seen from" },
   { name: SIGN_IN_EMAIL_COOKIE, role: "holds the address you're signing in with, for 15 minutes" },
   {
     name: FORM_ECHO_COOKIE,

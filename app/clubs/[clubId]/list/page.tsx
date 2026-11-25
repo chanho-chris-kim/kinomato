@@ -3,8 +3,8 @@ import { requireClubMember } from "@/app/auth";
 
 // The club-scoped watchlist is retired (rebuild step 6d): the watchlist is
 // one list per person, at /watchlist (docs/onboarding-spec.md §6). Old
-// links and bookmarks land there, seen from this club for the visit
-// (§5.11.2 crossing levels: ?seen= presets that visit only). The gate comes
+// links and bookmarks land there, keeping a search (Seen from is gone,
+// 2026-11-24, so there's no club to preset). The gate comes
 // first, unchanged: signed out → /login, not an active member → 404. Only a
 // member is redirected, so the redirect never confirms a club exists.
 export default async function RetiredClubList({
@@ -17,7 +17,5 @@ export default async function RetiredClubList({
   const { clubId } = await params;
   const { q } = await searchParams;
   await requireClubMember(clubId, `/clubs/${clubId}/list`);
-  const target = new URLSearchParams({ seen: clubId });
-  if (q) target.set("q", q);
-  redirect(`/watchlist?${target}`);
+  redirect(q ? `/watchlist?${new URLSearchParams({ q })}` : "/watchlist");
 }

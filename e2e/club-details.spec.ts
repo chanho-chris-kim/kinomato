@@ -263,7 +263,7 @@ test.describe("club details", () => {
     );
     await signInAsUser(page, c.users.mel);
     await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator(".club-settings-values")).toContainText("Weekly, Saturdays at 8pm · In person");
+    await expect(page.locator(".club-settings-values")).toContainText("Weekly, Saturdays at 8:00pm · In person");
     await expect(page.locator(".club-settings-values")).toContainText(TZ);
     await expect(detailsForm(page)).toHaveCount(0);
 

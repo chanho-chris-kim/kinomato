@@ -130,7 +130,9 @@ export function ClubHeader({
   return (
     <>
       <h1 className="h-display" style={{ fontSize: 22 }}>
-        <Link href={`/clubs/${club.id}`}>{club.name}</Link>
+        <Link href={`/clubs/${club.id}`} className="tap">
+          {club.name}
+        </Link>
       </h1>
       <p className="small muted" style={{ margin: "4px 0 0" }}>
         {describeSchedule(club)}

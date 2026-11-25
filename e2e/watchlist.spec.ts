@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
 
 // The global watchlist (rebuild step 6d retired /clubs/[id]/list). Dana is
-// in one club, Movie Night Crew, so badges are seen from it implicitly.
+// in one club, Movie Night Crew, so her badges name it.
 const LIST_URL = "/watchlist";
 
 // Signs in as the membership's account (e2e/session.ts), then opens
@@ -60,9 +60,9 @@ test.describe("watchlist", () => {
   test("the overlap badge shows the right count against seeded data", async ({ page }) => {
     await signInTo(page, MEMBERSHIP.dana);
     await search(page, "Hereditary");
-    // Priya and Marco have it, Dana doesn't yet — "2 others", not 3.
+    // Priya and Marco have it, Dana doesn't yet — 2 others, not 3.
     await expect(resultRow(page, "Hereditary")).toContainText(
-      "2 others in Movie Night Crew want this",
+      "2 in Movie Night Crew want this",
     );
   });
 
