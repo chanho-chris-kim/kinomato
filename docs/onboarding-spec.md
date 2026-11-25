@@ -31,7 +31,7 @@ It also reverses or retires these older positions:
 | `analysis-v1.md` §7.1 | Invited friends vote and RSVP "with no account, no download, no password. Name selection only." Prompt for an account only at loss aversion. | **Reversed.** Every person has an account before they act. The cost is stated in §2. |
 | `analysis-v1.md` §1.1 stages 2–3 | "They should have a club before they have a password." Invitee "picks their name, and they're in." | **Reversed.** A founder verifies an email before creating a club; an invitee verifies before joining. (There is still no password, ever.) |
 | `analysis-v2.md` §3 | "Member / Guest — see §5." | Guest removed. Roles are Owner, Admin, Host, Picker, Member. |
-| `analysis-v2.md` §9 | "Family clubs: the parent owns the club, children participate as guests." | **Dead, not replaced.** With no guest tier and the 13+ account minimum, children under 13 cannot participate at all, and 13–17s need their own email. Under-13 participation is a COPPA question this product is not taking on. Family mode was already out of v1; this spec does not propose a successor. |
+| `analysis-v2.md` §9 | "Family clubs: the parent owns the club, children participate as guests." | **Dead, not replaced.** With no guest tier and the 13+ account minimum, children under 13 cannot participate at all, and 13–17s need their own email. Under-13 participation is a COPPA question this product is not taking on. Family mode was already out of v1; this spec does not propose a successor. **Reversed for 13–17s only (2026-11-24, Chanho's decision):** a club's Audience (All ages 13+ or Adults only 18+) and teen-level films for 13–17s, §5.12 and CLAUDE.md "Age-appropriate films". Still no accounts under 13. |
 | `analysis-v2.md` §11 | v0 "Guest-only identity." | Historical. Describes what v0 was, not what comes next. |
 | CLAUDE.md, "Things not to do" | "Don't build … an account settings page." | **Superseded** by the Settings tab (§5.9). That rule was written for a guest-first product where there was no account to have settings. Settings contains exactly what §5.9 lists and nothing password-shaped. |
 
@@ -1043,6 +1043,49 @@ From the design audit, for the redesign steps that follow it (d0 first).
   Settings) use, and aligning `clubs.theme`'s default (`late-show`) with
   the CSS key (`late`), which is a database default and so a migration.
 
+**Further rulings, 2026-11-24 (approved by Chanho).** The order they're
+built in is `docs/roadmap.md`; CLAUDE.md has each ruling in full.
+
+- **"I was there"** (built with the Tonight redesign): a member who didn't
+  RSVP no can join the rating step until the night's ratings are
+  revealed, and is then waited on like a yes-RSVP; never after the reveal,
+  since a reveal never un-reveals. It answers "rating after a missed
+  RSVP", which RSVP closing at the start opened.
+- **No tracking or behavioral ads, ever** (Chanho's decision, permanent).
+  Ads are contextual and privacy-safe only: no third-party trackers,
+  pixels or cookies, and no viewing data (film titles, watchlists, votes,
+  ratings, RSVPs) sent to an ad provider; never behavioral for anyone.
+  Direct-sold sponsorships are the long-term model. Slots are placed by
+  design, never as filler, and **never inside a private club**
+  (`analysis-v2.md` §1.3, re-affirmed): the redesign's one slot is
+  designed into global pages (the Clubs list, Watchlist) and, later,
+  public clubs.
+- **Age-appropriate films** (built in roadmap steps a1–a6):
+  - **Audience**, in `clubs.settings`: All ages (13+) or Adults only (18+),
+    set by owner or admin. Adults-only clubs refuse 13–17 members.
+  - **All-ages clubs allow teen-or-below films only**, as a club rule that
+    never reveals anyone's age, wherever hard limits apply.
+  - **13–17s search and add teen-or-below films only.**
+  - **Levels:**
+
+    | Level | US | CA |
+    |---|---|---|
+    | All ages | G, PG | G, PG |
+    | Teen | PG-13 | 14A |
+    | Adult | R, NC-17 | 18A, R, A |
+
+    The most restrictive entry within a country wins, and the stricter of
+    CA and US. No rating, NR, E or an unrecognised value is unknown, so not
+    suitable: counted in the logs, never thrown.
+  - **Ratings are re-checked weekly for about a year after release.**
+  - **Existing clubs become Adults only**, or All ages if an active member
+    is 13–17.
+  - **13–17s can self-attest up to 18+ in Settings, upward only** (§11.3).
+  - **A refused switch to Adults only** says only "This club can't be
+    adults-only right now."
+  - **Out of scope:** no accounts under 13, and a GB/AU rating fallback is
+    deferred.
+
 ---
 
 ## 6. Watchlists: global per person
@@ -1716,6 +1759,10 @@ off the Terms and Privacy text.**
 
 - A **self-attested bracket**: "13–17", "18 or older", "Under 13". No
   birthdates. **Existing accounts are asked once.**
+- **13–17s can self-attest up to 18 or older in Settings, upward only**
+  (ruled 2026-11-24; built in roadmap step a5). Never down, and the bracket
+  is never shown to a club. It decides which films a person can search and
+  add, and whether they can join an adults-only club (§5.12).
 - **Under 13: nothing persists.** The account, its sessions and any
   membership an invite has just created are removed; the screen says
   Kinomato is for 13 and up. **No record of the attempt is kept.**

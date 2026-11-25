@@ -1,5 +1,12 @@
 # Switching email from Brevo to Amazon SES (manual cutover)
 
+**Completed 2026-11-23.** Production sign-in email sent through SES
+ca-central-1; Gmail showed SPF, DKIM and DMARC passing and no tracking
+pixel. The `BREVO_API_KEY` secret is deleted, Brevo's DNS records are
+removed, and `_dmarc` reports go to Chanho. Closing the Brevo account is
+a launch switch (`docs/roadmap.md`). The steps below are kept as the
+record.
+
 Ruled 2026-11-22 (CLAUDE.md Stack; onboarding-spec §9): every email is sent
 through Amazon SES in **ca-central-1** with **no open or click tracking**.
 SES only adds a tracking pixel or rewrites links through a *configuration
