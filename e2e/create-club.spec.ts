@@ -41,8 +41,7 @@ test.describe("club creation and invites", () => {
       await expect(owner.page.getByText("1 of 6 seats.")).toBeVisible();
 
       // --- Robin invites Sam; Sam joins with that link. ---
-      await owner.page.getByLabel("First name").fill("Sam");
-      await owner.page.getByLabel("Last initial").fill("K");
+      await owner.page.getByLabel("Their name").fill("Sam K.");
       await owner.page.getByRole("button", { name: "Create invite" }).click();
       const samLink = await owner.page.getByLabel("Invite link for Sam K.").inputValue();
 
@@ -68,8 +67,7 @@ test.describe("club creation and invites", () => {
         ["Cid", "M"],
         ["Dee", "N"],
       ] as const) {
-        await owner.page.getByLabel("First name").fill(first);
-        await owner.page.getByLabel("Last initial").fill(initial);
+        await owner.page.getByLabel("Their name").fill(`${first} ${initial}.`);
         await owner.page.getByRole("button", { name: "Create invite" }).click();
         await expect(owner.page.getByLabel(`Invite link for ${first} ${initial}.`)).toBeVisible();
       }

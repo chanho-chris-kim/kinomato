@@ -373,20 +373,17 @@ export default async function MembersPage({
               className="name-row mt14"
             >
               <label className="small muted name-first">
-                First name
+                Their name
                 <div className="search mt-1">
-                  <input name="firstName" required />
-                </div>
-              </label>
-              <label className="small muted name-initial">
-                Last initial
-                <div className="search mt-1">
-                  <input name="lastInitial" required maxLength={1} />
+                  <input name="inviteeName" required maxLength={30} aria-describedby="invitee-name-hint" />
                 </div>
               </label>
               <button type="submit" className="btn">
                 Create invite
               </button>
+              <p id="invitee-name-hint" className="tiny dim flush invitee-hint">
+                So the invite can greet them. They&apos;ll choose their own display name when they join.
+              </p>
             </form>
           ) : (
             <p className="small mt14">

@@ -1,6 +1,7 @@
 import { eq, getTableColumns } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { memberships, users } from "@/db/schema";
+import { shownName } from "@/lib/displayName";
 
 // Every membership in a club (left ones too — rotation carry-forward needs
 // them), each with its person's name. Names live on users
@@ -16,7 +17,8 @@ export async function loadClubMemberships(db: ReturnType<typeof getDb>, clubId: 
 
 export type ClubMembership = Awaited<ReturnType<typeof loadClubMemberships>>[number];
 
-// Null only for an account that hasn't been through /welcome yet.
+// How a member's name shows on every club page (lib/displayName.ts): their
+// display name, or "Unnamed member" before /welcome.
 export function nameOf(member: { name: string | null } | null | undefined): string {
-  return member?.name ?? "Unnamed member";
+  return shownName(member?.name);
 }

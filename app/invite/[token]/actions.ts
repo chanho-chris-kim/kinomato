@@ -1,9 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { invites } from "@/db/schema";
+import { invites, users } from "@/db/schema";
+import { activeClubIdsByName, clashingClub } from "@/app/displayNameClash";
+import { clearFormEcho, setFormEcho } from "@/app/formEcho";
+import { validateDisplayName } from "@/lib/displayName";
 import {
   activeMemberCount,
   accountName,
@@ -60,11 +64,44 @@ export async function joinInviteAsMe(token: string) {
   const userId = await getSessionUserId();
   const row = await loadInviteByToken(db, token);
   if (!userId || !row) redirect(`/invite/${token}`);
-  const result = await redeemInvite(db, row.invite.id, userId);
-  const destination = redeemDestination(result);
-  // An account with no name at all still gets the name step first.
+  // An account with no name at all gets the name step first, which joins
+  // them once the name is chosen (ruled 2026-11-25).
   if (!(await accountName(db, userId))) {
-    redirect(`/welcome?${new URLSearchParams({ next: destination, invite: row.invite.id })}`);
+    redirect(`/welcome?${new URLSearchParams({ next: "/", invite: row.invite.id })}`);
   }
-  redirect(destination);
+  redirect(redeemDestination(await redeemInvite(db, row.invite.id, userId)));
+}
+
+// Joining with a display name someone in the club already has: the landing
+// page asks for another (ruled 2026-11-25). It's the account's one name, so
+// it must be free in every club they're in as well as this one; then they
+// join. What was typed comes back through the form-echo cookie, never the
+// URL (§11.6).
+export async function joinInviteWithName(token: string, formData: FormData) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const userId = await getSessionUserId();
+  const row = await loadInviteByToken(db, token);
+  if (!userId || !row) redirect(`/invite/${token}`);
+  if (!(await accountName(db, userId))) {
+    redirect(`/welcome?${new URLSearchParams({ next: "/", invite: row.invite.id })}`);
+  }
+  const typed = String(formData.get("displayName") ?? "");
+  const echoPath = `/invite/${token}`;
+  await clearFormEcho(echoPath);
+  const result = validateDisplayName(typed);
+  if ("error" in result) {
+    await setFormEcho(echoPath, { displayName: typed });
+    redirect(`/invite/${token}?${new URLSearchParams({ nameTaken: "1", error: result.error })}`);
+  }
+  const takenIn = await clashingClub(db, userId, result.displayName, [
+    row.invite.clubId,
+    ...(await activeClubIdsByName(db, userId)),
+  ]);
+  if (takenIn) {
+    await setFormEcho(echoPath, { displayName: result.displayName, takenIn });
+    redirect(`/invite/${token}?nameTaken=1`);
+  }
+  await db.update(users).set({ displayName: result.displayName }).where(eq(users.id, userId));
+  revalidatePath("/", "layout");
+  redirect(redeemDestination(await redeemInvite(db, row.invite.id, userId)));
 }

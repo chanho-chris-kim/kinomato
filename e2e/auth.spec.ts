@@ -89,8 +89,7 @@ test.describe("auth — sign-in codes and links", () => {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     // A brand-new account names itself once (/welcome), then lands home.
     await expect(page).toHaveURL(/\/welcome/);
-    await page.getByLabel("First name").fill("Link");
-    await page.getByLabel("Last initial").fill("u");
+    await page.getByLabel("Display name").fill("Link U.");
     await agreeToTerms(page);
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");

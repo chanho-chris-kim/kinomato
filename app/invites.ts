@@ -2,6 +2,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { clubs, invites, memberships, users } from "@/db/schema";
 import { canAddMember } from "@/lib/clubMembers";
+import { clashingClub } from "@/app/displayNameClash";
 
 // Server-side invite operations (docs/onboarding-spec.md §7). Added in
 // rebuild step 3 alongside the old club-wide /join link, which keeps
@@ -44,7 +45,10 @@ export async function accountName(db: Db, userId: string): Promise<string | null
 
 export type RedeemResult =
   | { status: "joined" | "already_member"; clubId: string }
-  | { status: "used" | "replaced" | "full"; token: string | null };
+  | { status: "used" | "replaced" | "full"; token: string | null }
+  // Someone active in the club already goes by this person's display name
+  // (ruled 2026-11-25): nothing is claimed; they pick another first.
+  | { status: "name_taken"; token: string };
 
 // Spec §7.1 step 6, in order, never as one silent step. neon-http has no
 // transactions (CLAUDE.md), so the invite claim is the gate: a conditional
@@ -64,6 +68,13 @@ export async function redeemInvite(db: Db, inviteId: string, userId: string): Pr
   // the link works again when a seat opens.
   if (!canAddMember(await activeMemberCount(db, invite.clubId))) {
     return { status: "full", token: invite.token };
+  }
+  // A display name is unique in each club (ruled 2026-11-25). Callers send
+  // an account with no name yet through the name step first, where the
+  // check happens before joining; here it's an account already named.
+  const name = await accountName(db, userId);
+  if (name && (await clashingClub(db, userId, name, [invite.clubId]))) {
+    return { status: "name_taken", token: invite.token };
   }
 
   const [claimed] = await db
@@ -109,6 +120,9 @@ export function redeemDestination(result: RedeemResult): string {
       return `/clubs/${result.clubId}?joined=1`;
     case "already_member":
       return `/clubs/${result.clubId}`;
+    case "name_taken":
+      // The landing page asks for another display name (no name in the URL).
+      return `/invite/${result.token}?nameTaken=1`;
     default:
       // Back to the landing page, which now shows why (used, replaced, full).
       return result.token ? `/invite/${result.token}` : "/";

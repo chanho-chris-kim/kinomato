@@ -9,7 +9,9 @@ import { inviteShareText } from "@/lib/inviteShare";
 import { describeSchedule } from "@/lib/format";
 import { DEFAULT_OPEN_GRAPH } from "@/app/metadata";
 import type { Metadata } from "next";
-import { joinInviteAsMe, signOutForInvite, startInvite } from "./actions";
+import { joinInviteAsMe, joinInviteWithName, signOutForInvite, startInvite } from "./actions";
+import { readFormEcho } from "@/app/formEcho";
+import { clashMessage, shownName } from "@/lib/displayName";
 import { PublicShell } from "@/app/shell";
 
 // The invite landing page (docs/onboarding-spec.md §5.3) — the most
@@ -51,10 +53,10 @@ export default async function InvitePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; nameTaken?: string }>;
 }) {
   const { token } = await params;
-  const { error } = await searchParams;
+  const { error, nameTaken } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
   const row = await loadInviteByToken(db, token);
@@ -68,7 +70,8 @@ export default async function InvitePage({
       : null,
   });
 
-  const inviteeFirst = row?.invite.inviteeName.replace(/ [A-Za-z]\.$/, "") ?? "";
+  // The name the inviter typed: a greeting only (ruled 2026-11-25).
+  const inviteeName = row?.invite.inviteeName ?? "";
   const clubName = row?.club.name ?? "";
   const inviterName = row?.inviterName ?? "the club";
 
@@ -107,7 +110,7 @@ export default async function InvitePage({
           You&apos;re already in {club.name}
         </h1>
         <p className="small muted mt-1">
-          This invite is {inviteeFirst}&apos;s, so opening it didn&apos;t use it up.
+          This invite is {inviteeName}&apos;s, so opening it didn&apos;t use it up.
         </p>
         <Link href={`/clubs/${club.id}`} className="btn primary mt20" style={{ display: "block", textAlign: "center" }}>
           Go to {club.name}
@@ -121,9 +124,9 @@ export default async function InvitePage({
       <>
         <p className="eyebrow">{club.name}</p>
         <h1 className="h-display" style={{ fontSize: 26 }}>
-          {inviteeFirst}&apos;s invite has already been used
+          {inviteeName}&apos;s invite has already been used
         </h1>
-        <p className="small muted mt-1">If you&apos;re {inviteeFirst}, sign in and you&apos;ll land in the club.</p>
+        <p className="small muted mt-1">If you&apos;re {inviteeName}, sign in and you&apos;ll land in the club.</p>
         <Link
           href={`/login?${new URLSearchParams({ returnTo: `/clubs/${club.id}` })}`}
           className="btn primary mt20"
@@ -149,6 +152,40 @@ export default async function InvitePage({
     );
   }
 
+  if (view === "signed_in_other" && nameTaken) {
+    // Joining with a display name someone in the club already has (ruled
+    // 2026-11-25): pick another, which is the account's one name, then join.
+    const echo = await readFormEcho();
+    const message =
+      error ??
+      (echo.takenIn
+        ? clashMessage(echo.takenIn, echo.displayName ?? "")
+        : clashMessage(club.name, shownName(viewer!.displayName)));
+    return card(
+      <>
+        <p className="eyebrow">{club.name}</p>
+        <h1 className="h-display" style={{ fontSize: 26 }}>
+          Pick another display name
+        </h1>
+        <p className="small mt14 warn name-taken" role="alert">
+          {message}
+        </p>
+        <form action={joinInviteWithName.bind(null, token)} className="stack gap14 mt20">
+          <label className="small muted">
+            Display name
+            <div className="search mt-1">
+              <input name="displayName" required maxLength={30} defaultValue={echo.displayName ?? ""} />
+            </div>
+          </label>
+          <p className="tiny dim flush">It&apos;s how you show up in all your clubs. A nickname is fine.</p>
+          <button type="submit" className="btn primary">
+            Join {club.name}
+          </button>
+        </form>
+      </>,
+    );
+  }
+
   if (view === "signed_in_other") {
     // Ruling B (spec §7.4): show both identities, never redeem silently,
     // and make the choice that protects the invitee the primary one.
@@ -157,12 +194,12 @@ export default async function InvitePage({
       <>
         <p className="eyebrow">{club.name}</p>
         <h1 className="h-display" style={{ fontSize: 26 }}>
-          This invite is for {inviteeFirst}
+          This invite is for {inviteeName}
         </h1>
         <p className="small muted mt-1">You&apos;re signed in as {me}.</p>
         <form action={signOutForInvite.bind(null, token)} className="mt20">
           <button type="submit" className="btn primary">
-            Sign out and continue as {inviteeFirst}
+            Sign out and continue as {inviteeName}
           </button>
         </form>
         <form action={joinInviteAsMe.bind(null, token)} className="mt14">
@@ -171,7 +208,7 @@ export default async function InvitePage({
           </button>
         </form>
         <p className="tiny dim mt14" style={{ margin: "14px 0 0" }}>
-          If you join as yourself, {inviteeFirst} will need a new link from {inviterName}.
+          If you join as yourself, {inviteeName} will need a new link from {inviterName}.
         </p>
       </>,
     );
@@ -181,7 +218,7 @@ export default async function InvitePage({
     <>
       <p className="eyebrow">You&apos;re invited</p>
       <h1 className="h-display" style={{ fontSize: 32 }}>
-        Hi {inviteeFirst}
+        Hi {inviteeName}
       </h1>
       <p className="muted mt-1">
         {inviterName} invited you to <strong>{club.name}</strong>.
@@ -206,7 +243,7 @@ export default async function InvitePage({
         </p>
       </form>
       <p className="tiny dim mt14" style={{ textAlign: "center" }}>
-        Not {inviteeFirst}? Ask {inviterName} for your own link.
+        Not {inviteeName}? Ask {inviterName} for your own link.
       </p>
     </>,
   );

@@ -18,6 +18,7 @@ import {
 } from "@/lib/accountDeletion";
 import { CODE_MAX_ATTEMPTS, codeMatches, generateSignInCode, getAuthSecret, hashCode } from "@/lib/authCredentials";
 import { sendAccountDeletedReceipt, sendAccountDeletionCode } from "@/lib/email";
+import { shownName } from "@/lib/displayName";
 
 // Delete account (docs/onboarding-spec.md §11.4; launch foundations (f)).
 // The only code that touches account_deletion_requests
@@ -68,7 +69,7 @@ export async function deletionPlanFor(db: Db, userId: string): Promise<ClubOutco
       const clubName = mine.find((m) => m.clubId === plan.clubId)!.clubName;
       if (plan.action !== "transfer") return { ...plan, clubName };
       const heir = everyone.find((m) => m.membershipId === plan.toMembershipId)!;
-      return { ...plan, clubName, newOwnerName: heir.name ?? "Unnamed member" };
+      return { ...plan, clubName, newOwnerName: shownName(heir.name) };
     })
     .sort((a, b) => a.clubName.localeCompare(b.clubName));
 }

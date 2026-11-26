@@ -3,7 +3,6 @@ import { FREE_TIER_MEMBER_CAP } from "./clubMembers";
 import {
   canCreateInvite,
   generateInviteToken,
-  parseInviteeName,
   resolveInviteView,
 } from "./invites";
 
@@ -32,20 +31,6 @@ describe("canCreateInvite", () => {
     expect(canCreateInvite(4, 2)).toBe(false);
     expect(canCreateInvite(FREE_TIER_MEMBER_CAP, 0)).toBe(false);
     expect(canCreateInvite(1, 0)).toBe(true);
-  });
-});
-
-describe("parseInviteeName", () => {
-  it("splits a composed name back into the name step's two fields", () => {
-    expect(parseInviteeName("Marco R.")).toEqual({ firstName: "Marco", lastInitial: "R" });
-  });
-
-  it("keeps a multi-word first name whole", () => {
-    expect(parseInviteeName("Mary Ann K.")).toEqual({ firstName: "Mary Ann", lastInitial: "K" });
-  });
-
-  it("falls back to everything as the first name if it isn't in the composed shape", () => {
-    expect(parseInviteeName("Jo")).toEqual({ firstName: "Jo", lastInitial: "" });
   });
 });
 

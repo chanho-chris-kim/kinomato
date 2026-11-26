@@ -35,13 +35,14 @@ export default async function Home() {
   // eslint-disable-next-line react-hooks/purity
   const now = new Date(Date.now());
   const cards = await loadClubCards(db, user.id, now);
-  // "Chris K." → "Chris". An account always has a name past /welcome.
-  const firstName = user.displayName?.split(" ")[0];
+  // Their display name as they chose it (ruled 2026-11-25): a nickname's
+  // first word isn't a first name. Always set past /welcome.
+  const greeting = user.displayName;
 
   return (
     <GlobalShell current="clubs">
       <h1 className="h-display mt14" style={{ fontSize: 24 }}>
-        {firstName ? `Hi, ${firstName}` : "Hi"}
+        {greeting ? `Hi, ${greeting}` : "Hi"}
       </h1>
 
       {cards.length === 0 ? (

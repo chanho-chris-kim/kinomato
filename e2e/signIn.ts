@@ -90,11 +90,11 @@ export async function agreeToTerms(page: Page): Promise<void> {
   await page.getByLabel(/^I agree to the Terms/).check();
 }
 
-// The one-time name step a brand-new account sees, consent included.
+// The one-time name step a brand-new account sees, consent included. Since
+// u2 it's one free-text display name; the specs name people "First L.".
 export async function nameYourself(page: Page, firstName: string, lastInitial: string): Promise<void> {
   await expect(page).toHaveURL(/\/welcome/);
-  await page.getByLabel("First name").fill(firstName);
-  await page.getByLabel("Last initial").fill(lastInitial);
+  await page.getByLabel("Display name").fill(`${firstName} ${lastInitial}.`);
   await agreeToTerms(page);
   await page.getByRole("button", { name: "Continue" }).click();
   // Wait for the save to land: until it has, every signed-in page sends
