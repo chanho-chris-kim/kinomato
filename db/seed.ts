@@ -213,6 +213,9 @@ async function main() {
     defaultTime: "20:00",
     timezone: "America/New_York",
     mode: "in_person",
+    // Live counts while voting (off by default, ruled 2026-11-25):
+    // voting-flow.spec.ts counts votes on this club's open night.
+    settings: { showVoteCounts: true },
   });
 
   console.log("Seeding memberships...");
@@ -422,6 +425,8 @@ async function main() {
     defaultTime: "19:30",
     timezone: "America/New_York",
     mode: "remote",
+    // nominate.spec.ts reads the new nominees' counts.
+    settings: { showVoteCounts: true },
   });
 
   await db.insert(memberships).values([
@@ -589,8 +594,9 @@ async function main() {
     timezone: "America/New_York",
     mode: "in_person",
     // Confirmable at once, so a future night can be confirmed straight
-    // after lock (see the night below).
-    settings: { confirmAt: "manual_only" },
+    // after lock (see the night below). Live counts: lock.spec.ts reads
+    // them while voting is open.
+    settings: { confirmAt: "manual_only", showVoteCounts: true },
   });
 
   await db.insert(memberships).values([

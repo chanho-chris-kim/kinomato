@@ -6,6 +6,7 @@ import * as schema from "../db/schema";
 import { MEMBERSHIP_RATING, RATING_CLUB_ID, RATING_NIGHT_ID } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
+import { setScore } from "./rating";
 
 // The ON CONFLICT paths a normal click-through never reaches, on the
 // isolated Rating Club (db/seed-fixtures.ts RATING_CLUB_ID): a watched
@@ -45,8 +46,8 @@ const linksTo = (tagId: string) =>
   withDb((db) => db.select().from(schema.ratingTags).where(eq(schema.ratingTags.tagId, tagId)));
 
 async function rate(page: Page, quality: string, fun: string, take: string) {
-  await page.getByLabel("Quality (as a number)").fill(quality);
-  await page.getByLabel("Fun (as a number)").fill(fun);
+  await setScore(page, "Quality", quality);
+  await setScore(page, "Fun", fun);
   await page.getByLabel("One-line take (optional)").fill(take);
   await page.getByRole("button", { name: "Submit rating" }).click();
 }

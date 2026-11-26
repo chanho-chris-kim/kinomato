@@ -13,6 +13,7 @@ import {
   type RotationMembership,
   type RotationNight,
 } from "../lib/rotation";
+import { whoseTurn } from "./tonight";
 
 const CLUB_URL = `/clubs/${CLUB_ID}`;
 
@@ -24,7 +25,7 @@ async function signInTo(page: Page, membershipId: string) {
 }
 
 function nomineeRow(page: Page, filmTitle: string) {
-  return page.locator("li", { hasText: filmTitle });
+  return page.locator("li.nominee", { hasText: filmTitle });
 }
 
 async function voteCount(page: Page, filmTitle: string): Promise<number> {
@@ -144,10 +145,10 @@ test.describe("voting flow", () => {
   test("toggling RSVP to no persists across reload", async ({ page }) => {
     await signInTo(page, MEMBERSHIP.dana);
     await page.getByRole("button", { name: "Not going" }).click();
-    await expect(page.getByText("Current answer: no")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not going", exact: true })).toHaveAttribute("aria-pressed", "true");
 
     await page.reload();
-    await expect(page.getByText("Current answer: no")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not going", exact: true })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("the displayed 'Whose turn' matches lib/rotation.ts's getWhoseTurn for the seeded data", async ({
@@ -201,7 +202,6 @@ test.describe("voting flow", () => {
     // Whoever we're viewing as doesn't affect whose turn it is — Priya
     // just hasn't been used as a login in an earlier test.
     await signInTo(page, MEMBERSHIP.priya);
-    const whoseTurn = page.locator("h2:has-text('Whose turn') + p");
-    await expect(whoseTurn).toHaveText(expectedName);
+    await expect(whoseTurn(page)).toHaveText(expectedName);
   });
 });

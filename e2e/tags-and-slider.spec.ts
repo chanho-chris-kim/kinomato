@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { CLUB_6_ID, MEMBERSHIP_6 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
+import { setScore } from "./rating";
 
 const CLUB_6_URL = `/clubs/${CLUB_6_ID}`;
 
@@ -34,38 +35,33 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
     ).not.toBeVisible();
   });
 
-  test("the quality slider and its paired number input stay in sync, live", async ({
+  test("one slider per score, its value shown beside the label as it moves; no number box", async ({
     page,
   }) => {
     await signInTo(page, MEMBERSHIP_6.nora);
     await expect(page.getByRole("heading", { name: "Rate Hereditary" })).toBeVisible();
 
-    const slider = page.getByRole("slider", { name: "Quality" });
-    const numberInput = page.getByLabel("Quality (as a number)");
+    const slider = page.getByRole("slider", { name: "Quality", exact: true });
+    const value = page.locator("output.slider-value").first();
+    await expect(page.getByRole("spinbutton")).toHaveCount(0);
 
-    // Typing in the number input moves the slider (and the live number
-    // beside it) — both are views onto the same React state
-    // (RatingSlider.tsx), not two independently-tracked values.
-    await numberInput.fill("8.5");
-    await expect(slider).toHaveValue("8.5");
-    await expect(page.getByText("8.5", { exact: true })).toBeVisible();
-
-    // Dragging the slider moves the number input back — a real
-    // keyboard-driven change (not a raw DOM value assignment, which
-    // React's synthetic event system wouldn't pick up) fires a proper
-    // input event.
+    // A real keyboard-driven change (not a raw DOM value assignment, which
+    // React's synthetic event system wouldn't pick up).
     await slider.focus();
     await slider.press("Home"); // 0
     await slider.press("ArrowRight"); // 0.5, one step
     await slider.press("ArrowRight"); // 1
-    await expect(numberInput).toHaveValue("1");
-    await expect(page.getByText("1", { exact: true })).toBeVisible();
+    await expect(slider).toHaveValue("1");
+    await expect(value).toHaveText("1");
+    await setScore(page, "Quality", 8.5);
+    await expect(slider).toHaveValue("8.5");
+    await expect(value).toHaveText("8.5");
   });
 
   test("Nora submits her rating and adds a tag", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_6.nora);
-    await page.getByLabel("Quality (as a number)").fill("9");
-    await page.getByLabel("Fun (as a number)").fill("7");
+    await setScore(page, "Quality", 9);
+    await setScore(page, "Fun", 7);
     await page.getByLabel("One-line take (optional)").fill("Unbearable, in a good way.");
     await page.getByRole("button", { name: "Submit rating" }).click();
 
@@ -87,8 +83,8 @@ test.describe("club 6 — confirmAt timing, slider sync, tag autocomplete", () =
     await signInTo(page, MEMBERSHIP_6.iris);
     await expect(page.getByRole("heading", { name: "Rate Hereditary" })).toBeVisible();
 
-    await page.getByLabel("Quality (as a number)").fill("6");
-    await page.getByLabel("Fun (as a number)").fill("5");
+    await setScore(page, "Quality", 6);
+    await setScore(page, "Fun", 5);
     await page.getByRole("button", { name: "Submit rating" }).click();
 
     // The add-tag input's <datalist> is club-scoped autocomplete

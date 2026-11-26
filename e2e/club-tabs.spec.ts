@@ -4,6 +4,7 @@ import { expect, test } from "./fixtures";
 import { memberNames } from "./identity";
 import { signInAs } from "./session";
 import { existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
+import { whoseTurn } from "./tonight";
 
 // Club tabs (docs/onboarding-spec.md §5.10–5.11.2; rebuild step 5c):
 // Tonight · Members under the club header. Desktop Chrome is 1280px wide,
@@ -50,7 +51,7 @@ test.describe("club tabs", () => {
   test("Tonight's main column has no member list and no invite form", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.chris); // the owner: would see the form if it were here
     await page.goto(CLUB_URL);
-    await expect(page.getByRole("heading", { name: "Whose turn" })).toBeVisible();
+    await expect(whoseTurn(page)).toBeVisible();
     const main = page.locator("main");
     await expect(main.getByRole("heading", { name: "Members" })).toHaveCount(0);
     await expect(main.getByRole("heading", { name: /Invite/ })).toHaveCount(0);

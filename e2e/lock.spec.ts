@@ -40,10 +40,10 @@ test.describe("lock", () => {
   }) => {
     await signInTo(page, MEMBERSHIP_5.yara);
     await page
-      .locator("li", { hasText: "Blade Runner" })
+      .locator("li.nominee", { hasText: "Blade Runner" })
       .getByRole("button", { name: /Vote/ })
       .click();
-    await expect(page.getByText(/Blade Runner.*— 1 vote/)).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Blade Runner" }).locator(".vote-count")).toHaveText("1 vote");
     await expect(
       page.getByRole("button", { name: "Close voting and set the pick" }),
     ).not.toBeVisible();
@@ -52,19 +52,19 @@ test.describe("lock", () => {
   test("Xavier also votes for Blade Runner", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_5.xavier);
     await page
-      .locator("li", { hasText: "Blade Runner" })
+      .locator("li.nominee", { hasText: "Blade Runner" })
       .getByRole("button", { name: /Vote/ })
       .click();
-    await expect(page.getByText(/Blade Runner.*— 2 votes/)).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Blade Runner" }).locator(".vote-count")).toHaveText("2 votes");
   });
 
   test("Zoe (the nominator) votes for Zodiac instead", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_5.zoe);
     await page
-      .locator("li", { hasText: "Zodiac" })
+      .locator("li.nominee", { hasText: "Zodiac" })
       .getByRole("button", { name: /Vote/ })
       .click();
-    await expect(page.getByText(/Zodiac.*— 1 vote/)).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Zodiac" }).locator(".vote-count")).toHaveText("1 vote");
   });
 
   // Xavier's context is opened before lock and deliberately never
@@ -92,7 +92,7 @@ test.describe("lock", () => {
       const zoeErrors = collectConsoleErrors(zoePage);
 
       await signInTo(xavierPage, MEMBERSHIP_5.xavier);
-      await expect(xavierPage.getByText(/Blade Runner.*— 2 votes/)).toBeVisible();
+      await expect(xavierPage.locator("li.nominee", { hasText: "Blade Runner" }).locator(".vote-count")).toHaveText("2 votes");
 
       await signInTo(zoePage, MEMBERSHIP_5.zoe);
       await zoePage.getByRole("button", { name: "Close voting and set the pick" }).click();
@@ -108,7 +108,7 @@ test.describe("lock", () => {
       // vote button rendered, even though the night is now locked
       // server-side. Clicking it exercises castVote's post-lock guard.
       await xavierPage
-        .locator("li", { hasText: "Zodiac" })
+        .locator("li.nominee", { hasText: "Zodiac" })
         .getByRole("button", { name: /Vote/ })
         .click();
       await xavierPage.reload();
@@ -129,7 +129,7 @@ test.describe("lock", () => {
   test("RSVP still works after lock — it just doesn't touch the pick", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_5.xavier);
     await page.getByRole("button", { name: "Not going" }).click();
-    await expect(page.getByText("Current answer: no")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not going", exact: true })).toHaveAttribute("aria-pressed", "true");
     // The confirmation prompt still names the same locked winner —
     // an RSVP change after lock has no effect on the pick.
     await expect(
@@ -143,7 +143,7 @@ test.describe("lock", () => {
   test("Zoe confirms it watched, closing the loop into the rating screen", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_5.zoe);
     await page.getByRole("button", { name: "Going", exact: true }).click();
-    await expect(page.getByText("Current answer: yes")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Going", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Yes", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Rate Blade Runner" })).toBeVisible();
     await expect(page.getByLabel("Quality", { exact: true })).toBeVisible();

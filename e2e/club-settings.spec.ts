@@ -158,7 +158,7 @@ test.describe("How this club runs", () => {
     await page.getByLabel(/When to ask/).selectOption("same_night");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.locator("#club-settings").getByRole("status")).toContainText("Saved.");
-    expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48 });
+    expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48, showVoteCounts: false });
 
     // Bad input is refused at write time with a fixed message.
     await page.getByLabel("Films each picker nominates").evaluate((el) => {
@@ -169,7 +169,7 @@ test.describe("How this club runs", () => {
     await expect(page.locator("#club-settings").getByRole("alert")).toHaveText(
       "Films each picker nominates must be a whole number from 1 to 5.",
     );
-    expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48 });
+    expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48, showVoteCounts: false });
 
     // Pia's turn: up to 2, and the server holds her to it.
     await signInAsUser(page, c.users.pia);

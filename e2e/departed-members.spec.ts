@@ -6,6 +6,7 @@ import * as schema from "../db/schema";
 import { LEGAL } from "../lib/legal";
 import { expect, test } from "./fixtures";
 import { signInAsUser } from "./session";
+import { setScore } from "./rating";
 
 // A member who has left stops counting (CLAUDE.md, ruled 2026-11-09):
 // toward who must rate before a night's ratings reveal, and toward the
@@ -59,8 +60,8 @@ const leave = (membershipId: string) =>
   withDb((db) => db.update(schema.memberships).set({ leftAt: new Date() }).where(eq(schema.memberships.id, membershipId)));
 
 async function rate(page: Page, quality: string, fun: string, take: string) {
-  await page.getByLabel("Quality (as a number)").fill(quality);
-  await page.getByLabel("Fun (as a number)").fill(fun);
+  await setScore(page, "Quality", quality);
+  await setScore(page, "Fun", fun);
   await page.getByLabel("One-line take (optional)").fill(take);
   await page.getByRole("button", { name: "Submit rating" }).click();
 }

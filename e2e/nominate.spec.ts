@@ -62,9 +62,9 @@ test.describe("nomination", () => {
     await page.getByRole("button", { name: "Open voting" }).click();
 
     await expect(page.getByRole("heading", { name: /nominated by Nadia/ })).toBeVisible();
-    await expect(page.getByText("Hereditary (2018) — 0 votes")).toBeVisible();
-    await expect(page.getByText(/Blade Runner \(1982\) — 0 votes/)).toBeVisible();
-    await expect(page.getByText("Zodiac (2007) — 0 votes")).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Hereditary" }).locator(".vote-count")).toHaveText("0 votes");
+    await expect(page.locator("li.nominee", { hasText: "Blade Runner" }).locator(".vote-count")).toHaveText("0 votes");
+    await expect(page.locator("li.nominee", { hasText: "Zodiac" }).locator(".vote-count")).toHaveText("0 votes");
     // Whiplash was on Nadia's watchlist too, but never selected — must
     // not appear as a nominee.
     await expect(page.getByText(/Whiplash/)).not.toBeVisible();
@@ -74,13 +74,13 @@ test.describe("nomination", () => {
 
   test("a second member then sees those nominees and can vote on them", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_2.omar);
-    await expect(page.getByText("Hereditary (2018) — 0 votes")).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Hereditary" }).locator(".vote-count")).toHaveText("0 votes");
 
     await page
-      .locator("li", { hasText: "Hereditary" })
+      .locator("li.nominee", { hasText: "Hereditary" })
       .getByRole("button", { name: /Vote/ })
       .click();
 
-    await expect(page.getByText("Hereditary (2018) — 1 vote")).toBeVisible();
+    await expect(page.locator("li.nominee", { hasText: "Hereditary" }).locator(".vote-count")).toHaveText("1 vote");
   });
 });

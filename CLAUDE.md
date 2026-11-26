@@ -554,9 +554,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   tables, and nothing it returns carries a `membership_id` from them:
   `liveVotes` (an open night's counts plus *your own* vote, pre-lock
   only — Tonight's tally), `viewerVotedOnOpenNights` (the club cards on
-  `/`), `votesForLock` (nomination ids for `lockNightCore`'s tally) and
-  `clubHistory` (finished nights' final counts and a veto count, never
-  voters or vetoers). **Enforced by a test:** `lib/attributionAccess.test.ts`
+  `/`), `votesForLock` (nomination ids for `lockNightCore`'s tally),
+  `closedTally` (a night's final counts once voting has closed, for
+  Tonight's "Won 3 to 1", u1) and `clubHistory` (finished nights' final
+  counts and a veto count, never voters or vetoers). **Enforced by a test:** `lib/attributionAccess.test.ts`
   scans `app/` and `lib/` and fails, naming this ruling, if any other file
   imports `votes` or `vetoes` from `db/schema`, reaches them through a
   namespace import, or names them in SQL. The one exception is the
@@ -911,11 +912,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   what a club expects.
 - **`RatingSlider` (`app/clubs/[clubId]/RatingSlider.tsx`) is the second
   justified client component**, after `NominationSelector` — same
-  reasoning: a plain form can't keep a range input and a number input
-  showing the same live value in sync, so it needs local `useState`. The
-  server action (`submitRating`) re-validates the 0–10 range
-  independently; the client component's only job is display and the two
-  inputs agreeing with each other.
+  reasoning: the value shown beside the label follows the slider as it
+  moves, which a plain form can't do, so it needs local `useState`. Since
+  the Tonight redesign (u1, 2026-11-25) it's one slider per score; the
+  paired number box is gone. The server action (`submitRating`)
+  re-validates the 0–10 range independently; the client component's only
+  job is display.
 - **`ShareInvite` (`app/clubs/[clubId]/ShareInvite.tsx`) is the third
   justified client component**, after `NominationSelector` and
   `RatingSlider`: the OS share sheet (`navigator.share`) and the
@@ -1011,7 +1013,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   be available instead of the width that's actually there.
   **The context rail only ever shows real data, repurposed — never the
   prototype's fake turn-order queue, streaming-expiry list, or
-  attendance leaderboard.** The rail is on Tonight and History: the club's
+  attendance leaderboard.** The rail is on Tonight and History. On
+  Tonight (u1, 2026-11-25) it's This week (the night, voting closes or how
+  many are coming, who's picking, who's next), the Members list and the
+  last three films the club watched, with a collapsed "This week at a
+  glance" in the main column on phones. On History it's the club's
   member list, with the viewer's row marked "(you)" in words plus the
   accent highlight (`app/clubs/[clubId]/memberViews.tsx`), and for owners
   and admins an "Add a person →" link to the Members tab's form. It's
@@ -1034,9 +1040,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   night locking and the confirmAt threshold clearing rendered nothing at
   all — CLAUDE.md's confirmAt ruling only covers when the "Did you watch
   X?" prompt appears, not what shows before that. This section
-  (`app/clubs/[clubId]/page.tsx`) is pure display over data already on
-  hand (`films.runtime`, `nights.scheduledAt`, `nights.winningFilmId`) —
-  no new query shape, no new write, no new user action, and it only ever
+  (since u1, the locked hero in `app/clubs/[clubId]/_tonight/WatchStage.tsx`)
+  is pure display over the night and its film, plus the result through
+  `historyRead.ts`'s `closedTally` — no new write, no new user action,
+  and it only ever
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
   candidate night for either section). Its times use the app's one time
