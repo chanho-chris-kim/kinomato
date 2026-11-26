@@ -17,14 +17,6 @@ export function canCreateInvite(activeMemberCount: number, pendingInviteCount: n
   return activeMemberCount + pendingInviteCount < FREE_TIER_MEMBER_CAP;
 }
 
-// The owner types "Marco R."; the name step (/welcome) is prefilled with it
-// as its two fields. Only a greeting — the person sets their own name.
-export function parseInviteeName(name: string): { firstName: string; lastInitial: string } {
-  const match = /^(.+) ([A-Za-z])\.$/.exec(name.trim());
-  if (!match) return { firstName: name.trim(), lastInitial: "" };
-  return { firstName: match[1], lastInitial: match[2].toUpperCase() };
-}
-
 export type InviteView =
   | "replaced" // revoked, regenerated, or never existed — deliberately indistinguishable
   | "already_member" // the viewer is already in; the invite is someone else's seat, untouched

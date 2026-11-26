@@ -836,21 +836,31 @@ Do not quietly change these — they encode decisions that took a while to reach
   simultaneous redemptions is an accepted gap, and the cap is meant to
   change per plan once paid tiers exist, which a fixed DB check can't
   express as easily as an application-level read.
-- **To be replaced in u2 (ruled 2026-11-25, see "Display name" below);
-  stands until u2 ships.** **A name is first name + last initial, always — never a single free-
-  text field.** It lives on the account (`users.display_name`), one per
-  person, the same in every club — memberships carry no name. Set once at
-  the name step (`/welcome`), composed by `lib/memberName.ts`'s
-  `validateMemberName`/`composeDisplayName` (first name non-empty, last
-  initial exactly one letter, both trimmed, the initial uppercased), the
-  same validation wherever a name is typed: the name step and an owner
-  adding someone to invite. The owner's typed name is a greeting and the
-  name step's prefill, nothing more — the person sets their own. The
-  format is consistency, no longer load-bearing: nothing matches people
-  by name since claiming is gone. Pages read names through
-  `app/clubs/[clubId]/members.ts` (`nameOf`); an account that hasn't been
-  through `/welcome` yet shows as "Unnamed member". No email and no full
-  last name are ever shown to a club.
+- **A name is one free-text display name (built u2, 2026-11-26; it
+  replaced "first name + last initial", see "Display name" below).** It
+  lives on the account (`users.display_name`), one per person, the same in
+  every club — memberships carry no name. Null only until the name step
+  (`/welcome`), so it can't be NOT NULL: an account exists before it names
+  itself. `lib/displayName.ts` holds the rules: `validateDisplayName`
+  (trimmed, runs of spaces made one, 1–30 characters as people see them,
+  no control characters, and not "Former member" or "Unnamed member", the
+  app's own names), `nameKey` (the comparison: NFKC, case-folded, one space
+  between words), `findClash` and `shownName` (the display name, else
+  "Unnamed member"), which `nameOf` (`app/clubs/[clubId]/members.ts`), the
+  club cards and the deletion receipt all go through. **Unique within each
+  club among active members**, checked in the server actions that join or
+  rename (`app/displayNameClash.ts`): joining checks that club, inside
+  `redeemInvite`; a rename checks every club the person is in and names
+  the first that clashes, by club name. Someone who has left (left,
+  removed, or deleted: "Former member") never counts. A clash says
+  "Someone in {club} already goes by {name}. Pick another.", carried by the
+  form-echo cookie with only `nameTaken=1` in the URL. **An account with
+  no name yet joins at the name step**, once its name is accepted: sign-in
+  from an invite no longer redeems before `/welcome`, so a clash, or Under
+  13, creates nothing. An already-named account that clashes gets the
+  invite page's "Pick another display name" form (`joinInviteWithName`).
+  Two people choosing one name in the same instant is an accepted gap, as
+  with the seat cap. No email is ever shown to a club.
 - **A new club gets a distinct first-run prompt, not a generic empty
   state.** On Tonight (`/clubs/[clubId]`), while the owner is the only
   member and no night has ever finished, an owner or admin sees "Add the
@@ -1154,7 +1164,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   during sign-up and on Tonight's week. The guided first-time tour
   (`docs/roadmap.md`) stays separate.
 - **Invites are per person** (`docs/onboarding-spec.md` §7). An owner or
-  admin adds "First R." and gets a link for that one person
+  admin types their name, a greeting only (`lib/displayName.ts`
+  `validateInviteeName`, 1–30 characters), and gets a link for that one person
   (`/invite/[token]`, 128 random bits, stored as-is so it can be
   re-shared), which greets them by name, takes an email, and joins them
   after the code. Pending invites hold a seat (see the free-tier ruling).

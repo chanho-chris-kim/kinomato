@@ -81,8 +81,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
     let link = "";
     await as(browser, priya, async (page) => {
       await page.goto(`${clubUrl}/members`);
-      await page.getByLabel("First name").fill("Owen");
-      await page.getByLabel("Last initial").fill("R");
+      await page.getByLabel("Their name").fill("Owen R.");
       await page.getByRole("button", { name: "Create invite" }).click();
       link = await page.getByLabel("Invite link for Owen R.").inputValue();
     });
@@ -97,7 +96,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
       await page.getByRole("button", { name: "Continue" }).click();
       await finishCodeSignIn(page, email);
       // Prefilled from Priya's invite; he keeps it.
-      await expect(page.getByLabel("First name")).toHaveValue("Owen");
+      await expect(page.getByLabel("Display name")).toHaveValue("Owen R.");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
       await expectYouAre(page, "Owen R.");

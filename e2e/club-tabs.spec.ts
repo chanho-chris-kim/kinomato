@@ -56,7 +56,7 @@ test.describe("club tabs", () => {
     await expect(main.getByRole("heading", { name: "Members" })).toHaveCount(0);
     await expect(main.getByRole("heading", { name: /Invite/ })).toHaveCount(0);
     await expect(main.getByRole("heading", { name: "Add a person" })).toHaveCount(0);
-    await expect(main.getByLabel("First name")).toHaveCount(0);
+    await expect(main.getByLabel("Their name")).toHaveCount(0);
     await expect(main.getByRole("button", { name: "Create invite" })).toHaveCount(0);
     await expect(memberNames(page)).toHaveCount(0);
     await expect(main.getByText("(you)")).toHaveCount(0);

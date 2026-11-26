@@ -32,9 +32,10 @@ async function signInTo(page: Page, membershipId: string, url = `${CLUB_8_URL}/m
   await page.goto(url);
 }
 
+// The invite's name only greets them (ruled 2026-11-25); the specs use
+// "First L." greetings.
 async function createInvite(page: Page, firstName: string, lastInitial: string) {
-  await page.getByLabel("First name").fill(firstName);
-  await page.getByLabel("Last initial").fill(lastInitial);
+  await page.getByLabel("Their name").fill(`${firstName} ${lastInitial.toUpperCase()}.`);
   await page.getByRole("button", { name: "Create invite" }).click();
   await expect(page).toHaveURL(/\?invite=/);
 }
@@ -120,14 +121,13 @@ test.describe("per-person invites", () => {
 
       // Name step, prefilled with what Hana typed — a greeting only.
       await expect(page).toHaveURL(/\/welcome/);
-      await expect(page.getByLabel("First name")).toHaveValue("Marco");
-      await expect(page.getByLabel("Last initial")).toHaveValue("R");
-      await page.getByLabel("First name").fill("Marcus");
+      await expect(page.getByLabel("Display name")).toHaveValue("Marco R.");
+      await page.getByLabel("Display name").fill("Marcus R.");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
 
       await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));
-      await expect(page.getByText("You're in, Marcus.")).toBeVisible();
+      await expect(page.getByText("You're in, Marcus R.")).toBeVisible();
       await expectYouAre(page, "Marcus R.");
     });
     const row = await inviteRow(marcoLink.split("/invite/")[1]);
@@ -139,7 +139,7 @@ test.describe("per-person invites", () => {
     await asStranger(browser, async (stranger) => {
       await stranger.goto(marcoLink);
       await expect(
-        stranger.getByRole("heading", { name: "Marco's invite has already been used" }),
+        stranger.getByRole("heading", { name: "Marco R.'s invite has already been used" }),
       ).toBeVisible();
     });
     await signInTo(page, MEMBERSHIP_8.hana);

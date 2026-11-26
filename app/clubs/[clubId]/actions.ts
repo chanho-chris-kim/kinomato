@@ -23,7 +23,7 @@ import { getSessionUserId } from "@/app/session";
 import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
-import { validateMemberName } from "@/lib/memberName";
+import { validateInviteeName } from "@/lib/displayName";
 import { getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
 import { lockAtFor } from "@/lib/nightDeadlines";
 import { orderNominations } from "@/lib/nominationOrder";
@@ -565,10 +565,9 @@ async function insertInvite(
 // new invite's share panel open (?invite=).
 export async function createInvite(clubId: string, formData: FormData) {
   const { db, membership } = await requireOwnerOrAdmin(clubId, "manage invites");
-  const name = validateMemberName(
-    String(formData.get("firstName") ?? ""),
-    String(formData.get("lastInitial") ?? ""),
-  );
+  // A greeting only (ruled 2026-11-25): they choose their own display name
+  // when they join.
+  const name = validateInviteeName(String(formData.get("inviteeName") ?? ""));
   if ("error" in name) inviteError(clubId, name.error);
 
   const [active, pending] = await Promise.all([
@@ -579,7 +578,7 @@ export async function createInvite(clubId: string, formData: FormData) {
     inviteError(clubId, "Every seat is taken or held by a pending invite. Revoke one to free a seat.");
   }
 
-  const id = await insertInvite(db, clubId, name.displayName, membership.id);
+  const id = await insertInvite(db, clubId, name.name, membership.id);
   redirect(`/clubs/${clubId}/members?invite=${id}`);
 }
 

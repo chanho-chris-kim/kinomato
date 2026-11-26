@@ -1,5 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
@@ -14,7 +14,7 @@ import {
 import { LEGAL } from "../lib/legal";
 import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
-import { signInAs, signInAsUser } from "./session";
+import { signInAs } from "./session";
 import { existingAccount, finishCodeSignIn } from "./signIn";
 
 // Consent, data licensing and age (docs/onboarding-spec.md §11.1–§11.3;
@@ -91,12 +91,11 @@ test.describe("consent", () => {
       await expect(licensingBox(page)).toBeHidden();
       await page.getByLabel("18 or older").check();
 
-      await page.getByLabel("First name").fill("Nell");
-      await page.getByLabel("Last initial").fill("c");
+      await page.getByLabel("Display name").fill("Nell C.");
       // Required: without it, the server sends the form back.
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(alert(page)).toHaveText("To use Kinomato, agree to the Terms and the Privacy policy.");
-      await expect(page.getByLabel("First name")).toHaveValue("Nell");
+      await expect(page.getByLabel("Display name")).toHaveValue("Nell C.");
       await expect(page.getByLabel("18 or older")).toBeChecked();
       const before = (await userByEmail(email))!;
       expect([before.displayName, before.ageBracket]).toEqual([null, null]);
@@ -105,7 +104,7 @@ test.describe("consent", () => {
       await termsBox(page).check();
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page).toHaveURL("/");
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Nell");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Nell C.");
 
       const user = (await userByEmail(email))!;
       expect([user.displayName, user.ageBracket]).toEqual(["Nell C.", "18_plus"]);
@@ -131,8 +130,7 @@ test.describe("consent", () => {
     const email = "teen.consent@example.com";
     const { context, page, errors } = await newAccountOnWelcome(browser, email);
     try {
-      await page.getByLabel("First name").fill("Tam");
-      await page.getByLabel("Last initial").fill("D");
+      await page.getByLabel("Display name").fill("Tam D.");
       await page.getByLabel("13–17").check();
       await expect(licensingBox(page)).toBeHidden();
       await termsBox(page).check();
@@ -182,7 +180,7 @@ test.describe("consent", () => {
     await licensingBox(page).check();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Gus");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Gus T.");
 
     // First-ever acceptance: signup, not reconsent.
     const rows = await consentRows(MEMBER_USER.gus);
@@ -297,9 +295,9 @@ test.describe("consent", () => {
     await expect(page.locator("main")).not.toContainText("Fay's take");
   });
 
-  test("Under 13 on /welcome leaves no account behind and puts the invite back", async ({ browser, page }) => {
-    // A club whose owner has already picked, so the invitee is next in the
-    // rotation and the owner's Tonight drafts a night for them.
+  test("Under 13 on /welcome leaves no account behind and puts the invite back", async ({ browser }) => {
+    // A club whose owner has already picked, so the invitee would be next in
+    // the rotation once they joined.
     const ownerId = crypto.randomUUID();
     const clubId = crypto.randomUUID();
     const ownerMembershipId = crypto.randomUUID();
@@ -361,23 +359,16 @@ test.describe("consent", () => {
       await finishCodeSignIn(kid, email);
       await expect(kid).toHaveURL(/\/welcome/);
 
-      // The invite is redeemed and the membership exists at this point, and
-      // the owner's Tonight drafts the next night for the newcomer.
+      // Nothing has joined yet: since u2 (ruled 2026-11-25) the name step joins
+      // them once a display name is accepted, so at this point there's no
+      // membership and the invite is still unredeemed.
       const ned = (await userByEmail(email))!;
-      const [membership] = await withDb((db) =>
-        db.select().from(schema.memberships).where(eq(schema.memberships.userId, ned.id)),
-      );
-      expect(membership.clubId).toBe(clubId);
-      await signInAsUser(page, ownerId);
-      await page.goto(`/clubs/${clubId}`);
-      const drafts = () =>
-        withDb((db) =>
-          db
-            .select()
-            .from(schema.nights)
-            .where(and(eq(schema.nights.clubId, clubId), inArray(schema.nights.state, ["draft"]))),
-        );
-      expect((await drafts()).map((n) => n.pickerMembershipId)).toEqual([membership.id]);
+      const inviteNow = async () =>
+        (await withDb((db) => db.select().from(schema.invites).where(eq(schema.invites.id, inviteId))))[0];
+      expect(
+        await withDb((db) => db.select().from(schema.memberships).where(eq(schema.memberships.userId, ned.id))),
+      ).toEqual([]);
+      expect((await inviteNow()).redeemedAt).toBeNull();
 
       await kid.getByLabel("Under 13").check();
       await kid.getByRole("button", { name: "Continue" }).click();
@@ -396,10 +387,9 @@ test.describe("consent", () => {
       expect([left.users, left.sessions, left.memberships, left.magicLinks, left.consent]).toEqual([[], [], [], [], []]);
       // The seat is free again and the link works for whoever it's for.
       expect([left.invite.redeemedAt, left.invite.redeemedByUserId, left.invite.revokedAt]).toEqual([null, null, null]);
-      expect(await drafts()).toEqual([]);
 
       await kid.goto(`/invite/${token}`);
-      await expect(kid.getByRole("heading", { level: 1 })).toHaveText("Hi Ned");
+      await expect(kid.getByRole("heading", { level: 1 })).toHaveText("Hi Ned P.");
       expect(errors).toEqual([]);
     } finally {
       await context.close();

@@ -658,7 +658,7 @@ export default async function ClubPage({
       )}
       {joined && (
         <div className="note mt14">
-          <p className="small flush">You&apos;re in, {nameOf(currentMembership).replace(/ [A-Za-z]\.$/, "")}.</p>
+          <p className="small flush">You&apos;re in, {nameOf(currentMembership)}.</p>
         </div>
       )}
 

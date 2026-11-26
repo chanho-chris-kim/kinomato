@@ -163,8 +163,11 @@ export async function completeSignIn(
   };
 
   if (link.inviteId) {
-    const result = await redeemInvite(db, link.inviteId, user.id);
-    return withNameStep(redeemDestination(result), link.inviteId);
+    // No name yet: the name step joins them, once their display name is
+    // chosen and checked against the club's (ruled 2026-11-25), so a clash
+    // never leaves a membership behind.
+    if (!user.displayName) return withNameStep("/", link.inviteId);
+    return redeemDestination(await redeemInvite(db, link.inviteId, user.id));
   }
   return withNameStep(safePath(returnTo));
 }

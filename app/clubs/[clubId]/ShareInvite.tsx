@@ -19,8 +19,8 @@ export function ShareInvite({
   clubName: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const first = inviteeName.replace(/ [A-Za-z]\.$/, "");
-  const text = `Hi ${first} — join ${clubName} on Kinomato`;
+  // The inviter's greeting, as typed (ruled 2026-11-25).
+  const text = `Hi ${inviteeName} — join ${clubName} on Kinomato`;
 
   async function share() {
     if (typeof navigator.share === "function") {

@@ -29,9 +29,8 @@ async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => 
 const nameOf = (userId: string) =>
   withDb(async (db) => (await db.select().from(schema.users).where(eq(schema.users.id, userId)))[0].displayName);
 
-async function saveName(page: Page, first: string, initial: string) {
-  await page.getByLabel("First name").fill(first);
-  await page.getByLabel("Last initial").fill(initial);
+async function saveName(page: Page, displayName: string) {
+  await page.getByLabel("Display name").fill(displayName);
   await page.getByRole("button", { name: "Save name" }).click();
 }
 
@@ -45,18 +44,17 @@ test.describe("settings", () => {
   test("a rename shows on /, Members, the rail and History, past nights included", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_HISTORY.rae);
     await page.goto("/settings");
-    await expect(page.getByLabel("First name")).toHaveValue("Rae");
-    await expect(page.getByLabel("Last initial")).toHaveValue("D");
+    await expect(page.getByLabel("Display name")).toHaveValue(RAE);
 
-    await saveName(page, "Raya", "q");
+    // Spaces around it are trimmed; it's kept as typed otherwise.
+    await saveName(page, "  Raya Q.  ");
     await expect(page).toHaveURL("/settings?saved=name");
     await expect(page.locator("main").getByRole("status")).toHaveText("Saved.");
-    await expect(page.getByLabel("First name")).toHaveValue("Raya");
-    await expect(page.getByLabel("Last initial")).toHaveValue("Q");
+    await expect(page.getByLabel("Display name")).toHaveValue("Raya Q.");
     expect(await nameOf(MEMBER_USER.rae)).toBe("Raya Q.");
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Raya");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Raya Q.");
 
     await page.goto(`/clubs/${HISTORY_CLUB_ID}/members`);
     await expect(page.locator("main .member-name").filter({ hasText: "(you)" })).toHaveText(["Raya Q. (you)"]);
@@ -78,13 +76,12 @@ test.describe("settings", () => {
     await signInAs(page, MEMBERSHIP_HISTORY.rae);
     await page.goto("/settings");
     const before = await nameOf(MEMBER_USER.rae);
-    await saveName(page, "Ray", "7");
+    await saveName(page, "Former member");
     await expect(page).toHaveURL(/\/settings\?error=/);
-    await expect(page.locator("main").getByRole("alert")).toHaveText("Last initial must be exactly one letter.");
+    await expect(page.locator("main").getByRole("alert")).toHaveText("That name is reserved. Pick another.");
     await expect(page.locator("main").getByRole("status")).toHaveCount(0);
     // What was typed stays in the form to fix.
-    await expect(page.getByLabel("First name")).toHaveValue("Ray");
-    await expect(page.getByLabel("Last initial")).toHaveValue("7");
+    await expect(page.getByLabel("Display name")).toHaveValue("Former member");
     expect(await nameOf(MEMBER_USER.rae)).toBe(before);
   });
 

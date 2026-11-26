@@ -8,7 +8,7 @@ import { canOptInToLicensing, isLicensingActive } from "@/lib/consent";
 import { currentLegal } from "@/lib/legal";
 import { GlobalShell } from "@/app/shell";
 import { readFormEcho } from "@/app/formEcho";
-import { parseInviteeName } from "@/lib/invites";
+import { clashMessage } from "@/lib/displayName";
 import {
   cancelEmailChangeAction,
   requestAccountDeletionAction,
@@ -40,12 +40,14 @@ export default async function SettingsPage({
     emailError?: string;
     sharing?: string;
     deleteError?: string;
+    nameTaken?: string;
   }>;
 }) {
-  const { error, saved, emailChange: emailStatus, emailError, sharing, deleteError } = await searchParams;
+  const { error, saved, emailChange: emailStatus, emailError, sharing, deleteError, nameTaken } = await searchParams;
   // After a mistake, what was typed comes back from the form-echo cookie,
-  // never the URL (app/formEcho.ts, §11.6).
-  const { first, initial } = error ? await readFormEcho() : {};
+  // never the URL (app/formEcho.ts, §11.6); a clash's club and name too.
+  const echo = error || nameTaken ? await readFormEcho() : {};
+  const nameError = error ?? (nameTaken && echo.takenIn ? clashMessage(echo.takenIn, echo.displayName ?? "") : null);
   const user = await requireUser("/settings");
   // eslint-disable-next-line react-hooks/purity -- a Server Component, once per request
   const pending = await pendingEmailChange(getDb(), user.id, new Date(Date.now()));
@@ -65,9 +67,7 @@ export default async function SettingsPage({
     .map((c) => ({ clubId: c.clubId, clubName: c.clubName, muted: c.mutedAt !== null }))
     .sort((a, b) => a.clubName.localeCompare(b.clubName));
   // After a mistake, the form shows what was typed; otherwise the saved name.
-  const current = parseInviteeName(user.displayName ?? "");
-  const firstName = error ? (first ?? "") : current.firstName;
-  const lastInitial = error ? (initial ?? "") : current.lastInitial;
+  const displayName = nameError ? (echo.displayName ?? "") : (user.displayName ?? "");
 
   return (
     <GlobalShell current="settings">
@@ -79,30 +79,31 @@ export default async function SettingsPage({
         <h2 id="your-name" className="sec">
           Your name
         </h2>
-        <p className="small muted" style={{ margin: "4px 0 0" }}>
-          First name and last initial. It&apos;s how you show up in every club.
+        <p id="display-name-hint" className="small muted" style={{ margin: "4px 0 0" }}>
+          How you&apos;ll show up in your clubs. A nickname is fine.
         </p>
-        {error && (
-          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
-            {error}
+        {nameError && (
+          <p className="small mt-1 warn" role="alert">
+            {nameError}
           </p>
         )}
-        {saved === "name" && !error && (
+        {saved === "name" && !nameError && (
           <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
             Saved.
           </p>
         )}
         <form action={updateName} className="name-row mt14">
           <label className="small muted name-first">
-            First name
+            Display name
             <div className="search mt-1">
-              <input name="firstName" defaultValue={firstName} required autoComplete="given-name" />
-            </div>
-          </label>
-          <label className="small muted name-initial">
-            Last initial
-            <div className="search mt-1">
-              <input name="lastInitial" defaultValue={lastInitial} required maxLength={1} />
+              <input
+                name="displayName"
+                defaultValue={displayName}
+                required
+                maxLength={30}
+                autoComplete="nickname"
+                aria-describedby="display-name-hint"
+              />
             </div>
           </label>
           <button type="submit" className="btn">

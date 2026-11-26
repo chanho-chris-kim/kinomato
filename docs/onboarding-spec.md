@@ -336,8 +336,11 @@ in as marco@example.com": explicit, never silent.
 ### 5.6 Name step — `/welcome` (once per account)
 
 Runs exactly once, the first time an account without a display name signs
-in. "What should your club call you?" First name + last initial, validated
-by the existing `validateMemberName`.
+in. "What should your club call you?" **Since u2 (2026-11-26): one
+"Display name" field**, "How you'll show up in your clubs. A nickname is
+fine. You can change it in Settings.", validated by `lib/displayName.ts`
+(1–30 characters) and unique among the club's active members (§5.13). An
+invitee joins here, once the name is accepted, so a clash creates nothing.
 
 **Arriving from an invite, it's prefilled** with the name the owner typed
 ("Marco", "R."). One tap to accept, or edit. (Ruled: the owner's typed
@@ -418,7 +421,8 @@ invited.
 **Exactly this, nothing more** (this is the scope that supersedes "no account
 settings page"):
 
-- **Your name**: first name + last initial, same validation as §5.6.
+- **Display name** (since u2): one field, same validation as §5.6, and free
+  in every club you're in; a clash names the first club.
 - **Email**: shows the current address. **Change** sends a code to the
   *new* address; the change applies only once that code is entered. Until
   then, the old address stays.
@@ -541,7 +545,8 @@ the club's real member list, as today.
     and a status: *Not started* / *Started* (email submitted, not yet
     verified). Owner/admin see **Share**, **Regenerate**, **Revoke** per
     invite.
-  - **Add a person** (owner/admin): first name + last initial, **Create
+  - **Add a person** (owner/admin): "Their name" (since u2: a greeting
+    only; they choose their own display name when they join), **Create
     invite** → the share sheet opens immediately. Seat counter: "4 of 6."
   - **Your limits in this club**: hard limits and soft preferences, per
     membership (ruled, §1, decision 8), with "apply even on weeks I'm out." Moved
@@ -1221,8 +1226,8 @@ genuine secondary content (CLAUDE.md).
 
 ### 7.1 End to end
 
-1. **Owner (or admin) adds a person.** On Members → Add a person: first name +
-   last initial. Refused if the club's **active members + pending invites**
+1. **Owner (or admin) adds a person.** On Members → Add a person: their name,
+   a greeting only (since u2). Refused if the club's **active members + pending invites**
    already total 6. (Ruled: pending invites hold a seat,
    so "4 of 6" means what it says.)
 2. **An invite is created.** New `invites` table:

@@ -47,16 +47,15 @@ test.describe("no personal data in URLs", () => {
       await expect(page).toHaveURL(/\/welcome/);
 
       // A mistake keeps what was typed, without putting it in the URL.
-      await page.getByLabel("First name").fill("Ursula");
-      await page.getByLabel("Last initial").fill("7");
+      // (One of the app's own names, so it's refused.)
+      await page.getByLabel("Display name").fill("Former member");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page.locator("main").getByRole("alert")).toHaveText("Last initial must be exactly one letter.");
-      await expect(page.getByLabel("First name")).toHaveValue("Ursula");
-      await expect(page.getByLabel("Last initial")).toHaveValue("7");
+      await expect(page.locator("main").getByRole("alert")).toHaveText("That name is reserved. Pick another.");
+      await expect(page.getByLabel("Display name")).toHaveValue("Former member");
       await expect(page.getByLabel("18 or older")).toBeChecked();
 
-      await page.getByLabel("Last initial").fill("v");
+      await page.getByLabel("Display name").fill("Ursula V.");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page).toHaveURL("/watchlist");
@@ -117,7 +116,7 @@ test.describe("no personal data in URLs", () => {
       await expect(page).toHaveURL("/login/code");
       await finishCodeSignIn(page, email);
       await expect(page).toHaveURL(/\/welcome/);
-      await expect(page.getByLabel("First name")).toHaveValue("Ivor");
+      await expect(page.getByLabel("Display name")).toHaveValue(/^Ivor/);
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page).toHaveURL(`/clubs/${clubId}?joined=1`);
@@ -157,18 +156,16 @@ test.describe("no personal data in URLs", () => {
     const urls = recordRequestUrls(page);
     await signInAs(page, MEMBERSHIP_RATING.quin);
     await page.goto("/settings");
-    await page.getByLabel("First name").fill("Quentin");
-    await page.getByLabel("Last initial").fill("9");
+    await page.getByLabel("Display name").fill("Unnamed member");
     await page.getByRole("button", { name: "Save name" }).click();
-    await expect(page.locator("main").getByRole("alert")).toHaveText("Last initial must be exactly one letter.");
-    await expect(page.getByLabel("First name")).toHaveValue("Quentin");
-    await expect(page.getByLabel("Last initial")).toHaveValue("9");
+    await expect(page.locator("main").getByRole("alert")).toHaveText("That name is reserved. Pick another.");
+    await expect(page.getByLabel("Display name")).toHaveValue("Unnamed member");
     // Nothing saved.
     const [quin] = await withDb((db) => db.select().from(schema.users).where(eq(schema.users.id, MEMBER_USER.quin)));
     expect(quin.displayName).toBe("Quin M.");
     // Reloading later shows the saved name, not the stale echo.
     await page.goto("/settings");
-    await expect(page.getByLabel("First name")).toHaveValue("Quin");
-    expectNoneContain(urls, "Quentin");
+    await expect(page.getByLabel("Display name")).toHaveValue("Quin M.");
+    expectNoneContain(urls, "Unnamed", "Unnamed%20member");
   });
 });

@@ -38,10 +38,10 @@ async function nightCount() {
 }
 
 test.describe("club cards on /", () => {
-  test("greets Kit by first name, with one card per club, each linking to it", async ({ page }) => {
+  test("greets Kit by display name, with one card per club, each linking to it", async ({ page }) => {
     await signInAs(page, MEMBERSHIP_HOME.kit.vote);
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Kit");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Kit K.");
     await expect(cards(page)).toHaveCount(4);
     for (const key of Object.keys(HOME_CLUB) as (keyof typeof HOME_CLUB)[]) {
       await expect(card(page, key)).toHaveAttribute("href", `/clubs/${HOME_CLUB[key]}`);
@@ -119,7 +119,7 @@ test.describe("club cards on /", () => {
     await nameYourself(page, "Eve", "N");
     await expect(page).toHaveURL("/");
 
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Eve");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Eve N.");
     await expect(page.getByText("You're not in a club yet.")).toBeVisible();
     const start = page.locator("main").getByRole("link", { name: "Start a club" });
     await expect(start).toHaveCount(1);

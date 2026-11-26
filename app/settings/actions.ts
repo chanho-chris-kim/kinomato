@@ -10,29 +10,35 @@ import { clearSessionCookie, endAllSessions, endOtherSessions, endSession } from
 import { cancelEmailChange, confirmEmailChange, requestEmailChange } from "@/app/emailChange";
 import { optInToLicensing, withdrawFromLicensing } from "@/app/consent";
 import { cancelAccountDeletion, confirmAccountDeletion, requestAccountDeletion } from "@/app/accountDeletion";
-import { validateMemberName } from "@/lib/memberName";
+import { validateDisplayName } from "@/lib/displayName";
+import { activeClubIdsByName, clashingClub } from "@/app/displayNameClash";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 
 // Settings (docs/onboarding-spec.md §5.9).
 
-// Your name: first name + last initial, the same validation as the name
-// step (§5.6). Names live on the account, so a rename shows everywhere at
-// once, past History nights and invite previews included (§5.9 ruling).
-// A mistake goes back to the form with the message (CLAUDE.md: validation
-// errors redirect with ?error=), and nothing is saved.
+// Your display name (ruled 2026-11-25, u2): free text, 1–30 characters,
+// and free in every club you're in, the first clash (by club name) named.
+// Names live on the account, so a rename shows everywhere at once, past
+// History nights and invite previews included (§5.9 ruling). A mistake
+// goes back to the form (CLAUDE.md: validation errors redirect with
+// ?error=), and nothing is saved; a clash names a person, so it comes back
+// through the form-echo cookie with only a flag in the URL.
 export async function updateName(formData: FormData) {
   const user = await requireUser("/settings");
-  const firstName = String(formData.get("firstName") ?? "");
-  const lastInitial = String(formData.get("lastInitial") ?? "");
+  const typed = String(formData.get("displayName") ?? "");
   await clearFormEcho("/settings");
-  const result = validateMemberName(firstName, lastInitial);
+  const result = validateDisplayName(typed);
   if ("error" in result) {
-    // What was typed goes back through the form-echo cookie, never the
-    // URL (§11.6).
-    await setFormEcho("/settings", { first: firstName, initial: lastInitial });
+    await setFormEcho("/settings", { displayName: typed });
     redirect(`/settings?${new URLSearchParams({ error: result.error })}`);
   }
-  await getDb().update(users).set({ displayName: result.displayName }).where(eq(users.id, user.id));
+  const db = getDb();
+  const takenIn = await clashingClub(db, user.id, result.displayName, await activeClubIdsByName(db, user.id));
+  if (takenIn) {
+    await setFormEcho("/settings", { displayName: result.displayName, takenIn });
+    redirect("/settings?nameTaken=1");
+  }
+  await db.update(users).set({ displayName: result.displayName }).where(eq(users.id, user.id));
   revalidatePath("/", "layout");
   redirect("/settings?saved=name");
 }

@@ -14,6 +14,7 @@ import {
   sortClubCards,
   statusText,
 } from "@/lib/clubStatus";
+import { shownName } from "@/lib/displayName";
 
 export interface ClubCard {
   clubId: string;
@@ -124,7 +125,7 @@ export async function loadClubCards(
       nextAt: next.kind === "at" ? next.at : null,
       status: statusText(status, {
         viewerMembershipId: membershipId,
-        nameOf: (id) => members.find((m) => m.id === id)?.name ?? "Unnamed member",
+        nameOf: (id) => shownName(members.find((m) => m.id === id)?.name),
         filmTitle: (id) => filmRows.find((f) => f.id === id)?.title ?? "this film",
       }),
       action: isActionStatus(status),

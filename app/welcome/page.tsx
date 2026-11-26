@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { invites, users } from "@/db/schema";
 import { safePath } from "@/app/baseUrl";
 import { getSessionUserId } from "@/app/session";
-import { parseInviteeName } from "@/lib/invites";
+import { clashMessage } from "@/lib/displayName";
 import { saveWelcome } from "./actions";
 import { consentGapsFor } from "@/app/consent";
 import { ConsentFields } from "@/app/consentFields";
@@ -13,10 +13,11 @@ import { readFormEcho } from "@/app/formEcho";
 
 // Runs once, the first time an account with no name signs in
 // (docs/onboarding-spec.md §5.6): the name, then the consent controls
-// (§11.1–§11.3, app/consentFields.tsx). Arriving from an invite, the name
-// is prefilled with what the owner typed — a greeting only; the person
-// sets their own. Exempt from the consent gate: it is where that gate
-// sends a new account.
+// (§11.1–§11.3, app/consentFields.tsx). One free-text display name (ruled
+// 2026-11-25, u2). Arriving from an invite, it's prefilled with what the
+// inviter typed — a greeting only; the person sets their own, and joining
+// happens here once it's checked against the club's names. Exempt from the
+// consent gate: it is where that gate sends a new account.
 export default async function WelcomePage({
   searchParams,
 }: {
@@ -24,12 +25,14 @@ export default async function WelcomePage({
     next?: string;
     invite?: string;
     error?: string;
+    nameTaken?: string;
   }>;
 }) {
-  const { next: rawNext, invite: inviteId, error } = await searchParams;
+  const { next: rawNext, invite: inviteId, error, nameTaken } = await searchParams;
   // After a mistake, what was typed comes back from the form-echo cookie,
   // never the URL (app/formEcho.ts, §11.6).
-  const { first, initial, age } = error ? await readFormEcho() : {};
+  const echo = error || nameTaken ? await readFormEcho() : {};
+  const message = error ?? (nameTaken && echo.takenIn ? clashMessage(echo.takenIn, echo.displayName ?? "") : null);
   const next = safePath(rawNext);
   const userId = await getSessionUserId();
   if (!userId) redirect("/login");
@@ -42,14 +45,10 @@ export default async function WelcomePage({
     redirect(gaps.length ? `/consent?${new URLSearchParams({ next })}` : next);
   }
 
-  let suggested = { firstName: "", lastInitial: "" };
-  let inviteeName: string | null = null;
+  let suggested = "";
   if (inviteId && /^[0-9a-f-]{36}$/i.test(inviteId)) {
     const [invite] = await db.select().from(invites).where(eq(invites.id, inviteId));
-    if (invite) {
-      inviteeName = invite.inviteeName;
-      suggested = parseInviteeName(invite.inviteeName);
-    }
+    if (invite) suggested = invite.inviteeName;
   }
 
   return (
@@ -60,43 +59,39 @@ export default async function WelcomePage({
           <h1 className="h-display" style={{ fontSize: 28 }}>
             What should your club call you?
           </h1>
-          <p className="small muted mt-1">First name and last initial. That&apos;s how you&apos;ll show up in every club.</p>
-          {error && (
-            <p className="small mt14" role="alert" style={{ color: "var(--warn)" }}>
-              {error}
+          {message && (
+            <p className="small mt14 warn" role="alert">
+              {message}
             </p>
           )}
           <form action={saveWelcome} className="consent-form stack gap14 mt20">
-            <div className="name-row">
-              <label className="small muted name-first">
-                First name
-                <div className="search mt-1">
-                  <input name="firstName" required autoComplete="given-name" defaultValue={first ?? suggested.firstName} />
-                </div>
-              </label>
-              <label className="small muted name-initial">
-                Last initial
-                <div className="search mt-1">
-                  <input name="lastInitial" required maxLength={1} defaultValue={initial ?? suggested.lastInitial} />
-                </div>
-              </label>
-            </div>
+            <label className="small muted">
+              Display name
+              <div className="search mt-1">
+                <input
+                  name="displayName"
+                  required
+                  maxLength={30}
+                  autoComplete="nickname"
+                  aria-describedby="display-name-hint"
+                  defaultValue={echo.displayName ?? suggested}
+                />
+              </div>
+            </label>
+            <p id="display-name-hint" className="tiny dim flush">
+              How you&apos;ll show up in your clubs. A nickname is fine. You can change it in Settings.
+            </p>
             <ConsentFields
               askAge={!user.ageBracket}
               askTerms
               licensing={user.ageBracket === "13_17" ? "never" : user.ageBracket ? "always" : "with-adult-age"}
-              age={age}
+              age={echo.age}
             />
             <input type="hidden" name="next" value={next} />
             {inviteId && <input type="hidden" name="invite" value={inviteId} />}
             <button type="submit" className="btn primary">
               Continue
             </button>
-            {inviteeName && (
-              <p className="tiny dim" style={{ margin: 0 }}>
-                You were invited as {inviteeName}. That&apos;s only the greeting — change it if it&apos;s not how you go.
-              </p>
-            )}
           </form>
         </div>
       </main>
