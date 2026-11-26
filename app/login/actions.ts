@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { issueSignIn } from "@/app/signIn";
+import { issueSignIn, latestSignInFor } from "@/app/signIn";
 import { codeScreenUrl, getSignInEmail, setSignInEmailCookie } from "@/app/signInCookie";
 import { normaliseEmail } from "@/lib/emailAddress";
 
@@ -29,7 +29,12 @@ export async function requestLogin(formData: FormData) {
   }
 
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const result = await issueSignIn(db, { email });
+  // The code screen's Resend (no typed address): a code first sent from an
+  // invite link stays tied to that invite (u3). Without it, a new invitee's
+  // resend while sign-up is closed got the invite-only email and no code.
+  const latest = typed ? null : await latestSignInFor(db, email);
+  const inviteId = latest && !latest.consumedAt ? (latest.inviteId ?? undefined) : undefined;
+  const result = await issueSignIn(db, { email, inviteId });
   await setSignInEmailCookie(email);
   redirect(codeScreenUrl(returnTo, result.sent ? undefined : "wait"));
 }

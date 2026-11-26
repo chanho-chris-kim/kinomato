@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { constraints, films, memberships, watchlistItems } from "@/db/schema";
 import { eligibleForNomination } from "@/lib/eligibility";
-import { chooseHelpFilms } from "@/lib/nominationHelp";
+import { chooseHelpFilms, chooseWantedFilms } from "@/lib/nominationHelp";
 import { overlapByFilm as countOverlap } from "@/lib/watchlistOverlap";
 import { NO_CLUB_RULES, visibleToClub } from "@/lib/watchlistVisibility";
 
@@ -133,6 +133,71 @@ export async function nominatableFilms(
 // that pass every active member's hard limits (eligibleForNomination),
 // aren't on the picker's own list, most wanted first, at most six
 // (lib/nominationHelp.ts). Only counts leave here, never who wants what.
+// The viewer's own list, as film ids, for the club welcome page (u3): how
+// many they've added, and which search results are already on it. Their
+// own rows only.
+export async function ownFilmIds(db: Db, userId: string): Promise<Set<string>> {
+  const rows = await db.select({ filmId: watchlistItems.filmId }).from(watchlistItems).where(eq(watchlistItems.userId, userId));
+  return new Set(rows.map((r) => r.filmId));
+}
+
+// "Wanted in {club}" on the club welcome page (u3): the same films as
+// helpFilmsFor (others' visible lists, fitting every active member's hard
+// limits), but a film already on your list stays, flagged, so the page can
+// say "Added ✓". Counts only, never names.
+export async function wantedInClub(
+  db: Db,
+  clubId: string,
+  userId: string,
+): Promise<{ id: string; tmdbId: number; title: string; year: number; othersWant: number; onMyList: boolean }[]> {
+  const items = await clubVisibleItems(db, clubId);
+  const mine = new Set(items.filter((i) => i.userId === userId).map((i) => i.filmId));
+  const wanters = new Map<string, Set<string>>();
+  for (const i of items) {
+    if (i.userId === userId) continue;
+    wanters.set(i.filmId, (wanters.get(i.filmId) ?? new Set()).add(i.userId));
+  }
+  const eligible = await eligibleInClub(db, clubId, [...wanters.keys()]);
+  return chooseWantedFilms(
+    eligible.map((f) => ({
+      id: f.id,
+      tmdbId: f.tmdbId,
+      title: f.title,
+      year: f.year,
+      othersWant: wanters.get(f.id)!.size,
+      onMyList: mine.has(f.id),
+    })),
+  );
+}
+
+// These films, less any an active member's hard limit excludes
+// (lib/eligibility.ts): nothing says why one is missing.
+async function eligibleInClub(db: Db, clubId: string, filmIds: string[]) {
+  if (filmIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: films.id,
+      tmdbId: films.tmdbId,
+      title: films.title,
+      year: films.year,
+      genreIds: films.genreIds,
+      keywordIds: films.keywordIds,
+      runtime: films.runtime,
+      originalLanguage: films.originalLanguage,
+    })
+    .from(films)
+    .where(inArray(films.id, filmIds));
+  const active = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.clubId, clubId), isNull(memberships.leftAt)));
+  const activeIds = active.map((m) => m.id);
+  const limits = activeIds.length
+    ? await db.select().from(constraints).where(inArray(constraints.membershipId, activeIds))
+    : [];
+  return eligibleForNomination(rows, limits, activeIds);
+}
+
 export async function helpFilmsFor(
   db: Db,
   clubId: string,

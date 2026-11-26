@@ -22,7 +22,7 @@ test.describe("gating", () => {
     const path = `/clubs/${CLUB_8_ID}`;
     await page.goto(path);
     await page.getByLabel("Email").fill("ivo@example.com");
-    await page.getByRole("button", { name: "Send code" }).click();
+    await page.getByRole("button", { name: "Send my code" }).click();
     await finishCodeSignIn(page, "ivo@example.com");
     await expect(page).toHaveURL(path);
     await expectYouAre(page, DISPLAY_NAME_8.ivo);

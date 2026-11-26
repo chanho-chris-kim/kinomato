@@ -26,7 +26,7 @@ test.describe("club creation and invites", () => {
       await existingAccount("robin.creates@example.com");
       await owner.page.goto("/new");
       await owner.page.getByLabel("Email").fill("robin.creates@example.com");
-      await owner.page.getByRole("button", { name: "Send code" }).click();
+      await owner.page.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(owner.page, "robin.creates@example.com");
       await nameYourself(owner.page, "Robin", "B");
       await owner.page.getByLabel("Club name").fill("E2E Test Club");
@@ -48,10 +48,12 @@ test.describe("club creation and invites", () => {
       const friend = await newPage();
       await friend.page.goto(samLink);
       await friend.page.getByLabel("Your email").fill("sam.joins@example.com");
-      await friend.page.getByRole("button", { name: "Continue" }).click();
+      await friend.page.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(friend.page, "sam.joins@example.com");
       await nameYourself(friend.page, "Sam", "K");
-      await expect(friend.page).toHaveURL(new RegExp(`${clubUrl}\\?joined=1`));
+      // A new invitee lands on the club's welcome page (u3).
+      await expect(friend.page).toHaveURL(`${clubUrl}/welcome`);
+      await friend.page.goto(clubUrl);
       await expectYouAre(friend.page, "Sam K.");
 
       // --- Both now see each other. ---

@@ -83,7 +83,7 @@ const inviteRow = async (inviteId: string) =>
 async function toNameStep(page: Page, token: string, email: string) {
   await page.goto(`/invite/${token}`);
   await page.getByLabel("Your email").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Send my code" }).click();
   await finishCodeSignIn(page, email);
   await expect(page).toHaveURL(/\/welcome/);
 }
@@ -103,8 +103,9 @@ test.describe("display name", () => {
       await page.getByLabel("Display name").fill("   Alfie   the  Great  ");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page).toHaveURL(new RegExp(`/clubs/${c.clubId}\\?joined=1`));
-      await expect(page.getByText("You're in, Alfie the Great.")).toBeVisible();
+      await expect(page).toHaveURL(`/clubs/${c.clubId}/welcome`);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("You're in, Alfie the Great");
+      await page.goto(`/clubs/${c.clubId}`);
       expect((await userByEmail(email)).displayName).toBe("Alfie the Great");
 
       // Everywhere a name shows: the rail, Members, and the export.
@@ -150,7 +151,7 @@ test.describe("display name", () => {
       await page.getByLabel("Display name").fill("Benji");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page).toHaveURL(new RegExp(`/clubs/${c.clubId}\\?joined=1`));
+      await expect(page).toHaveURL(`/clubs/${c.clubId}/welcome`);
       expect((await userByEmail(email)).displayName).toBe("Benji");
       expect((await inviteRow(inviteId)).redeemedAt).not.toBeNull();
     } finally {

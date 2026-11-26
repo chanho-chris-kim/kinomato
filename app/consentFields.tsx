@@ -6,7 +6,11 @@ import { currentLegal } from "@/lib/legal";
 // className="consent-form">. No JavaScript: the data-sharing box, when it
 // depends on the age, is shown by CSS only while "18 or older" is chosen
 // (app/globals.css), and the server drops a 13–17 opt-in whatever is sent
-// (app/consent.ts recordConsent).
+// (app/consent.ts recordConsent). Since u3: the age as three large options
+// (real radios in 48px labels), the Terms box in its own card, and data
+// sharing as one line whose full wording, unchanged, is under "More about
+// this". The box is still unticked until someone ticks it, and an opt-in
+// still counts only for the wording version it was given against.
 export function ConsentFields({
   askAge,
   askTerms,
@@ -25,7 +29,7 @@ export function ConsentFields({
   return (
     <>
       {askAge && (
-        <fieldset className="consent-age">
+        <fieldset className="consent-age age-options">
           <legend className="small muted">How old are you?</legend>
           {(
             [
@@ -34,7 +38,7 @@ export function ConsentFields({
               ["18_plus", "18 or older"],
             ] as const
           ).map(([value, label]) => (
-            <label key={value} className="consent-choice">
+            <label key={value} className="consent-choice age-option">
               <input type="radio" name="age" value={value} required defaultChecked={age === value} />
               {label}
             </label>
@@ -43,7 +47,7 @@ export function ConsentFields({
       )}
 
       {askTerms && (
-        <label className="consent-choice consent-terms">
+        <label className="consent-choice consent-terms card">
           {/* Not `required`: "Under 13" must submit without it, and only the
               server can tell (lib/consent.ts readConsentForm, which refuses
               anything else without the box). */}
@@ -67,10 +71,15 @@ export function ConsentFields({
           <label className="consent-choice">
             <input type="checkbox" name="licensing" />
             <span>
-              <span className="consent-optional">Optional. </span>
-              {legal.licensing.text}
+              <span className="consent-optional">Optional:</span> include my activity in anonymous film-industry
+              trends. Never anything that identifies me.
             </span>
           </label>
+          {/* The full wording the opt-in is given against, unchanged. */}
+          <details className="licensing-more">
+            <summary className="small">More about this</summary>
+            <p className="small muted licensing-wording">{legal.licensing.text}</p>
+          </details>
         </div>
       )}
     </>

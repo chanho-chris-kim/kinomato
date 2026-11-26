@@ -17,8 +17,8 @@ a step ships, in the same branch. Recorded 2026-11-24 (approved by Chanho).
 |---|---|---|---|
 | 1 | d0 foundations | done (2026-11-24, #51) | Contrast, focus, 44px targets, semantic tokens, one time format, Seen from removed, and `npm run audit:screens` to compare every redesign step. |
 | u1 | Redesign: Tonight | done (2026-11-25, #54) | The week at a glance: a week bar (Nominate → Vote → Locked → Watch → Rate), one "do this now" card, poster-card voting with "Your vote ✓", the locked film as the hero, one slider per score, "I was there" until the reveal, and the "Show vote counts while voting is open" setting (ruled 2026-11-25). |
-| u2 | Display name | next | One free-text display name (1–30 characters, unique within each club, case-insensitively) replaces first name + last initial; the invitee picks theirs on joining (ruled 2026-11-25). |
-| u3 | Sign-up and sign-in | later | Invited sign-up as three steps (Email → Code → About you) with the invite always in view, six code boxes with paste and autofill, a resend countdown, then a welcome page to add three films; returning sign-in with no step bar; two columns on laptops. |
+| u2 | Display name | done (2026-11-26, #55) | One free-text display name (1–30 characters, unique within each club, case-insensitively) replaces first name + last initial; the invitee picks theirs on joining (ruled 2026-11-25). |
+| u3 | Sign-up and sign-in | next | Invited sign-up as three steps (Email → Code → About you) with the invite always in view, six code boxes with paste and autofill, a resend countdown, then a welcome page to add three films; returning sign-in with no step bar; two columns on laptops. |
 | u4 | Own sign-up | later | Live only when `OPEN_SIGNUP` is on: the same three steps plus "Start your club" with every default shown and editable, then a "Get your club going" checklist on Tonight and an Invite people screen. |
 | u5 | Club codes | later | A second way in beside per-person invites: an optional short code, off by default; "Ask to join", approved by an owner or admin. Private clubs are never searchable. |
 | 3 | Redesign: Members | later | People first; Your limits, How this club runs, and Leave/Pause move to their own pages under the Members tab (ruled 2026-11-24). |
@@ -78,6 +78,11 @@ Everything to settle in one review before public sign-ups open.
 - **14A and 13-year-olds**: all-ages clubs and 13–17s allow CA 14A films,
   where a 13-year-old is meant to be accompanied by an adult. What, if
   anything, the app should say.
+- **The data-sharing box's label** (u3): it reads as one line ("Optional:
+  include my activity in anonymous film-industry trends. Never anything
+  that identifies me."), with the full wording the opt-in is given against
+  under "More about this", unchanged. Is that enough for the consent to
+  be informed?
 - **Contextual ads disclosure**: what the Terms and Privacy must say about
   contextual ads and direct sponsorships, given no tracking and no viewing
   data ever reaches an ad provider.

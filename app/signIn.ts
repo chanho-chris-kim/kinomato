@@ -41,6 +41,25 @@ export function signupOpen(): boolean {
 
 export type IssueResult = { sent: true } | { sent: false; retryAfterSeconds: number };
 
+// Every code sent to this address in the last hour: sign-in codes, and
+// email-change codes (§5.9), which count against the same limits.
+async function sendsInLastHour(db: ReturnType<typeof getDb>, email: string, now: Date): Promise<Date[]> {
+  const hourAgo = new Date(now.getTime() - 3600_000);
+  const recent = await db
+    .select({ createdAt: magicLinks.createdAt })
+    .from(magicLinks)
+    .where(and(eq(magicLinks.email, email), gt(magicLinks.createdAt, hourAgo)));
+  return [...recent.map((r) => r.createdAt), ...(await recentEmailChangeSendsTo(db, email, hourAgo))];
+}
+
+// How long until another code may be sent to this address: the code
+// screen's Resend countdown (u3), from the same rule issueSignIn applies
+// (lib/authCredentials.ts checkSendAllowed), so the two can't disagree.
+export async function resendWaitSeconds(db: ReturnType<typeof getDb>, email: string, now = new Date()): Promise<number> {
+  const allowed = checkSendAllowed(await sendsInLastHour(db, email, now), now);
+  return allowed.ok ? 0 : allowed.retryAfterSeconds;
+}
+
 // Rate-limited per address (30s cooldown, 5 an hour). Callers show the
 // same next screen either way and never reveal whether an account exists:
 // verifying an email is what creates one.
@@ -53,21 +72,7 @@ export async function issueSignIn(
   },
 ): Promise<IssueResult> {
   const now = new Date();
-  const recent = await db
-    .select({ createdAt: magicLinks.createdAt })
-    .from(magicLinks)
-    .where(
-      and(
-        eq(magicLinks.email, params.email),
-        gt(magicLinks.createdAt, new Date(now.getTime() - 3600_000)),
-      ),
-    );
-  // Shared with email changes (§5.9): their sends to this address count too.
-  const changeSends = await recentEmailChangeSendsTo(db, params.email, new Date(now.getTime() - 3600_000));
-  const allowed = checkSendAllowed(
-    [...recent.map((r) => r.createdAt), ...changeSends],
-    now,
-  );
+  const allowed = checkSendAllowed(await sendsInLastHour(db, params.email, now), now);
   if (!allowed.ok) return { sent: false, retryAfterSeconds: allowed.retryAfterSeconds };
 
   const accountExists = params.inviteId

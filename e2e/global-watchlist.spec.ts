@@ -57,7 +57,7 @@ test.describe("global watchlist", () => {
     await existingAccount(email);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Send code" }).click();
+    await page.getByRole("button", { name: "Send my code" }).click();
     await finishCodeSignIn(page, email);
     await nameYourself(page, "Gil", "W");
     await expect(page).toHaveURL("/");

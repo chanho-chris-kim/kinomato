@@ -100,7 +100,7 @@ test.describe("per-person invites", () => {
     await asStranger(browser, async (page) => {
       await page.goto(marcoLink);
       await expect(page.getByRole("heading", { name: "Hi Marco" })).toBeVisible();
-      await expect(page.getByText(`${DISPLAY_NAME_8.hana} invited you to Eighth Club.`)).toBeVisible();
+      await expect(page.locator(".invite-card p")).toHaveText(`${DISPLAY_NAME_8.hana} invited you to Eighth Club`);
     });
     // Link previews in group chats are exactly this GET.
     const row = await inviteRow(marcoLink.split("/invite/")[1]);
@@ -113,10 +113,10 @@ test.describe("per-person invites", () => {
     await asStranger(browser, async (page) => {
       await page.goto(marcoLink);
       await page.getByLabel("Your email").fill(email);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Send my code" }).click();
       await expect(page).toHaveURL(/\/login\/code/);
       const { code } = await setKnownSignIn(email);
-      await page.getByLabel("6-digit code").fill(code);
+      await page.getByLabel("Your code").fill(code);
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
       // Name step, prefilled with what Hana typed — a greeting only.
@@ -126,8 +126,10 @@ test.describe("per-person invites", () => {
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
 
-      await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}\\?joined=1`));
-      await expect(page.getByText("You're in, Marcus R.")).toBeVisible();
+      // A new invitee lands on the club's welcome page (u3).
+      await expect(page).toHaveURL(`${CLUB_8_URL}/welcome`);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("You're in, Marcus R.");
+      await page.goto(CLUB_8_URL);
       await expectYouAre(page, "Marcus R.");
     });
     const row = await inviteRow(marcoLink.split("/invite/")[1]);

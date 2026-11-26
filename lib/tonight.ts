@@ -2,6 +2,7 @@
 // calls: the page loads the facts and these decide what they mean.
 
 import { areTakesRevealed } from "./ratingReveal";
+import { stepsLine } from "./steps";
 
 export const WEEK_STAGES = ["nominate", "vote", "locked", "watch", "rate"] as const;
 export type WeekStage = (typeof WEEK_STAGES)[number];
@@ -38,10 +39,10 @@ export function weekStage(input: {
 
 // The phone's one line: "Step 2 of 5 · Vote · then Locked, Watch, Rate".
 export function stepLine(stage: WeekStage): string {
-  const index = WEEK_STAGES.indexOf(stage);
-  const rest = WEEK_STAGES.slice(index + 1).map((s) => WEEK_STAGE_LABELS[s]);
-  const head = `Step ${index + 1} of ${WEEK_STAGES.length} · ${WEEK_STAGE_LABELS[stage]}`;
-  return rest.length ? `${head} · then ${rest.join(", ")}` : head;
+  return stepsLine(
+    WEEK_STAGES.map((s) => WEEK_STAGE_LABELS[s]),
+    WEEK_STAGES.indexOf(stage),
+  );
 }
 
 // "Show vote counts while voting is open" (clubs.settings.showVoteCounts):

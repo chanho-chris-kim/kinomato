@@ -48,7 +48,7 @@ const licensingRows = (userId: string) =>
   );
 
 const termsBox = (page: Page) => page.getByLabel(/^I agree to the Terms/);
-const licensingBox = (page: Page) => page.getByLabel(/^Optional\./);
+const licensingBox = (page: Page) => page.getByLabel(/^Optional:/);
 const alert = (page: Page) => page.locator("main").getByRole("alert");
 
 async function newAccountOnWelcome(browser: Browser, email: string) {
@@ -59,7 +59,7 @@ async function newAccountOnWelcome(browser: Browser, email: string) {
   await existingAccount(email);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send my code" }).click();
   await finishCodeSignIn(page, email);
   await expect(page).toHaveURL(/\/welcome/);
   return { context, page, errors };
@@ -355,7 +355,7 @@ test.describe("consent", () => {
     try {
       await kid.goto(`/invite/${token}`);
       await kid.getByLabel("Your email").fill(email);
-      await kid.getByRole("button", { name: "Continue" }).click();
+      await kid.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(kid, email);
       await expect(kid).toHaveURL(/\/welcome/);
 

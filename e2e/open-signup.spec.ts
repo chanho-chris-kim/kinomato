@@ -18,7 +18,7 @@ test.describe("open sign-up (OPEN_SIGNUP=true)", () => {
     await page.locator("main").getByRole("link", { name: "Start a club" }).click();
     await expect(page).toHaveURL("/login?returnTo=%2Fnew");
     await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Send code" }).click();
+    await page.getByRole("button", { name: "Send my code" }).click();
     await finishCodeSignIn(page, email);
     expect(sentTo(email).map((m) => m.kind)).toEqual(["sign-in"]);
     await nameYourself(page, "Ola", "S");

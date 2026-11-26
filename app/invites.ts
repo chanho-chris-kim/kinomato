@@ -114,6 +114,20 @@ export async function loadInviteByToken(db: Db, token: string) {
   return row ?? null;
 }
 
+// An invite's context for the sign-up screens (u3): who invited whom to
+// which club. Only what the invite landing already shows.
+export async function loadInviteById(db: Db, inviteId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(inviteId)) return null;
+  const [row] = await db
+    .select({ invite: invites, club: clubs, inviterName: users.displayName })
+    .from(invites)
+    .innerJoin(clubs, eq(invites.clubId, clubs.id))
+    .innerJoin(memberships, eq(invites.invitedByMembershipId, memberships.id))
+    .leftJoin(users, eq(memberships.userId, users.id))
+    .where(eq(invites.id, inviteId));
+  return row ?? null;
+}
+
 export function redeemDestination(result: RedeemResult): string {
   switch (result.status) {
     case "joined":

@@ -28,7 +28,7 @@ test.describe("design foundations", () => {
   test("buttons, fields and club tabs are at least 44px tall", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/login");
-    expect((await size(page.getByRole("button", { name: "Send code" }))).height).toBeGreaterThanOrEqual(44);
+    expect((await size(page.getByRole("button", { name: "Send my code" }))).height).toBeGreaterThanOrEqual(44);
     expect((await size(page.getByLabel("Email"))).height).toBeGreaterThanOrEqual(44);
 
     await signInAs(page, MEMBERSHIP.dana);

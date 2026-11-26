@@ -289,7 +289,7 @@ test.describe("leaving and removal", () => {
       const pip = await context.newPage();
       await pip.goto(`/invite/${token}`);
       await pip.getByLabel("Your email").fill(c.emails.pip);
-      await pip.getByRole("button", { name: "Continue" }).click();
+      await pip.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(pip, c.emails.pip);
       await expect(pip).toHaveURL(new RegExp(`/clubs/${c.clubId}`));
     } finally {
