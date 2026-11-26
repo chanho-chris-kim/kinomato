@@ -12,6 +12,7 @@ import {
   getAutoAdvance,
   getConfirmAt,
   getLockTime,
+  getShowVoteCounts,
   getNomineesPerTurn,
   LOCK_TIME_HOURS,
 } from "@/lib/clubSettings";
@@ -219,6 +220,7 @@ export default async function MembersPage({
   const confirmAt = getConfirmAt(club.settings);
   const lockTime = getLockTime(club.settings);
   const autoAdvance = getAutoAdvance(club.settings);
+  const showVoteCounts = getShowVoteCounts(club.settings);
   // After a mistake, the details form shows what was typed (form-echo
   // cookie, never the URL); otherwise the club's current values.
   const echo = detailsError ? await readFormEcho() : {};
@@ -724,6 +726,10 @@ export default async function MembersPage({
                   ))}
                 </select>
               </label>
+              <label className="consent-choice small vote-counts-choice">
+                <input type="checkbox" name="showVoteCounts" defaultChecked={showVoteCounts} />
+                Show vote counts while voting is open
+              </label>
               <p className="tiny dim deadlines-note" style={{ margin: 0 }}>
                 Everyone gets at least 6 hours to vote, and voting closes by the time the night starts.
                 Changing these never moves a night already under way.
@@ -756,7 +762,9 @@ export default async function MembersPage({
             <dt className="muted">Voting closes</dt>
             <dd style={{ margin: "2px 0 10px" }}>{hoursLabel(lockTime)} before the night</dd>
             <dt className="muted">If nobody answers, logged as unconfirmed after</dt>
-            <dd style={{ margin: "2px 0 0" }}>{hoursLabel(autoAdvance)}</dd>
+            <dd style={{ margin: "2px 0 10px" }}>{hoursLabel(autoAdvance)}</dd>
+            <dt className="muted">Vote counts while voting is open</dt>
+            <dd style={{ margin: "2px 0 0" }}>{showVoteCounts ? "Shown" : "Hidden until voting closes"}</dd>
           </dl>
         )}
       </section>

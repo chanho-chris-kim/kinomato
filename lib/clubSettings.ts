@@ -78,6 +78,14 @@ export function getAutoAdvance(settings: unknown): number {
   return readHours(settings, "autoAdvance", AUTO_ADVANCE_HOURS, DEFAULT_AUTO_ADVANCE);
 }
 
+// "Show vote counts while voting is open" (ruled 2026-11-25): off unless
+// stored as exactly true. Display only (lib/tonight.ts voteCountsVisible),
+// so it applies at once, even to a vote under way.
+export function getShowVoteCounts(settings: unknown): boolean {
+  if (typeof settings !== "object" || settings === null) return false;
+  return (settings as Record<string, unknown>).showVoteCounts === true;
+}
+
 // ---- Write side ("How this club runs", docs/onboarding-spec.md §5.10) ----
 
 export interface WritableClubSettings {
@@ -85,6 +93,7 @@ export interface WritableClubSettings {
   confirmAt: ConfirmAt;
   lockTime: number;
   autoAdvance: number;
+  showVoteCounts: boolean;
 }
 
 // A form value that must be one of `allowed`, as whole digits.
@@ -102,6 +111,8 @@ export function readClubSettingsForm(fields: {
   confirmAt: unknown;
   lockTime: unknown;
   autoAdvance: unknown;
+  // A checkbox: "on" when ticked, absent (null or undefined) when not.
+  showVoteCounts?: unknown;
 }): { ok: true; settings: WritableClubSettings } | { ok: false; error: string } {
   const raw = typeof fields.nomineesPerTurn === "string" ? fields.nomineesPerTurn.trim() : "";
   const nominees = /^\d+$/.test(raw) ? Number(raw) : NaN;
@@ -116,7 +127,14 @@ export function readClubSettingsForm(fields: {
   if (lockTime === null) return { ok: false, error: "Pick when voting closes." };
   const autoAdvance = formHours(fields.autoAdvance, AUTO_ADVANCE_HOURS);
   if (autoAdvance === null) return { ok: false, error: "Pick when to log a night nobody confirmed." };
-  return { ok: true, settings: { nomineesPerTurn: nominees, confirmAt: confirmAt as ConfirmAt, lockTime, autoAdvance } };
+  const counts = fields.showVoteCounts;
+  if (counts !== undefined && counts !== null && counts !== "on") {
+    return { ok: false, error: "Choose whether to show vote counts while voting is open." };
+  }
+  return {
+    ok: true,
+    settings: { nomineesPerTurn: nominees, confirmAt: confirmAt as ConfirmAt, lockTime, autoAdvance, showVoteCounts: counts === "on" },
+  };
 }
 
 // The stored settings with these keys replaced and every other key kept

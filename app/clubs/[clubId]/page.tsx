@@ -1,22 +1,12 @@
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { getDb } from "@/db";
-import {
-  clubs,
-  constraints,
-  films,
-  nights,
-  nominations,
-  ratings,
-  ratingTags,
-  rsvps,
-  tags,
-} from "@/db/schema";
-import { getAutoAdvance, getConfirmAt, getLockTime, getNomineesPerTurn } from "@/lib/clubSettings";
+import { clubs, constraints, films, nights, nominations, ratings, ratingTags, rsvps, tags } from "@/db/schema";
+import { getAutoAdvance, getConfirmAt, getLockTime, getNomineesPerTurn, getShowVoteCounts } from "@/lib/clubSettings";
 import { effectiveLockAt, effectiveUnconfirmAt } from "@/lib/nightDeadlines";
 import { needsHelp } from "@/lib/nominationHelp";
-import { PREFERENCE_WARNING, preferenceWarnings } from "@/lib/preferenceWarnings";
-import { addToWatchlist } from "@/app/watchlist/actions";
+import { preferenceWarnings } from "@/lib/preferenceWarnings";
 import {
   findConfirmableNight,
   findInFlightNight,
@@ -27,33 +17,46 @@ import {
   nightName,
 } from "@/lib/clubStatus";
 import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
+import { getNextPicker, getWhoseTurn, type RotationMembership } from "@/lib/rotation";
 import {
-  getNextPicker,
-  getWhoseTurn,
-  type RotationMembership,
-  type RotationNight,
-} from "@/lib/rotation";
-import {
-  addRatingTag,
-  castVote,
-  confirmNight,
-  lockNight,
-  openVoting,
-  passMyTurn,
-  passTurnFor,
-  removeRatingTag,
-  setRsvp,
-  submitRating,
-} from "./actions";
+  canSayIWasThere,
+  isVisiblyRevealed,
+  startsIn,
+  voteCountsVisible,
+  weekStage,
+  wonText,
+  type WeekStage,
+} from "@/lib/tonight";
 import { requireClubMember } from "@/app/auth";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
+import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
-import { liveVotes } from "./historyRead";
-import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
-import { NominationSelector } from "./NominationSelector";
+import { closedTally, liveVotes } from "./historyRead";
 import { createDraftNightCore } from "./draftNightCore";
-import { RatingSlider } from "./RatingSlider";
+import { PickerNominate, WaitingOnPicker } from "./_tonight/NominateStage";
+import { ClubRatings, IWasThereCard, RateForm, YourRating, type RevealedRating } from "./_tonight/RateStage";
+import { RsvpCard } from "./_tonight/RsvpCard";
+import { buttonClass, StageCard } from "./_tonight/StageCard";
+import { ThisWeekGlance, ThisWeekRail, type ThisWeekFacts } from "./_tonight/ThisWeek";
+import { VoteStage, type NomineeCard } from "./_tonight/VoteStage";
+import { ConfirmCard, LateConfirmCard, LockedHero, type LockedFilm } from "./_tonight/WatchStage";
+import { WeekBar } from "./_tonight/WeekBar";
+
+// Tonight (the Tonight redesign, ruled 2026-11-25). Every stage in one
+// order: club header and tabs, the week bar, ONE "do this now" card, the
+// RSVP card when it applies, then everything else. This file loads the
+// facts and picks the card; each stage's card is its own component in
+// ./_tonight.
+
+// One card on the page. `stage` ties it to the week bar; `action` says it
+// asks something of this viewer.
+interface Section {
+  key: string;
+  stage: WeekStage | null;
+  action: boolean;
+  render: (main: boolean) => ReactNode;
+}
 
 export default async function ClubPage({
   params,
@@ -65,13 +68,11 @@ export default async function ClubPage({
   const { clubId } = await params;
   const { joined, pass, passFor, passed, passError } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  // react-hooks/purity is a React Compiler rule aimed at client
-  // components it might memoize; this is a Server Component that reads
-  // the database (already impure) once per request and is never
-  // recompiled client-side, so "current time" here is no different in
-  // kind from any other request-time read above.
+  // A Server Component reading the clock once per request, like any other
+  // request-time read (react-hooks/purity is aimed at client components).
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
+  const nowDate = new Date(now);
 
   // Signed in and an active member, or /login (signed out) / 404 (not a
   // member — a 403 would confirm the club exists). docs/onboarding-spec.md
@@ -82,13 +83,7 @@ export default async function ClubPage({
   const clubMemberships = await loadClubMemberships(db, clubId);
   const activeMemberships = clubMemberships.filter((m) => m.leftAt === null);
   const currentMembership = activeMemberships.find((m) => m.id === me.id)!;
-
-  let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
-
-  // Who picks next — used only for the ad hoc empty state below (lazy
-  // draft creation computes its own, in getDraftToCreate). Not what
-  // "Whose turn" displays: that's getWhoseTurn, computed after the insert
-  // (CLAUDE.md ruling).
+  const isOwnerOrAdmin = currentMembership.role === "owner" || currentMembership.role === "admin";
   const rotationMemberships: RotationMembership[] = clubMemberships.map((m) => ({
     id: m.id,
     userId: m.userId,
@@ -97,110 +92,76 @@ export default async function ClubPage({
     leftAt: m.leftAt,
     postponedAt: m.postponedAt,
   }));
-  const rotationNights: RotationNight[] = clubNights.map((n) => ({
-    pickerMembershipId: n.pickerMembershipId,
-    state: n.state,
-    scheduledAt: n.scheduledAt,
-  }));
-  const whoseTurnResult = getNextPicker({
+
+  let clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
+  const rotationOf = () => ({
     memberships: rotationMemberships,
-    nights: rotationNights,
+    nights: clubNights.map((n) => ({ pickerMembershipId: n.pickerMembershipId, state: n.state, scheduledAt: n.scheduledAt })),
     clubPausedAt: club.pausedAt,
   });
 
-  // A night's first draft row is created lazily, right here (CLAUDE.md's
-  // load-bearing rulings) — whichever page load first finds the club
-  // with no non-terminal night and a resolvable next picker creates one.
-  // lib/clubStatus.ts's getDraftToCreate decides; `/` uses the same
-  // function for display only. ad_hoc has no computable schedule
-  // (lib/schedule.ts returns null for it on purpose) — the ad_hoc-specific
-  // empty state below explains that rather than this silently doing
-  // nothing.
-  const hasNonTerminalNight = findInFlightNight(clubNights) !== null;
+  // ad_hoc has no computable schedule (lib/schedule.ts), so nothing drafts
+  // its nights; it gets its own empty state below.
   const adHocNeedsManualNight =
-    !hasNonTerminalNight && whoseTurnResult !== null && club.cadence === "ad_hoc";
+    findInFlightNight(clubNights) === null && getNextPicker(rotationOf()) !== null && club.cadence === "ad_hoc";
 
-  // The draft itself goes through the request-free core the hourly job
-  // uses too (draftNightCore.ts, ruled 2026-11-22): whichever runs first
-  // wins, and the loser's insert is rejected by the one-night-in-flight
-  // index ("raced"). Re-read after either, so this load shows whichever
-  // draft won.
+  // A night's first draft is created lazily, right here, through the core
+  // the hourly job uses too (CLAUDE.md; draftNightCore.ts): whichever runs
+  // first wins. Re-read after either, so this load shows the winner.
   const drafted = await createDraftNightCore(db, {
     clubId,
     club,
     memberships: rotationMemberships,
     nights: clubNights,
-    now: new Date(now),
+    now: nowDate,
   });
   if (drafted !== "none") {
     clubNights = await db.select().from(nights).where(eq(nights.clubId, clubId));
   }
 
-  // "Whose turn" is who the club is waiting on: the in-flight night's
-  // picker if there is one, else who picks next (CLAUDE.md ruling). Read
-  // from clubNights *after* any lazy-create above, so the load that
-  // creates a draft and every later load give the same answer, and it
-  // always agrees with "Waiting on X to nominate" below.
-  const whoseTurnMember = getWhoseTurn({
-    memberships: rotationMemberships,
-    nights: clubNights.map((n) => ({
-      pickerMembershipId: n.pickerMembershipId,
-      state: n.state,
-      scheduledAt: n.scheduledAt,
-    })),
-    clubPausedAt: club.pausedAt,
-  });
-  const whoseTurn = whoseTurnMember
-    ? clubMemberships.find((m) => m.id === whoseTurnMember.id)
-    : null;
+  // Who the club is waiting on: the in-flight night's picker, else who picks
+  // next (CLAUDE.md "Whose turn"), computed after any lazy draft. Since the
+  // redesign it's said in the card's text and the side column.
+  const whoseTurnMember = getWhoseTurn(rotationOf());
+  const whoseTurn = whoseTurnMember ? clubMemberships.find((m) => m.id === whoseTurnMember.id) : null;
+  const inFlight = findInFlightNight(clubNights);
+  const nextPicker = inFlight ? getNextPicker(rotationOf()) : null;
+  const pickerNameOf = (membershipId: string) =>
+    nameOf(clubMemberships.find((m) => m.id === membershipId)) ?? "someone who's left";
 
+  const showVoteCounts = getShowVoteCounts(club.settings);
+  const lockTimeHours = getLockTime(club.settings);
+  const confirmAt = getConfirmAt(club.settings);
+
+  // ---- The night in flight ----
   const openNight = clubNights.find((n) => n.state === "open") ?? null;
-  // RSVP stays live through lock — "the RSVP-flip problem" (analysis-
-  // v1.md §1.2) has Dana change her answer *after* lock; the ruling is
-  // that it doesn't re-run the filter or change the pick, not that the
-  // form disappears. It goes once the night has started (ruled
-  // 2026-11-24): by then nobody is deciding whether to come. Voting and
-  // locking are strictly "open"-only below.
+  const draftNight = clubNights.find((n) => n.state === "draft") ?? null;
+  const lockedInFlight = clubNights.find((n) => n.state === "locked") ?? null;
+
+  // RSVP stays live through lock (the "RSVP-flip problem", analysis-v1.md
+  // §1.2: it never re-runs the filter or moves the pick) and goes once the
+  // night has started (ruled 2026-11-24).
   const rsvpableNight =
-    clubNights.find(
-      (n) => (n.state === "open" || n.state === "locked") && n.scheduledAt.getTime() > now,
-    ) ?? null;
+    clubNights.find((n) => (n.state === "open" || n.state === "locked") && n.scheduledAt.getTime() > now) ?? null;
+  const inFlightRsvps = inFlight
+    ? await db.select({ membershipId: rsvps.membershipId, status: rsvps.status }).from(rsvps).where(eq(rsvps.nightId, inFlight.id))
+    : [];
+  const myRsvpStatus = inFlightRsvps.find((r) => r.membershipId === currentMembership.id)?.status ?? null;
+  const activeIds = activeMemberships.map((m) => m.id);
+  const comingCount = inFlightRsvps.filter((r) => r.status === "yes" && activeIds.includes(r.membershipId)).length;
 
-  let pickerName: string | null = null;
-  let nomineeRows: {
-    nominationId: string;
-    filmTitle: string;
-    filmYear: number;
-    voteCount: number;
-    votedByMe: boolean;
-    someoneWouldRatherNot: boolean;
-  }[] = [];
-  let myRsvpStatus: "yes" | "no" | null = null;
-
-  if (rsvpableNight) {
-    const [myRsvp] = await db
-      .select()
-      .from(rsvps)
-      .where(
-        and(
-          eq(rsvps.nightId, rsvpableNight.id),
-          eq(rsvps.membershipId, currentMembership.id),
-        ),
-      );
-    myRsvpStatus = myRsvp?.status ?? null;
-  }
-
+  // Open: the nominees as poster cards. Counts only when the club shows them
+  // while voting is open (ruled 2026-11-25).
+  let nomineeCards: NomineeCard[] = [];
   if (openNight) {
-    pickerName =
-      nameOf(clubMemberships.find((m) => m.id === openNight.pickerMembershipId)) ??
-      "someone who's left";
-
     const nightNominations = await db
       .select({
         nominationId: nominations.id,
         filmId: films.id,
         filmTitle: films.title,
         filmYear: films.year,
+        posterPath: films.posterPath,
+        directors: films.directors,
         genreIds: films.genreIds,
         keywordIds: films.keywordIds,
         runtime: films.runtime,
@@ -208,30 +169,26 @@ export default async function ClubPage({
       })
       .from(nominations)
       .innerJoin(films, eq(nominations.filmId, films.id))
-      .where(eq(nominations.nightId, openNight.id));
+      .where(eq(nominations.nightId, openNight.id))
+      .orderBy(nominations.position);
 
-    // Live counts and your own vote, through the history-read module —
-    // the only code that reads votes (CLAUDE.md attribution ruling).
+    // Live counts and your own vote, through the history-read module — the
+    // only code that reads votes (CLAUDE.md attribution ruling).
     const live = await liveVotes(db, openNight.id, currentMembership.id);
+    const countsShown = voteCountsVisible("open", showVoteCounts);
 
-    // "Someone coming would rather not." (ruled 2026-11-18,
-    // lib/preferenceWarnings.ts): only while the night is open, never a
-    // name, a count or which preference. Others' preferences are read here
-    // only to decide that one anonymous yes/no per film.
-    const activeIds = activeMemberships.map((m) => m.id);
-    const [openRsvps, activePreferences] = await Promise.all([
-      db.select({ membershipId: rsvps.membershipId, status: rsvps.status }).from(rsvps).where(eq(rsvps.nightId, openNight.id)),
-      activeIds.length
-        ? db
-            .select()
-            .from(constraints)
-            .where(and(inArray(constraints.membershipId, activeIds), eq(constraints.kind, "soft")))
-        : Promise.resolve([]),
-    ]);
+    // "Someone coming would rather not." (ruled 2026-11-18): never a name, a
+    // count or which preference.
+    const activePreferences = activeIds.length
+      ? await db
+          .select()
+          .from(constraints)
+          .where(and(inArray(constraints.membershipId, activeIds), eq(constraints.kind, "soft")))
+      : [];
     const warned = preferenceWarnings({
       viewerMembershipId: currentMembership.id,
       activeMembershipIds: activeIds,
-      rsvps: openRsvps.filter((r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null),
+      rsvps: inFlightRsvps.filter((r): r is { membershipId: string; status: "yes" | "no" } => r.status !== null),
       preferences: activePreferences,
       films: nightNominations.map((n) => ({
         id: n.filmId,
@@ -242,72 +199,40 @@ export default async function ClubPage({
       })),
     });
 
-    nomineeRows = nightNominations.map((n) => ({
+    nomineeCards = nightNominations.map((n) => ({
       nominationId: n.nominationId,
       filmTitle: n.filmTitle,
       filmYear: n.filmYear,
-      voteCount: live?.counts[n.nominationId] ?? 0,
+      posterPath: n.posterPath,
+      director: n.directors[0] ?? null,
+      runtime: n.runtime,
+      voteCount: countsShown ? (live?.counts[n.nominationId] ?? 0) : null,
       votedByMe: live?.viewerVotedFor === n.nominationId,
       someoneWouldRatherNot: warned.has(n.filmId),
     }));
   }
 
-  // A night with no nominations yet — analysis-v1.md §1.1 stage 5. Only
-  // the picker sees anything selectable; everyone else sees whose turn
-  // it is. Once nominations exist, this night moves to "open" and the
-  // section above takes over — the two can't both be true for the same
-  // night, but a different night could independently be in each state
-  // (this club's seed data has exactly that: one open night mid-vote,
-  // one draft night waiting on its picker).
-  const draftNight = clubNights.find((n) => n.state === "draft") ?? null;
-  let draftPickerName: string | null = null;
-  let myWatchlistFilms: { id: string; title: string; year: number }[] = [];
-  let myWatchlistEmpty = true;
+  // Draft: the picker's own films (app/watchlistRead.ts), and help when
+  // there aren't enough (ruled 2026-11-17).
+  let myFilms: Awaited<ReturnType<typeof nominatableFilms>> = { films: [], listIsEmpty: true };
   let helpFilms: Awaited<ReturnType<typeof helpFilmsFor>> = [];
-  let nomineesPerTurn = 3;
-
-  if (draftNight) {
-    draftPickerName =
-      nameOf(clubMemberships.find((m) => m.id === draftNight.pickerMembershipId)) ??
-      "someone who's left";
-
-    if (draftNight.pickerMembershipId === currentMembership.id) {
-      nomineesPerTurn = getNomineesPerTurn(club.settings);
-      // Your list as this club can see it (app/watchlistRead.ts).
-      const nominatable = await nominatableFilms(db, clubId, currentMembership.userId);
-      myWatchlistFilms = nominatable.films;
-      myWatchlistEmpty = nominatable.listIsEmpty;
-      // Not enough to fill a turn (ruled 2026-11-17): films the club wants
-      // that fit everyone, counts only.
-      if (needsHelp(myWatchlistFilms.length, nomineesPerTurn)) {
-        helpFilms = await helpFilmsFor(db, clubId, currentMembership.userId);
-      }
+  const nomineesPerTurn = getNomineesPerTurn(club.settings);
+  if (draftNight && draftNight.pickerMembershipId === currentMembership.id) {
+    myFilms = await nominatableFilms(db, clubId, currentMembership.userId);
+    if (needsHelp(myFilms.films.length, nomineesPerTurn)) {
+      helpFilms = await helpFilmsFor(db, clubId, currentMembership.userId);
     }
   }
 
-  // "Did you watch X?" (analysis-v1.md §1.1 stage 10) — a non-terminal
-  // night with a winner already set (gated on winningFilmId because
-  // nothing locks a night yet, see nightState.ts; in practice this only
-  // ever matches a "locked" night), once the club's confirmAt timing
-  // (clubs.settings, analysis-v2.md §2 — default "morning after")
-  // allows it. Not just "past scheduled_at": that was the old, fixed
-  // behavior "same_night" now models exactly; "morning_after" waits
-  // longer, "manual_only" doesn't wait for a schedule at all.
-  const confirmAt = getConfirmAt(club.settings);
-  const confirmableNight = findConfirmableNight(clubNights, confirmAt, club.timezone, new Date(now));
-
-  // The night's deadlines (ruled 2026-11-21), as stored on it. A night from
-  // before they were stored gets a fallback from today's settings, for
-  // display only: when voting closes by the setting, and when it would be
-  // logged unconfirmed.
-  // The same rules the hourly job acts on (lib/nightDeadlines.ts).
+  // The night's deadlines as stored on it (ruled 2026-11-21), with the same
+  // fallback the hourly job uses for nights from before they were stored.
   const votingClosesLabel = openNight
-    ? formatNightTime(
-        effectiveLockAt({ ...openNight, lockTimeHours: getLockTime(club.settings) }),
-        club.timezone,
-      )
+    ? formatNightTime(effectiveLockAt({ ...openNight, lockTimeHours }), club.timezone)
     : null;
-  const lockedInFlight = clubNights.find((n) => n.state === "locked") ?? null;
+  // A draft's turn passes at scheduled_at − lockTime if voting isn't open.
+  const draftDeadlineLabel = draftNight
+    ? formatNightTime(new Date(draftNight.scheduledAt.getTime() - lockTimeHours * 3600_000), club.timezone)
+    : null;
   const unconfirmLabel = lockedInFlight
     ? formatNightTime(
         effectiveUnconfirmAt({
@@ -325,179 +250,375 @@ export default async function ClubPage({
     </p>
   );
 
-  // "Did you watch X after all?" (ruled 2026-11-21): the latest unconfirmed
-  // night, while a late "Yes, we watched it" is still open.
-  const lateNight = findLateConfirmableNight(clubNights, new Date(now));
-  let lateFilmTitle: string | null = null;
-  if (lateNight?.winningFilmId) {
-    const [film] = await db.select({ title: films.title }).from(films).where(eq(films.id, lateNight.winningFilmId));
-    lateFilmTitle = film?.title ?? null;
-  }
-
-  let confirmableFilmTitle: string | null = null;
-  if (confirmableNight?.winningFilmId) {
+  const filmById = async (filmId: string | null) => {
+    if (!filmId) return null;
     const [film] = await db
-      .select({ title: films.title })
+      .select({ title: films.title, year: films.year, runtime: films.runtime, posterPath: films.posterPath, directors: films.directors })
       .from(films)
-      .where(eq(films.id, confirmableNight.winningFilmId));
-    confirmableFilmTitle = film?.title ?? null;
+      .where(eq(films.id, filmId));
+    return film ?? null;
+  };
+
+  // "Did you watch X?" once the club's confirm timing allows it; the locked
+  // hero until then (never both: one night in flight).
+  const confirmableNight = findConfirmableNight(clubNights, confirmAt, club.timezone, nowDate);
+  const confirmableFilm = await filmById(confirmableNight?.winningFilmId ?? null);
+  const lockedNight = findLockedNight(clubNights, confirmAt, club.timezone, nowDate);
+  const lockedFilmRow = await filmById(lockedNight?.winningFilmId ?? null);
+  const lockedFilm: LockedFilm | null = lockedFilmRow
+    ? { ...lockedFilmRow, director: lockedFilmRow.directors[0] ?? null }
+    : null;
+  let lockedResult = "";
+  if (lockedNight) {
+    const tally = await closedTally(db, lockedNight.id);
+    lockedResult = (tally && wonText(tally)) ?? `Nobody voted, so ${pickerNameOf(lockedNight.pickerMembershipId)}'s first choice`;
   }
 
-  // Locked-in display (docs/prototype.html's lockedView — "keep the
-  // runtime math" per the styling brief): the window between lock and
-  // the confirmAt threshold used to render nothing at all. Pure display
-  // over data already on hand — films.runtime, nights.scheduledAt — no
-  // new queries beyond the winning film's runtime alongside its title,
-  // no new writes, no new user action. Never both this and
-  // confirmableNight at once: "one night in flight" means at most one
-  // non-terminal night exists, so as soon as it's confirmable this
-  // section stops matching and the prompt below takes over.
-  const lockedNight = findLockedNight(clubNights, confirmAt, club.timezone, new Date(now));
+  // "Did you watch X after all?" (ruled 2026-11-21).
+  const lateNight = findLateConfirmableNight(clubNights, nowDate);
+  const lateFilm = await filmById(lateNight?.winningFilmId ?? null);
 
-  let lockedFilm: { title: string; year: number; runtime: number | null } | null = null;
-  let lockedStartsLabel: string | null = null;
-  let lockedOutByLabel: string | null = null;
-  if (lockedNight?.winningFilmId) {
-    const [film] = await db
-      .select({ title: films.title, year: films.year, runtime: films.runtime })
-      .from(films)
-      .where(eq(films.id, lockedNight.winningFilmId));
-    lockedFilm = film ?? null;
-
-    // The app's one time format, "Sat 8:00pm" (formatNightTime).
-    lockedStartsLabel = formatNightTime(lockedNight.scheduledAt, club.timezone);
-    if (lockedFilm?.runtime) {
-      const endsAt = new Date(lockedNight.scheduledAt.getTime() + lockedFilm.runtime * 60_000);
-      lockedOutByLabel = formatNightTime(endsAt, club.timezone);
-    }
-  }
-
-  // Rating (analysis-v1.md §1.1 stage 10, "then ratings and one-line
-  // takes") — the club's most recently watched night, so this only ever
-  // surfaces the one confirmation just produced, not a backlog of every
-  // watched night in the club's history. "Attending" (both for who gets
-  // the form and for the blind-reveal denominator) means an explicit
-  // yes-RSVP, matching the constraint scoping asymmetry elsewhere.
-  const mostRecentWatchedNight = findLatestWatchedNight(clubNights);
-
-  let ratingSection: {
+  // ---- Rating: the club's latest watched night (blind reveal) ----
+  const watchedNight = findLatestWatchedNight(clubNights);
+  let rating: {
     nightId: string;
     filmTitle: string;
-    myRsvpYes: boolean;
-    myRating: { scoreQuality: string; scoreFun: string } | null;
+    myRsvp: "yes" | "no" | null;
+    myRated: boolean;
     myTags: { tagId: string; displayName: string }[];
-    clubTagOptions: string[];
-    attendingCount: number;
-    ratedAttendingCount: number;
-    revealed: boolean;
-    revealedRatings: {
-      displayName: string;
-      scoreQuality: string;
-      scoreFun: string;
-      hotTake: string | null;
-      tags: { name: string; displayName: string }[];
-    }[];
+    tagOptions: string[];
+    attending: number;
+    ratedAttending: number;
+    // Every rating, once everyone who came has rated and one exists.
+    revealed: RevealedRating[] | null;
+    canSayIWasThere: boolean;
+    open: boolean;
   } | null = null;
-
-  if (mostRecentWatchedNight?.winningFilmId) {
-    const [film] = await db
-      .select({ title: films.title })
-      .from(films)
-      .where(eq(films.id, mostRecentWatchedNight.winningFilmId));
-
-    const nightRsvps = await db
-      .select()
-      .from(rsvps)
-      .where(eq(rsvps.nightId, mostRecentWatchedNight.id));
-    // Who must rate: yes-RSVPs from members still active (2026-11-09).
-    const attendingMembershipIds = mustRateBeforeReveal(
-      nightRsvps,
-      activeMemberships.map((m) => m.id),
-    );
-
-    const nightRatings = await db
-      .select()
-      .from(ratings)
-      .where(eq(ratings.nightId, mostRecentWatchedNight.id));
-    const ratedMembershipIds = nightRatings.map((r) => r.membershipId);
-    const revealed = areTakesRevealed(attendingMembershipIds, ratedMembershipIds);
-
-    const nightRatingIds = nightRatings.map((r) => r.id);
-    const nightRatingTags = nightRatingIds.length
+  if (watchedNight?.winningFilmId) {
+    const film = await filmById(watchedNight.winningFilmId);
+    const [nightRsvps, nightRatings, clubTags] = await Promise.all([
+      db.select().from(rsvps).where(eq(rsvps.nightId, watchedNight.id)),
+      db.select().from(ratings).where(eq(ratings.nightId, watchedNight.id)),
+      // The add-tag autocomplete: every tag the club has used (an accepted,
+      // narrow leak, CLAUDE.md tags ruling).
+      db.select({ displayName: tags.displayName }).from(tags).where(eq(tags.clubId, clubId)),
+    ]);
+    const attending = mustRateBeforeReveal(nightRsvps, activeIds);
+    const rated = nightRatings.map((r) => r.membershipId);
+    const visible = isVisiblyRevealed(attending, rated);
+    const ratingIds = nightRatings.map((r) => r.id);
+    const nightTags = ratingIds.length
       ? await db
-          .select({
-            ratingId: ratingTags.ratingId,
-            tagId: ratingTags.tagId,
-            name: tags.name,
-            displayName: tags.displayName,
-          })
+          .select({ ratingId: ratingTags.ratingId, tagId: ratingTags.tagId, name: tags.name, displayName: tags.displayName })
           .from(ratingTags)
           .innerJoin(tags, eq(ratingTags.tagId, tags.id))
-          .where(inArray(ratingTags.ratingId, nightRatingIds))
+          .where(inArray(ratingTags.ratingId, ratingIds))
       : [];
-
-    // Autocomplete source for the add-tag form below — "reuse over
-    // invention is the whole point" (CLAUDE.md). Club-scoped, not
-    // filtered by reveal state: a brand-new tag from an unrevealed
-    // rating could theoretically surface here before the reveal, a
-    // narrow and accepted leak (weakly signals "someone already rated"),
-    // not worth gating a plain <datalist> on reveal state for.
-    const clubTags = await db
-      .select({ name: tags.name, displayName: tags.displayName })
-      .from(tags)
-      .where(eq(tags.clubId, clubId));
-
-    const myRatingRow =
-      nightRatings.find((r) => r.membershipId === currentMembership.id) ?? null;
-
-    ratingSection = {
-      nightId: mostRecentWatchedNight.id,
+    const mine = nightRatings.find((r) => r.membershipId === currentMembership.id) ?? null;
+    const myRsvp = nightRsvps.find((r) => r.membershipId === currentMembership.id)?.status ?? null;
+    rating = {
+      nightId: watchedNight.id,
       filmTitle: film?.title ?? "this film",
-      myRsvpYes: attendingMembershipIds.includes(currentMembership.id),
-      myRating: myRatingRow,
-      myTags: myRatingRow
-        ? nightRatingTags
-            .filter((t) => t.ratingId === myRatingRow.id)
-            .map((t) => ({ tagId: t.tagId, displayName: t.displayName }))
-        : [],
-      clubTagOptions: clubTags.map((t) => t.displayName),
-      attendingCount: attendingMembershipIds.length,
-      ratedAttendingCount: attendingMembershipIds.filter((id) =>
-        ratedMembershipIds.includes(id),
-      ).length,
-      revealed,
-      revealedRatings: revealed
-        ? nightRatings.map((r) => ({
-            displayName:
-              nameOf(clubMemberships.find((m) => m.id === r.membershipId)) ??
-              "someone who's left",
-            scoreQuality: r.scoreQuality,
-            scoreFun: r.scoreFun,
-            hotTake: r.hotTake,
-            tags: nightRatingTags
-              .filter((t) => t.ratingId === r.id)
-              .map((t) => ({ name: t.name, displayName: t.displayName })),
-          }))
-        : [],
+      myRsvp,
+      myRated: mine !== null,
+      myTags: mine ? nightTags.filter((t) => t.ratingId === mine.id).map((t) => ({ tagId: t.tagId, displayName: t.displayName })) : [],
+      tagOptions: clubTags.map((t) => t.displayName),
+      attending: attending.length,
+      ratedAttending: attending.filter((id) => rated.includes(id)).length,
+      revealed:
+        visible && areTakesRevealed(attending, rated)
+          ? nightRatings.map((r) => ({
+              displayName: pickerNameOf(r.membershipId),
+              scoreQuality: r.scoreQuality,
+              scoreFun: r.scoreFun,
+              hotTake: r.hotTake,
+              tags: nightTags.filter((t) => t.ratingId === r.id).map((t) => ({ name: t.name, displayName: t.displayName })),
+            }))
+          : null,
+      canSayIWasThere: canSayIWasThere({ nightState: watchedNight.state, myRsvp, revealed: visible }),
+      // Someone who came is still to rate.
+      open: attending.length > 0 && !areTakesRevealed(attending, rated),
     };
   }
+  const ratingProgress =
+    rating && !rating.revealed && rating.attending > 0
+      ? `${rating.ratedAttending}/${rating.attending} ratings in — hidden until everyone who's coming has rated.`
+      : null;
+
+  // ---- The week bar ----
+  const stage = weekStage({
+    paused: club.pausedAt !== null,
+    inFlight: inFlight ? { state: inFlight.state as "draft" | "open" | "locked", scheduledAt: inFlight.scheduledAt } : null,
+    ratingsOpen: rating?.open ?? false,
+    now: nowDate,
+  });
 
   // First run (§5.10): the owner is the only member and no night has ever
-  // finished. ("No nights at all" never holds: the first page load lazily
-  // creates the owner's draft night.) Only someone who can add people sees
-  // it — the link goes to the owner/admin-only Add a person form.
+  // finished. Only someone who can add people sees it.
   const isFirstRun =
     activeMemberships.length === 1 &&
-    (currentMembership.role === "owner" || currentMembership.role === "admin") &&
+    isOwnerOrAdmin &&
     !clubNights.some((n) => ["watched", "cancelled", "unconfirmed"].includes(n.state));
 
-  // Whether the rating section renders anything for this viewer (see the
-  // comment on it below): the empty-state fallback keys on this, not on
-  // whether a watched night exists.
-  const ratingShown =
-    ratingSection !== null &&
-    (ratingSection.myRsvpYes ||
-      (ratingSection.revealed && ratingSection.revealedRatings.length > 0));
+  // ---- The cards, in page order ----
+  const sections: Section[] = [];
+  if (confirmableNight) {
+    sections.push({
+      key: "confirm",
+      stage: "watch",
+      action: true,
+      render: (main) => (
+        <ConfirmCard
+          main={main}
+          clubId={clubId}
+          nightId={confirmableNight.id}
+          nightLabel={nightName(confirmableNight.scheduledAt, club.timezone, nowDate)}
+          filmTitle={confirmableFilm?.title ?? null}
+          unconfirmNote={unconfirmNote}
+        />
+      ),
+    });
+  }
+  if (rating) {
+    const r = rating;
+    if (r.myRsvp === "yes" && !r.myRated) {
+      sections.push({
+        key: "rate",
+        stage: "rate",
+        action: true,
+        render: (main) => <RateForm main={main} clubId={clubId} nightId={r.nightId} filmTitle={r.filmTitle} progress={ratingProgress} />,
+      });
+    } else if (r.canSayIWasThere) {
+      sections.push({
+        key: "i-was-there",
+        stage: "rate",
+        action: true,
+        render: (main) => <IWasThereCard main={main} clubId={clubId} nightId={r.nightId} filmTitle={r.filmTitle} />,
+      });
+    } else if (r.myRsvp === "yes") {
+      sections.push({
+        key: "your-rating",
+        stage: "rate",
+        action: false,
+        render: (main) => (
+          <YourRating
+            main={main}
+            clubId={clubId}
+            nightId={r.nightId}
+            filmTitle={r.filmTitle}
+            myTags={r.myTags}
+            tagOptions={r.tagOptions}
+            progress={ratingProgress}
+            revealed={r.revealed}
+          />
+        ),
+      });
+    } else if (r.revealed && r.revealed.length > 0) {
+      const revealed = r.revealed;
+      sections.push({
+        key: "club-ratings",
+        stage: "rate",
+        action: false,
+        render: (main) => <ClubRatings main={main} clubId={clubId} filmTitle={r.filmTitle} ratings={revealed} />,
+      });
+    }
+  }
+  if (lateNight) {
+    sections.push({
+      key: "late",
+      stage: null,
+      action: true,
+      render: (main) => <LateConfirmCard main={main} clubId={clubId} nightId={lateNight.id} filmTitle={lateFilm?.title ?? null} />,
+    });
+  }
+  if (isFirstRun) {
+    // First run (§5.10): nobody but the owner yet. The one useful thing to
+    // do is invite people, from the Members tab.
+    sections.push({
+      key: "first-run",
+      stage: null,
+      action: true,
+      render: (main) => (
+        <StageCard main={main} id="first-run" eyebrow="First night" title="Add the people you watch with.">
+          <p className="small muted mt-1">Each person gets their own link that greets them by name.</p>
+          <Link href={`/clubs/${clubId}/members#add-person`} className={buttonClass(main, "mt14 block-link")}>
+            Add a person
+          </Link>
+        </StageCard>
+      ),
+    });
+  }
+  if (draftNight) {
+    const night = draftNight;
+    if (night.pickerMembershipId === currentMembership.id) {
+      sections.push({
+        key: "nominate",
+        stage: "nominate",
+        action: true,
+        render: (main) => (
+          <PickerNominate
+            main={main}
+            clubId={clubId}
+            nightId={night.id}
+            closesLabel={draftDeadlineLabel}
+            films={myFilms.films}
+            listIsEmpty={myFilms.listIsEmpty}
+            cap={nomineesPerTurn}
+            helpFilms={helpFilms}
+            passConfirm={Boolean(pass)}
+          />
+        ),
+      });
+    } else {
+      sections.push({
+        key: "waiting",
+        stage: "nominate",
+        action: false,
+        render: (main) => (
+          <WaitingOnPicker
+            main={main}
+            clubId={clubId}
+            pickerName={pickerNameOf(night.pickerMembershipId)}
+            pickerMembershipId={night.pickerMembershipId}
+            canPassFor={isOwnerOrAdmin && activeIds.includes(night.pickerMembershipId)}
+            passConfirm={Boolean(passFor)}
+          />
+        ),
+      });
+    }
+  }
+  if (openNight) {
+    const night = openNight;
+    sections.push({
+      key: "vote",
+      stage: "vote",
+      action: !nomineeCards.some((n) => n.votedByMe),
+      render: (main) => (
+        <VoteStage
+          main={main}
+          clubId={clubId}
+          nightId={night.id}
+          pickerName={pickerNameOf(night.pickerMembershipId)}
+          closesLabel={votingClosesLabel}
+          nominees={nomineeCards}
+          canClose={isOwnerOrAdmin}
+        />
+      ),
+    });
+  }
+  if (lockedNight && lockedFilm) {
+    const night = lockedNight;
+    const started = now >= night.scheduledAt.getTime();
+    sections.push({
+      key: "locked",
+      stage: started ? "watch" : "locked",
+      action: false,
+      render: (main) => (
+        <LockedHero
+          main={main}
+          film={lockedFilm}
+          countdown={startsIn(nowDate, night.scheduledAt)}
+          started={started}
+          result={lockedResult}
+          startsLabel={formatNightTime(night.scheduledAt, club.timezone)}
+          outByLabel={
+            lockedFilm.runtime
+              ? formatNightTime(new Date(night.scheduledAt.getTime() + lockedFilm.runtime * 60_000), club.timezone)
+              : null
+          }
+          unconfirmNote={unconfirmNote}
+        />
+      ),
+    });
+  }
+  if (club.pausedAt) {
+    // Paused (§5.10, ruled 2026-11-10): nothing new is scheduled, but a
+    // night already in flight carries on.
+    sections.push({
+      key: "paused",
+      stage: null,
+      action: false,
+      render: (main) => (
+        <StageCard main={main} id="paused" eyebrow="Paused" title="This club is paused">
+          <p className="small muted mt-1 club-paused-note">This club is paused. The night in progress, if any, carries on.</p>
+        </StageCard>
+      ),
+    });
+  }
+  if (!inFlight && !confirmableNight && !lateNight && sections.length === 0) {
+    sections.push({
+      key: "empty",
+      stage: null,
+      action: false,
+      render: (main) =>
+        adHocNeedsManualNight ? (
+          // "ad_hoc" has no computable next occurrence on purpose: a real,
+          // permanent property of such a club, and there's no way yet to
+          // schedule one by hand.
+          <StageCard main={main} id="empty" eyebrow="No night" title="No night scheduled">
+            <p className="small muted mt-1">
+              This club is ad hoc — nights aren&apos;t scheduled automatically. There&apos;s no way to schedule one
+              manually yet either.
+            </p>
+          </StageCard>
+        ) : clubNights.length === 0 ? (
+          // Nobody active to pick: not the common case, a real one.
+          <StageCard main={main} id="empty" eyebrow="No night" title="No night scheduled yet">
+            <p className="small muted mt-1">
+              This club hasn&apos;t had a movie night yet. Invite the people you watch with from the{" "}
+              <Link href={`/clubs/${clubId}/members`} className="underline">
+                Members
+              </Link>{" "}
+              tab — each gets their own link.
+            </p>
+          </StageCard>
+        ) : (
+          <StageCard main={main} id="empty" eyebrow="No night" title="Nothing to do right now">
+            <p className="small muted mt-1">No open vote right now.</p>
+          </StageCard>
+        ),
+    });
+  }
+
+  // The "do this now" card: an action at the week's current step, else any
+  // action, else what the current step is, else the first card.
+  const main =
+    sections.find((s) => s.action && s.stage === stage) ??
+    sections.find((s) => s.action) ??
+    sections.find((s) => s.stage === stage) ??
+    sections[0];
+  const rest = sections.filter((s) => s !== main);
+
+  // ---- This week: the side column, and the phone's glance ----
+  const watchedNights = clubNights
+    .filter((n) => n.state === "watched" && n.winningFilmId)
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
+    .slice(0, 3);
+  const watchedFilms = watchedNights.length
+    ? await db
+        .select({ id: films.id, title: films.title })
+        .from(films)
+        .where(inArray(films.id, watchedNights.map((n) => n.winningFilmId!)))
+    : [];
+  const dateFormat = new Intl.DateTimeFormat("en-US", { timeZone: club.timezone, month: "short", day: "numeric" });
+  const watched = watchedNights.map((n) => ({
+    nightId: n.id,
+    title: watchedFilms.find((f) => f.id === n.winningFilmId)?.title ?? "A film",
+    date: dateFormat.format(n.scheduledAt),
+  }));
+  const facts: ThisWeekFacts = {
+    night: inFlight ? formatNightTime(inFlight.scheduledAt, club.timezone) : null,
+    status: votingClosesLabel
+      ? `Voting closes ${votingClosesLabel}`
+      : inFlight && inFlight.state !== "draft"
+        ? `${comingCount} coming`
+        : null,
+    picking: whoseTurn ? nameOf(whoseTurn) : "Nobody active in this club.",
+    nextTurn: nextPicker ? pickerNameOf(nextPicker.id) : null,
+  };
+  const weekday = rsvpableNight
+    ? new Intl.DateTimeFormat("en-US", { timeZone: club.timezone, weekday: "long" }).format(rsvpableNight.scheduledAt)
+    : "";
 
   return (
     <GlobalShell
@@ -509,547 +630,53 @@ export default async function ClubPage({
         </>
       }
       rail={
-        <RailMembers
-          members={[...activeMemberships].sort(byJoinedAt)}
-          meId={currentMembership.id}
-          addPersonHref={
-            currentMembership.role === "owner" || currentMembership.role === "admin"
-              ? `/clubs/${clubId}/members#add-person`
-              : undefined
+        <ThisWeekRail
+          clubId={clubId}
+          facts={facts}
+          watched={watched}
+          members={
+            <RailMembers
+              members={[...activeMemberships].sort(byJoinedAt)}
+              meId={currentMembership.id}
+              addPersonHref={isOwnerOrAdmin ? `/clubs/${clubId}/members#add-person` : undefined}
+            />
           }
         />
       }
     >
       {passed && (
-        <div className="note mt20">
-          <p className="small" style={{ margin: 0 }} role="status">
+        <div className="note mt14">
+          <p className="small flush" role="status">
             Turn passed. The next person picks this time.
           </p>
         </div>
       )}
       {passError && (
-        <p className="small mt20" role="alert" style={{ color: "var(--warn)" }}>
+        <p className="small mt14 warn" role="alert">
           {passError}
         </p>
       )}
-
       {joined && (
-        <div className="note mt20">
-          <p className="small" style={{ margin: 0 }}>
-            You&apos;re in, {nameOf(currentMembership).replace(/ [A-Za-z]\.$/, "")}.
-          </p>
+        <div className="note mt14">
+          <p className="small flush">You&apos;re in, {nameOf(currentMembership).replace(/ [A-Za-z]\.$/, "")}.</p>
         </div>
       )}
 
-      {club.pausedAt && (
-        // Paused (§5.10, ruled 2026-11-10): no new night is scheduled, but
-        // a night already in flight carries on.
-        <div className="note mt20 club-paused-note">
-          <p className="small" style={{ margin: 0 }}>
-            This club is paused. The night in progress, if any, carries on.
-          </p>
-        </div>
-      )}
-
-      {isFirstRun && (
-        // First run (§5.10): nobody but the owner yet. The one useful
-        // thing to do is invite people, from the Members tab.
-        <div className="mt20">
-          <p className="eyebrow">First night</p>
-          <h2 className="h-display" style={{ fontSize: 22 }}>
-            Add the people you watch with.
-          </h2>
-          <p className="small muted mt-1">
-            Each person gets their own link that greets them by name.
-          </p>
-          <Link
-            href={`/clubs/${clubId}/members#add-person`}
-            className="btn primary mt14"
-            style={{ display: "block", textAlign: "center" }}
-          >
-            Add a person
-          </Link>
-        </div>
-      )}
-
-      <h2 className="sec mt20">Whose turn</h2>
-      <p className="small">{whoseTurn ? nameOf(whoseTurn) : "Nobody active in this club."}</p>
-
-      {draftNight &&
-        (draftNight.pickerMembershipId === currentMembership.id ? (
-          <>
-            <p className="eyebrow mt20">Your turn this week</p>
-            <h2 className="h-display" style={{ fontSize: 22 }}>
-              Your turn to nominate
-            </h2>
-            {/* Always shown, filtered or not (ruled 2026-11-13), so it never
-                signals that something in particular was hidden. */}
-            <p className="small muted mt-1 fit-note">Only films that fit everyone in this club are shown here.</p>
-            {myWatchlistFilms.length === 0 && !myWatchlistEmpty ? (
-              // Every film on the list is out for this club (ruled
-              // 2026-11-12): no count, no reason, no limit, no person.
-              <p className="small muted mt14 empty-pool">
-                None of your watchlist fits this club right now.{" "}
-                <Link href="/watchlist" className="underline">
-                  Add a few more films.
-                </Link>
-              </p>
-            ) : myWatchlistFilms.length === 0 ? (
-              <p className="small muted mt14">
-                Your watchlist is empty.{" "}
-                <Link href="/watchlist" className="underline">
-                  Add films to it
-                </Link>{" "}
-                before you can nominate.
-              </p>
-            ) : (
-              <form action={openVoting.bind(null, clubId, draftNight.id)} className="mt14">
-                <NominationSelector films={myWatchlistFilms} cap={nomineesPerTurn} />
-              </form>
-            )}
-            {helpFilms.length > 0 && (
-              // Films your club wants that fit everyone (ruled 2026-11-17):
-              // others' lists, through the visibility function and the hard
-              // limits, with counts and never names. Nothing says why
-              // other films aren't here.
-              <section className="mt20 help-films" aria-labelledby="help-films-heading">
-                <h3 id="help-films-heading" className="sec">
-                  Films your club wants that fit everyone
-                </h3>
-                <ul className="stack gap8 mt14" style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
-                  {helpFilms.map((f) => (
-                    <li key={f.id} className="card row gap8">
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <span className="small">
-                          {f.title} ({f.year})
-                        </span>
-                        <p className="tiny dim" style={{ margin: "2px 0 0" }}>
-                          {f.othersWant} {f.othersWant === 1 ? "other wants" : "others want"} this
-                        </p>
-                      </div>
-                      <form action={addToWatchlist.bind(null, f.tmdbId)}>
-                        <button type="submit" className="btn ghost limit-remove" aria-label={`Add ${f.title} to my list`}>
-                          Add to my list
-                        </button>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {/* Pass my turn (ruled 2026-11-17): only while the night is a
-                draft. Two taps: the link opens the confirm. */}
-            {pass ? (
-              <div className="card mt14 pass-confirm">
-                <p className="small" style={{ margin: 0 }}>
-                  Pass your turn? The next person picks this time, and you&apos;ll pick the time after.
-                </p>
-                <div className="row gap8 mt14">
-                  <form action={passMyTurn.bind(null, clubId)}>
-                    <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                      Pass my turn
-                    </button>
-                  </form>
-                  <Link href={`/clubs/${clubId}`} className="btn ghost" style={{ width: "auto" }}>
-                    Cancel
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <p className="small mt14">
-                <Link href={`/clubs/${clubId}?pass=1`} className="underline tap">
-                  Pass my turn
-                </Link>
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="small muted mt20">Waiting on {draftPickerName} to nominate.</p>
-            {(currentMembership.role === "owner" || currentMembership.role === "admin") &&
-              clubMemberships.some((m) => m.id === draftNight.pickerMembershipId && m.leftAt === null) &&
-              (passFor ? (
-                <div className="card mt14 pass-confirm">
-                  <p className="small" style={{ margin: 0 }}>
-                    Pass {draftPickerName}&apos;s turn? The next person picks this time, and {draftPickerName} picks
-                    the time after.
-                  </p>
-                  <div className="row gap8 mt14">
-                    <form action={passTurnFor.bind(null, clubId, draftNight.pickerMembershipId)}>
-                      <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                        Pass {draftPickerName}&apos;s turn
-                      </button>
-                    </form>
-                    <Link href={`/clubs/${clubId}`} className="btn ghost" style={{ width: "auto" }}>
-                      Cancel
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <p className="small mt14">
-                  <Link href={`/clubs/${clubId}?passFor=1`} className="underline tap">
-                    Pass {draftPickerName}&apos;s turn
-                  </Link>
-                </p>
-              ))}
-          </>
-        ))}
-
-      {!openNight &&
-        !draftNight &&
-        !lockedNight &&
-        !confirmableNight &&
-        !lateNight &&
-        !ratingShown &&
-        (adHocNeedsManualNight ? (
-          // "ad_hoc" has no computable next occurrence on purpose
-          // (lib/schedule.ts) — an ad-hoc club doesn't have a standing
-          // day/time to compute from, so lazy-creation can't fire here.
-          // Named explicitly so this reads as a real, permanent property
-          // of an ad_hoc club rather than a bug — there's no UI yet to
-          // schedule one manually either (a real gap, not solved here).
-          <>
-            <h2 className="h-display mt20" style={{ fontSize: 20 }}>
-              No night scheduled
-            </h2>
-            <p className="small muted mt-1">
-              This club is ad hoc — nights aren&apos;t scheduled
-              automatically. There&apos;s no way to schedule one manually
-              yet either.
-            </p>
-          </>
-        ) : clubNights.length === 0 ? (
-          // Reachable when nobody's active in the club yet to become the
-          // picker lazy-creation needs — not the common case once a club
-          // has its owner, but a real one (e.g. every membership somehow
-          // left). The actual first impression for a normal new club is
-          // the draft night created above, same request, not this.
-          <>
-            <h2 className="h-display mt20" style={{ fontSize: 20 }}>
-              No night scheduled yet
-            </h2>
-            <p className="small muted mt-1">
-              This club hasn&apos;t had a movie night yet. Invite the people you
-              watch with from the{" "}
-              <Link href={`/clubs/${clubId}/members`} className="underline">
-                Members
-              </Link>{" "}
-              tab — each gets their own link.
-            </p>
-          </>
-        ) : (
-          <p className="small muted mt20">No open vote right now.</p>
-        ))}
-
-      {openNight && (
-        <>
-          <h2 className="h-display mt20" style={{ fontSize: 22 }}>
-            This week&apos;s pick, nominated by {pickerName}
-          </h2>
-          {votingClosesLabel && <p className="small muted mt-1 voting-closes">Voting closes {votingClosesLabel}</p>}
-        </>
-      )}
-
+      {stage && <WeekBar stage={stage} />}
+      {main?.render(true)}
       {rsvpableNight && (
-        <>
-          <h3 className="sec mt20">RSVP</h3>
-          <p className="small muted">Current answer: {myRsvpStatus ?? "no answer yet"}</p>
-          <div className="row gap8 mt14">
-            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "yes")} style={{ flex: 1 }}>
-              <button type="submit" className={`btn ${myRsvpStatus === "yes" ? "primary" : ""}`}>
-                Going
-              </button>
-            </form>
-            <form action={setRsvp.bind(null, clubId, rsvpableNight.id, "no")} style={{ flex: 1 }}>
-              <button type="submit" className={`btn ${myRsvpStatus === "no" ? "primary" : ""}`}>
-                Not going
-              </button>
-            </form>
-          </div>
-        </>
+        <RsvpCard
+          clubId={clubId}
+          nightId={rsvpableNight.id}
+          weekday={weekday}
+          status={myRsvpStatus}
+          locked={rsvpableNight.state === "locked"}
+        />
       )}
-
-      {openNight && (
-        <>
-          <h3 className="sec mt20">Nominees</h3>
-          <ul className="stack gap8 mt14">
-            {nomineeRows.map((n) => (
-              <li key={n.nominationId} className="nominee">
-                <div className="small">
-                  {n.filmTitle} ({n.filmYear}) — {n.voteCount}{" "}
-                  {n.voteCount === 1 ? "vote" : "votes"}
-                  {n.votedByMe && " — your vote"}
-                </div>
-                {n.someoneWouldRatherNot && <p className="tiny dim pref-note" style={{ margin: "4px 0 0" }}>{PREFERENCE_WARNING}</p>}
-                <form action={castVote.bind(null, clubId, n.nominationId)} className="mt14">
-                  <button type="submit" className="btn">
-                    {n.votedByMe ? "Voted" : "Vote"}
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-
-          {(currentMembership.role === "owner" || currentMembership.role === "admin") && (
-            <div className="mt20">
-              <form action={lockNight.bind(null, clubId, openNight.id)}>
-                <button type="submit" className="btn primary">
-                  Close voting and set the pick
-                </button>
-              </form>
-              <p className="tiny dim mt-1">The pick can&apos;t be changed after this.</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {lockedNight && lockedFilm && (
-        <>
-          <div className="between mt20" style={{ alignItems: "center" }}>
-            <span className="pill">Locked in</span>
-          </div>
-          <h2 className="h-display mt14" style={{ fontSize: 26 }}>
-            {lockedFilm.title}
-          </h2>
-          <p className="small muted mt-1">{lockedFilm.year}</p>
-          <div
-            className="row between"
-            style={{
-              borderTop: "1px solid var(--line)",
-              borderBottom: "1px solid var(--line)",
-              padding: "13px 0",
-              margin: "18px 0",
-            }}
-          >
-            <div>
-              <div className="tiny dim">starts</div>
-              <div style={{ fontSize: 17 }}>{lockedStartsLabel}</div>
-            </div>
-            <div>
-              <div className="tiny dim">runs</div>
-              <div style={{ fontSize: 17 }}>
-                {lockedFilm.runtime !== null ? `${lockedFilm.runtime}m` : "—"}
-              </div>
-            </div>
-            <div>
-              <div className="tiny dim">out by</div>
-              <div style={{ fontSize: 17, color: "var(--accent)" }}>
-                {lockedOutByLabel ?? "—"}
-              </div>
-            </div>
-          </div>
-          {unconfirmNote}
-        </>
-      )}
-
-      {/* Only "Yes": a late "No" is refused (ruled 2026-11-21). */}
-      {lateNight && (
-        <section className="late-confirm" aria-labelledby="late-confirm-heading">
-          <p className="eyebrow mt20">Nobody answered in time</p>
-          <h2 id="late-confirm-heading" className="h-display" style={{ fontSize: 22 }}>
-            Did you watch {lateFilmTitle ?? "it"} after all?
-          </h2>
-          <form action={confirmNight.bind(null, clubId, lateNight.id, "watched")} className="mt14">
-            <button type="submit" className="btn primary">
-              Yes, we watched it
-            </button>
-          </form>
-        </section>
-      )}
-
-      {confirmableNight && (
-        <>
-          <p className="eyebrow mt20 confirm-night">
-            {nightName(confirmableNight.scheduledAt, club.timezone, new Date(now))}
-          </p>
-          <h2 className="h-display" style={{ fontSize: 22 }}>
-            Did you watch {confirmableFilmTitle ?? "it"}?
-          </h2>
-          <div className="row gap8 mt14">
-            <form
-              action={confirmNight.bind(null, clubId, confirmableNight.id, "watched")}
-              style={{ flex: 1 }}
-            >
-              <button type="submit" className="btn primary">
-                Yes
-              </button>
-            </form>
-            <form
-              action={confirmNight.bind(null, clubId, confirmableNight.id, "cancelled")}
-              style={{ flex: 1 }}
-            >
-              <button type="submit" className="btn ghost">
-                We didn&apos;t meet
-              </button>
-            </form>
-          </div>
-          {unconfirmNote}
-        </>
-      )}
-
-      {/* Rating (blind reveal, CLAUDE.md). Only someone who RSVP'd yes can
-          rate, so only they get "Rate X" — the form, then their tags and the
-          progress line once they've rated. Anyone else sees nothing here
-          until every rating is in, then just the revealed ratings: revealed
-          ratings are visible to every member, and Tonight is where they
-          appear until the History tab exists (rebuild step 5f). */}
-      {ratingSection &&
-        !ratingSection.myRsvpYes &&
-        ratingSection.revealed &&
-        ratingSection.revealedRatings.length > 0 && (
-          <>
-            <h2 className="h-display mt20" style={{ fontSize: 22 }}>
-              How the club rated {ratingSection.filmTitle}
-            </h2>
-            <RevealedRatings ratings={ratingSection.revealedRatings} clubId={clubId} />
-          </>
-        )}
-
-      {ratingSection && ratingSection.myRsvpYes && (
-        <>
-          <h2 className="h-display mt20" style={{ fontSize: 22 }}>
-            Rate {ratingSection.filmTitle}
-          </h2>
-
-          {ratingSection.myRsvpYes && !ratingSection.myRating && (
-            <form
-              action={submitRating.bind(null, clubId, ratingSection.nightId)}
-              className="stack gap14 mt14"
-            >
-              <RatingSlider name="scoreQuality" label="Quality" />
-              <RatingSlider name="scoreFun" label="Fun" />
-              <div>
-                <label className="small muted">
-                  One-line take (optional)
-                  <div className="search mt-1">
-                    <input type="text" name="hotTake" maxLength={140} />
-                  </div>
-                </label>
-              </div>
-              <button type="submit" className="btn primary">
-                Submit rating
-              </button>
-            </form>
-          )}
-
-          {ratingSection.myRating && (
-            // Tags live on the rating row, so they can only be added once
-            // the rating itself exists — that's why this is a separate
-            // section below the initial submit rather than more fields on
-            // that form (CLAUDE.md: tags alongside the hot take, editable
-            // and removable on a rating you've already submitted).
-            <div className="mt20">
-              <h3 className="sec">Your tags</h3>
-              {ratingSection.myTags.length > 0 && (
-                <ul className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
-                  {ratingSection.myTags.map((t) => (
-                    <li key={t.tagId} className="chip">
-                      {t.displayName}{" "}
-                      <form
-                        action={removeRatingTag.bind(
-                          null,
-                          clubId,
-                          ratingSection.nightId,
-                          t.tagId,
-                        )}
-                        className="inline"
-                      >
-                        <button type="submit" className="underline tap" aria-label={`Remove ${t.displayName}`}>
-                          remove
-                        </button>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form
-                action={addRatingTag.bind(null, clubId, ratingSection.nightId)}
-                className="row gap8 mt14"
-              >
-                <div className="search" style={{ flex: 1 }}>
-                  <input
-                    type="text"
-                    name="tag"
-                    aria-label="Add a tag"
-                    list="club-tag-options"
-                    placeholder="Add a tag"
-                    maxLength={50}
-                  />
-                </div>
-                <datalist id="club-tag-options">
-                  {ratingSection.clubTagOptions.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-                <button type="submit" className="btn" style={{ width: "auto" }}>
-                  Add tag
-                </button>
-              </form>
-            </div>
-          )}
-
-          {!ratingSection.revealed && ratingSection.attendingCount > 0 && (
-            <p className="tiny dim mt14">
-              {ratingSection.ratedAttendingCount}/{ratingSection.attendingCount} ratings
-              in — hidden until everyone who&apos;s coming has rated.
-            </p>
-          )}
-
-          {ratingSection.revealed && (
-            <RevealedRatings ratings={ratingSection.revealedRatings} clubId={clubId} />
-          )}
-        </>
-      )}
-    </GlobalShell>
-  );
-}
-
-// The blind reveal's result: every attending member's scores, hot take and
-// tags, shown only once all of them have rated.
-function RevealedRatings({
-  ratings,
-  clubId,
-}: {
-  ratings: {
-    displayName: string;
-    scoreQuality: string;
-    scoreFun: string;
-    hotTake: string | null;
-    tags: { name: string; displayName: string }[];
-  }[];
-  clubId: string;
-}) {
-  return (
-    <ul className="stack gap8 mt14">
-      {ratings.map((r, i) => (
-        <li key={i} className="card">
-          <div className="between">
-            <span className="small">{r.displayName}</span>
-            <span className="tiny">
-              <span className="muted">quality {r.scoreQuality}</span>,{" "}
-              <span style={{ color: "var(--accent)" }}>fun {r.scoreFun}</span>
-            </span>
-          </div>
-          {r.hotTake && (
-            <p className="small muted mt-1" style={{ fontStyle: "italic" }}>
-              &quot;{r.hotTake}&quot;
-            </p>
-          )}
-          {r.tags.length > 0 && (
-            <div className="row gap8 mt-1" style={{ flexWrap: "wrap" }}>
-              {r.tags.map((t) => (
-                <Link
-                  key={t.name}
-                  href={`/clubs/${clubId}/tags/${encodeURIComponent(t.name)}`}
-                  className="chip"
-                >
-                  {t.displayName}
-                </Link>
-              ))}
-            </div>
-          )}
-        </li>
+      {rest.map((s) => (
+        <div key={s.key}>{s.render(false)}</div>
       ))}
-    </ul>
+      <ThisWeekGlance clubId={clubId} facts={facts} watched={watched} />
+    </GlobalShell>
   );
 }

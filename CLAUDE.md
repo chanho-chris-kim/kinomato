@@ -273,8 +273,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   their own explicit "no night scheduled" state, not a broken-looking
   blank one — and there's no UI yet to schedule one for them manually.
 - **"Whose turn" names who the club is waiting on: the in-flight night's
-  picker.** When a club has a `draft`, `open` or `locked` night, the
-  heading shows that night's picker. Only with no night in flight does
+  picker.** When a club has a `draft`, `open` or `locked` night, Tonight
+  names that night's picker (since the Tonight redesign, 2026-11-25, in
+  the "do this now" card's text and the side column, not a heading). Only with no night in flight does
   it fall back to `getNextPicker`, which stays as it is, because "who
   picks next" is a different and correct question: it counts the
   in-flight night as already picked and names the member after its
@@ -534,8 +535,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   state including `cancelled` and `unconfirmed`), the final
   tally, both rating axes, hot takes, and who attended each individual night.
   It does **not** surface: individual vote attribution after lock (live
-  counts are visible during voting; once the night is over, keep "won 4-1"
-  and drop who voted for what); the vetoer's name after the night ends (named
+  counts are visible during voting only when the club's "Show vote counts
+  while voting is open" setting is on, ruled 2026-11-25; once voting
+  closes, keep "won 4-1" and drop who voted for what); the vetoer's name after the night ends (named
   live so a veto reads as a boundary, anonymised once it's history); watchlist
   edits (adding or removing a film is never a club-visible event); or any
   aggregate or percentage attendance figure per member (per-night attendance
@@ -552,9 +554,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   tables, and nothing it returns carries a `membership_id` from them:
   `liveVotes` (an open night's counts plus *your own* vote, pre-lock
   only — Tonight's tally), `viewerVotedOnOpenNights` (the club cards on
-  `/`), `votesForLock` (nomination ids for `lockNightCore`'s tally) and
-  `clubHistory` (finished nights' final counts and a veto count, never
-  voters or vetoers). **Enforced by a test:** `lib/attributionAccess.test.ts`
+  `/`), `votesForLock` (nomination ids for `lockNightCore`'s tally),
+  `closedTally` (a night's final counts once voting has closed, for
+  Tonight's "Won 3 to 1", u1) and `clubHistory` (finished nights' final
+  counts and a veto count, never voters or vetoers). **Enforced by a test:** `lib/attributionAccess.test.ts`
   scans `app/` and `lib/` and fails, naming this ruling, if any other file
   imports `votes` or `vetoes` from `db/schema`, reaches them through a
   namespace import, or names them in SQL. The one exception is the
@@ -833,7 +836,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   simultaneous redemptions is an accepted gap, and the cap is meant to
   change per plan once paid tiers exist, which a fixed DB check can't
   express as easily as an application-level read.
-- **A name is first name + last initial, always — never a single free-
+- **To be replaced in u2 (ruled 2026-11-25, see "Display name" below);
+  stands until u2 ships.** **A name is first name + last initial, always — never a single free-
   text field.** It lives on the account (`users.display_name`), one per
   person, the same in every club — memberships carry no name. Set once at
   the name step (`/welcome`), composed by `lib/memberName.ts`'s
@@ -908,11 +912,12 @@ Do not quietly change these — they encode decisions that took a while to reach
   what a club expects.
 - **`RatingSlider` (`app/clubs/[clubId]/RatingSlider.tsx`) is the second
   justified client component**, after `NominationSelector` — same
-  reasoning: a plain form can't keep a range input and a number input
-  showing the same live value in sync, so it needs local `useState`. The
-  server action (`submitRating`) re-validates the 0–10 range
-  independently; the client component's only job is display and the two
-  inputs agreeing with each other.
+  reasoning: the value shown beside the label follows the slider as it
+  moves, which a plain form can't do, so it needs local `useState`. Since
+  the Tonight redesign (u1, 2026-11-25) it's one slider per score; the
+  paired number box is gone. The server action (`submitRating`)
+  re-validates the 0–10 range independently; the client component's only
+  job is display.
 - **`ShareInvite` (`app/clubs/[clubId]/ShareInvite.tsx`) is the third
   justified client component**, after `NominationSelector` and
   `RatingSlider`: the OS share sheet (`navigator.share`) and the
@@ -1008,7 +1013,11 @@ Do not quietly change these — they encode decisions that took a while to reach
   be available instead of the width that's actually there.
   **The context rail only ever shows real data, repurposed — never the
   prototype's fake turn-order queue, streaming-expiry list, or
-  attendance leaderboard.** The rail is on Tonight and History: the club's
+  attendance leaderboard.** The rail is on Tonight and History. On
+  Tonight (u1, 2026-11-25) it's This week (the night, voting closes or how
+  many are coming, who's picking, who's next), the Members list and the
+  last three films the club watched, with a collapsed "This week at a
+  glance" in the main column on phones. On History it's the club's
   member list, with the viewer's row marked "(you)" in words plus the
   accent highlight (`app/clubs/[clubId]/memberViews.tsx`), and for owners
   and admins an "Add a person →" link to the Members tab's form. It's
@@ -1031,9 +1040,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   night locking and the confirmAt threshold clearing rendered nothing at
   all — CLAUDE.md's confirmAt ruling only covers when the "Did you watch
   X?" prompt appears, not what shows before that. This section
-  (`app/clubs/[clubId]/page.tsx`) is pure display over data already on
-  hand (`films.runtime`, `nights.scheduledAt`, `nights.winningFilmId`) —
-  no new query shape, no new write, no new user action, and it only ever
+  (since u1, the locked hero in `app/clubs/[clubId]/_tonight/WatchStage.tsx`)
+  is pure display over the night and its film, plus the result through
+  `historyRead.ts`'s `closedTally` — no new write, no new user action,
+  and it only ever
   renders in place of the confirm prompt, never alongside it (the
   "one night in flight" invariant guarantees there's only ever one
   candidate night for either section). Its times use the app's one time
@@ -1059,6 +1069,90 @@ Do not quietly change these — they encode decisions that took a while to reach
   is a durable anchor:** a fresh code re-finds the same `users` row, and
   every membership that's that user's is recognized at once. No signing
   library, no unclearable storage.
+- **The Tonight redesign (ruled 2026-11-25, approved by Chanho; built in
+  u1, `docs/roadmap.md`).** Every stage has the same order: club header
+  and tabs, the week bar, **one "do this now" card**, the RSVP card when it
+  applies, then everything else. The card's button is the only filled
+  (accent) button on the page; everything else is outlined or a text
+  link. "Whose turn" is folded into the card's text and the side column.
+  - **The week bar:** Nominate → Vote → Locked → Watch → Rate. A draft is
+    Nominate, an open night Vote, a locked night before `scheduled_at`
+    Locked, from `scheduled_at` until confirmed Watch, and a watched night
+    whose ratings are still open Rate. Done steps are ticked, the current
+    one is accent-filled with `aria-current="step"`, later ones outlined.
+    Phones show a thin five-segment bar and one line ("Step 2 of 5 · Vote
+    · then Locked, Watch, Rate"); laptops show the five labelled steps in
+    a card. A cancelled or unconfirmed night, a paused club, or no night:
+    no bar, the existing message as the card.
+  - **Voting:** nominees are poster cards and the whole card is the vote
+    button (`aria-pressed`). Your choice has an accent border and "Your
+    vote ✓". The page says what the server does: you can change your vote
+    until voting closes, and with no votes the picker's first choice wins.
+  - **Locked:** the film is the hero (poster, "Locked in", the countdown,
+    the title, year, director and "Won 3 to 1"), then starts, runs and out
+    by.
+  - **RSVP** is its own card under the action, "Coming Saturday?", gone
+    from `scheduled_at` (the existing rule).
+  - **Rating:** one slider per score, its value beside the label; rating
+    comes before any next-night nomination on the page.
+  - **Side column** (the rail, from 1120px): This week, Members, and
+    Recently watched. On phones, "This week at a glance" is a collapsed
+    `<details>` below the cards. No ad slot: it's a private club (the ad
+    ruling).
+- **Vote counts while voting (ruled 2026-11-25, approved by Chanho).** A
+  club setting, "Show vote counts while voting is open"
+  (`clubs.settings.showVoteCounts`, boolean, default off), set by owner or
+  admin in How this club runs and validated at write time. Off, an open
+  night shows no counts; once voting closes the result shows ("Won 3 to
+  1"). Display only, so a change applies at once, even to a vote under
+  way.
+- **"I was there," built (u1, 2026-11-25):** the ruling above, with one
+  precision. A night counts as revealed only once a rating is visible:
+  every yes-RSVP has rated *and* at least one rating exists. With nobody
+  RSVP'd yes and nobody rated, nothing has been shown, so saying "I was
+  there" can't un-reveal anything. It records a yes RSVP through its own
+  server action, which checks this club's night, watched, not revealed,
+  and no "no" RSVP; a stale tab is a silent no-op. After that the person
+  rates and is waited on like any yes, and History's "Came:" lists them.
+  It never changes the pick.
+- **Display name (ruled 2026-11-25, approved by Chanho; built in u2).** It
+  reverses "first name + last initial" (Chanho's decision). One
+  free-text display name, trimmed, 1–30 characters, unique within each
+  club case-insensitively. On a clash when joining or renaming, the
+  person is asked to pick another. An invite keeps a name the inviter
+  types only to greet the invitee; the invitee chooses their own display
+  name when they join.
+- **Sign-up and sign-in (ruled 2026-11-25, approved by Chanho; built in
+  u3).** Invited sign-up has a three-step bar, Email → Code → About you,
+  ending after consent. The invite ("Ana A. invited you to Saturday
+  Club") stays in view on every step. The code is six boxes with paste and
+  one-time-code autofill, a visible resend countdown and a check-spam
+  hint. After sign-up, a welcome page (no bar) to add at least three
+  films, skippable. Returning sign-in has no step bar. On laptops, sign-in
+  is two columns: what Kinomato is, and the sign-in card.
+- **Own sign-up (ruled 2026-11-25, approved by Chanho; built in u4, live
+  only when `OPEN_SIGNUP` is on).** The same three steps plus "Start your
+  club": name, day, time, In person or Remote, and every default shown as
+  an editable field (how often, films per picker, voting closes, show vote
+  counts, when "Did you watch it?" is asked, time zone), with "Joining a
+  friend's club instead?" linking to Join. Then a "Get your club going"
+  checklist on Tonight (create ✓, invite your people, add at least three
+  films to your watchlist, check how the club runs) that disappears when
+  done, and an Invite people screen with the bottom tab bar.
+- **Club codes (ruled 2026-11-25, approved by Chanho; built in u5).** A
+  second way in, beside per-person invites (Chanho's decision). Each
+  club may have a short join code, off by default, turned on and
+  regenerated by owner or admin; a new code kills the old one. Anyone
+  signed in can enter it and "Ask to join". Nobody joins until an owner
+  or admin approves, and until then the club sees only the requester's
+  display name. The seat cap, and later adults-only gating, apply at
+  approval. Private clubs are never searchable; search belongs to public
+  genre clubs (`docs/roadmap.md` #28). The approval is the provenance
+  record for someone who arrived by code, as `invites.invited_by_membership_id`
+  is for an invite ("Every rating is a verified member's").
+- **Onboarding guidance (ruled 2026-11-25).** A step bar exists only
+  during sign-up and on Tonight's week. The guided first-time tour
+  (`docs/roadmap.md`) stays separate.
 - **Invites are per person** (`docs/onboarding-spec.md` §7). An owner or
   admin adds "First R." and gets a link for that one person
   (`/invite/[token]`, 128 random bits, stored as-is so it can be

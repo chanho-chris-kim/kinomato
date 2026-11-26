@@ -113,6 +113,9 @@ footer a::after {
    everything below targets descendants. */
 .app {
   container-type: inline-size;
+  /* Named, so a page can respond to the whole page's width even inside
+     .main, which is its own container (Tonight's week bar and glance). */
+  container-name: app;
   position: relative;
 }
 .topbar {
@@ -831,6 +834,325 @@ footer a::after {
   font-size: 12px;
   line-height: 1.5;
   min-height: 0;
+}
+
+/* ---------- Tonight (the redesign, ruled 2026-11-25) ----------
+   One "do this now" card (.now: the accent edge, and the page's only
+   filled button), the week bar, poster cards, the locked hero, the RSVP
+   card and This week. Existing tokens only. */
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.flush {
+  margin: 0;
+}
+.plain-list {
+  list-style: none;
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.btn.auto {
+  width: auto;
+}
+.block-link {
+  display: block;
+  text-align: center;
+}
+.warn {
+  color: var(--warn);
+}
+.take {
+  font-style: italic;
+}
+.card.now {
+  border-color: var(--accent);
+}
+.now .eyebrow {
+  color: var(--accent);
+}
+.stage-title {
+  font-size: clamp(22px, 20px + 0.6vw, 26px);
+}
+
+/* The week bar: on phones a thin five-segment bar and one line of text;
+   from 620px the five labelled steps in a card. */
+.weekbar ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+.weekbar li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--field-line);
+}
+.weekbar li.done {
+  background: var(--mut);
+  box-shadow: none;
+}
+.weekbar li.current {
+  background: var(--accent);
+  box-shadow: none;
+}
+.weekbar-mark,
+.weekbar-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.weekbar-line {
+  margin: 8px 0 0;
+  color: var(--mut);
+}
+@container app (min-width: 620px) {
+  .weekbar {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .weekbar ol {
+    gap: 10px;
+  }
+  .weekbar li,
+  .weekbar li.done,
+  .weekbar li.current {
+    height: auto;
+    background: none;
+    box-shadow: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--mut);
+    font-size: var(--text-small);
+  }
+  .weekbar-mark,
+  .weekbar-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  .weekbar-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--field-line);
+  }
+  .weekbar li.done .weekbar-mark {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .weekbar li.current .weekbar-mark {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .weekbar li.current .weekbar-label {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .weekbar-line {
+    display: none;
+  }
+}
+
+/* A poster box with no image draws the film's title instead. */
+.poster-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  text-align: center;
+  font-size: var(--text-tiny);
+  line-height: 1.2;
+  color: var(--dim);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.poster-fallback::after {
+  content: attr(data-title);
+}
+
+/* Picking and voting: rows with a small poster on phones, a three-column
+   grid of posters on wide pages. The whole card is the control. */
+.pick-grid,
+.vote-grid {
+  list-style: none;
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.pick-grid .nominee,
+.vote-grid .nominee {
+  padding: 0;
+}
+.pick-card > label {
+  margin: 0;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.pick-card.picked,
+.vote-grid .nominee:has(.vote-card[aria-pressed="true"]) {
+  border-color: var(--accent);
+}
+.pick-poster,
+.vote-poster {
+  display: block;
+  width: 48px;
+}
+.pick-text,
+.vote-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.vote-card {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  border-radius: 10px;
+  color: var(--fg);
+  text-align: left;
+}
+.vote-cta {
+  color: var(--accent);
+}
+.pref-note {
+  margin: 0;
+  padding: 0 12px 10px;
+}
+@container app (min-width: 900px) {
+  .pick-grid,
+  .vote-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .vote-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .vote-poster {
+    width: 100%;
+  }
+  .pick-card > label {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+  .pick-poster {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+  }
+}
+
+/* Locked: the film is the hero. */
+.hero-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.hero-poster {
+  display: block;
+  width: 100%;
+}
+.locked-hero .stage-title {
+  font-size: clamp(28px, 24px + 1.5vw, 40px);
+}
+.locked-times {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 13px 0;
+  margin: 18px 0 0;
+}
+.locked-time {
+  font-size: 17px;
+}
+@container app (min-width: 620px) {
+  .hero-row {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+}
+
+/* RSVP: the current answer is pressed (an accent edge, never a fill: the
+   do-this-now card has the page's only filled button). */
+.btn.answer[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* The rating slider's value, beside its label. */
+.slider-value {
+  color: var(--accent);
+}
+
+/* This week: the side column's facts, and the phone's collapsed glance
+   (gone where the side column shows). */
+.facts {
+  margin: 0;
+}
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.fact dd {
+  margin: 0;
+  text-align: right;
+}
+.glance summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-sec);
+}
+@container app (min-width: 1120px) {
+  .glance {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

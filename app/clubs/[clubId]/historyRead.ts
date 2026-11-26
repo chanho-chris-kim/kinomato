@@ -35,6 +35,9 @@ import { loadClubMemberships, nameOf } from "./members";
 // - membershipsYetToVote: of the memberships passed in, the ones with no
 //   vote on an open night, for the "voting closes soon" reminder (ruled
 //   2026-11-23). Never who voted for what; empty unless the night is open.
+// - closedTally: a night's final count per nominee once voting has closed
+//   (locked or finished), for Tonight's "Won 3 to 1" (ruled 2026-11-25).
+//   Counts only; null while the night is a draft or still open.
 // - clubHistory: finished nights' final counts and a veto count. Never who
 //   voted for what, never who vetoed.
 // - ownVotesAndVetoes: *your own* votes and vetoes, for Download my data
@@ -113,6 +116,31 @@ export async function membershipsYetToVote(db: Db, openNightId: string, membersh
     ).map((r) => r.membershipId),
   );
   return membershipIds.filter((id) => !voted.has(id));
+}
+
+// Tonight's "Won 3 to 1": once voting has closed, a count per nominee still
+// in the running (dropped ones left out, as History does), winner marked.
+// Nothing while the night is a draft or open: live counts are liveVotes'
+// job, and only when the club shows them.
+export async function closedTally(db: Db, nightId: string): Promise<{ count: number; winner: boolean }[] | null> {
+  const [night] = await db
+    .select({ state: nights.state, winningFilmId: nights.winningFilmId })
+    .from(nights)
+    .where(eq(nights.id, nightId));
+  if (!night || night.state === "draft" || night.state === "open") return null;
+  const kept = await db
+    .select({ id: nominations.id, filmId: nominations.filmId })
+    .from(nominations)
+    .where(and(eq(nominations.nightId, nightId), isNull(nominations.droppedAt)));
+  if (kept.length === 0) return [];
+  const cast = await db
+    .select({ nominationId: votes.nominationId })
+    .from(votes)
+    .where(inArray(votes.nominationId, kept.map((n) => n.id)));
+  return tallyNight(kept, cast.map((v) => v.nominationId), night.winningFilmId).map((t) => ({
+    count: t.count,
+    winner: t.winner,
+  }));
 }
 
 // For lockNightCore: the nomination id of every vote on an open night, so

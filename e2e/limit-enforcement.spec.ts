@@ -198,7 +198,9 @@ test.describe("hard-limit enforcement", () => {
     await expect(page.locator(".empty-pool")).toHaveText(
       "None of your watchlist fits this club right now. Add a few more films.",
     );
-    await expect(page.locator("main")).not.toContainText(/limit|Max|Odo|empty\./i);
+    // The nominate card names nobody. (The page's "Next turn" elsewhere names
+    // whoever picks next, which says nothing about anyone's limits.)
+    await expect(page.locator("#nominate-heading").locator("xpath=..")).not.toContainText(/limit|Max|Odo|empty\./i);
   });
 
   test("a limit added during voting drops that nominee at lock; the pick and History come from the rest", async ({ page }) => {

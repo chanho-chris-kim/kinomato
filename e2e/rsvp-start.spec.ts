@@ -67,9 +67,9 @@ test.describe("RSVP once the night has started", () => {
     const c = await lockedClub("RSVP Before Club", new Date(Date.now() + 30 * H));
     await signInAsUser(page, c.userId);
     await page.goto(`/clubs/${c.clubId}`);
-    await expect(page.getByRole("heading", { name: "RSVP", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Coming \w+\?$/ })).toBeVisible();
     await page.getByRole("button", { name: "Going", exact: true }).click();
-    await expect(page.getByText("Current answer: yes")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Going", exact: true })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("once it has started, there's no RSVP; the locked display stays", async ({ page }) => {
@@ -78,7 +78,7 @@ test.describe("RSVP once the night has started", () => {
     await signInAsUser(page, c.userId);
     await page.goto(`/clubs/${c.clubId}`);
     await expect(page.getByText("Locked in")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "RSVP", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /^Coming \w+\?$/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Going", exact: true })).toHaveCount(0);
   });
 

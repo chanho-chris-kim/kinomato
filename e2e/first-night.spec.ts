@@ -4,6 +4,8 @@ import { collectConsoleErrors } from "./console-errors";
 import { expect, test } from "./fixtures";
 import { agreeToTerms, existingAccount, finishCodeSignIn, nameYourself } from "./signIn";
 import { expectYouAre } from "./identity";
+import { setScore } from "./rating";
+import { whoseTurn } from "./tonight";
 
 // The real deliverable this spec proves: a club that didn't exist when the
 // test started goes all the way from the home page through sign-in,
@@ -118,7 +120,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
   test("the club page has its first draft night, waiting on Priya to nominate", async ({ browser }) => {
     await as(browser, priya, async (page) => {
       await page.goto(clubUrl);
-      await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
+      await expect(whoseTurn(page)).toHaveText(
         "Priya S.",
       );
       // No seed, no cron, no manual step — the lazy-create path
@@ -140,8 +142,13 @@ test.describe("first night — a brand-new club, start to finish", () => {
   test("Owen votes for it", async ({ browser }) => {
     await as(browser, owen, async (page) => {
       await page.goto(clubUrl);
-      await page.locator("li", { hasText: "Whiplash" }).getByRole("button", { name: /Vote/ }).click();
-      await expect(page.getByText(/Whiplash.*— 1 vote/)).toBeVisible();
+      const whiplash = page.locator("li.nominee", { hasText: "Whiplash" });
+      await whiplash.getByRole("button", { name: /Vote/ }).click();
+      // A new club doesn't show counts while voting is open (ruled
+      // 2026-11-25): the vote shows as yours, with no count.
+      await expect(whiplash.locator(".vote-badge")).toHaveText("Your vote ✓");
+      await expect(whiplash.getByRole("button")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".vote-count")).toHaveCount(0);
     });
   });
 
@@ -149,7 +156,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
     await as(browser, priya, async (page) => {
       await page.goto(clubUrl);
       await page.getByRole("button", { name: "Going", exact: true }).click();
-      await expect(page.getByText("Current answer: yes")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Going", exact: true })).toHaveAttribute("aria-pressed", "true");
       await page.getByRole("button", { name: "Close voting and set the pick" }).click();
       await expect(page.getByRole("button", { name: "Close voting and set the pick" })).toHaveCount(0);
     });
@@ -196,12 +203,9 @@ test.describe("first night — a brand-new club, start to finish", () => {
     await page.goto(clubUrl);
     await expect(page.getByRole("heading", { name: "Rate Whiplash" })).toBeVisible();
 
-    // RatingSlider's paired number input — .fill() fires a real input
-    // event, which is what actually updates the underlying React state
-    // (and so the hidden input the form submits); a raw DOM value
-    // assignment on the range input wouldn't.
-    await page.getByLabel("Quality (as a number)").fill("9");
-    await page.getByLabel("Fun (as a number)").fill("8");
+    // One slider per score, set by keyboard (e2e/rating.ts).
+    await setScore(page, "Quality", 9);
+    await setScore(page, "Fun", 8);
     await page.getByLabel("One-line take (optional)").fill("Not quite my tempo.");
     await page.getByRole("button", { name: "Submit rating" }).click();
 

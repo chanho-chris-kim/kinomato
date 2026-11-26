@@ -1086,6 +1086,60 @@ built in is `docs/roadmap.md`; CLAUDE.md has each ruling in full.
   - **Out of scope:** no accounts under 13, and a GB/AU rating fallback is
     deferred.
 
+### 5.13 Rulings, 2026-11-25 (approved by Chanho)
+
+The build order is `docs/roadmap.md` u1–u5; CLAUDE.md has each ruling in
+full.
+
+- **Tonight (u1).** The order on every stage: club header and tabs, the
+  week bar, one "do this now" card (the page's only filled button), the
+  RSVP card when it applies, then everything else. "Whose turn" moves
+  into the card's text and the side column; it's no longer a heading
+  (this replaces §5.10's "Whose turn" line).
+  - **The week bar:**
+
+    | Night | Step |
+    |---|---|
+    | draft | Nominate |
+    | open | Vote |
+    | locked, before `scheduled_at` | Locked |
+    | locked, from `scheduled_at` until confirmed | Watch |
+    | watched, ratings open | Rate |
+
+    Cancelled, unconfirmed, paused or no night: no bar.
+  - **Voting** is on poster cards, the whole card a button, with "Your vote
+    ✓".
+  - **Locked:** the film is the hero.
+  - **RSVP:** "Coming Saturday?" in its own card.
+  - **Rating:** one slider per score.
+  - **"I was there"** until the reveal (a night counts as revealed once a
+    rating is visible).
+  - **Side column:** This week, Members, Recently watched; a collapsed "This
+    week at a glance" on phones.
+- **Vote counts while voting**: a club setting, `showVoteCounts`, default
+  off, owner or admin, in How this club runs. Off, an open night shows no
+  counts; the result ("Won 3 to 1") shows once voting closes. Display
+  only.
+- **Display name (u2)**: one free-text name, 1–30 characters, trimmed,
+  unique within each club case-insensitively, chosen by the invitee on
+  joining; a clash asks for another. It reverses "first name + last
+  initial" (Chanho's decision). The inviter's typed name only greets.
+- **Sign-up and sign-in (u3)**: invited sign-up in three steps (Email →
+  Code → About you) with the invite always in view, six code boxes, a
+  resend countdown, then a skippable welcome page to add three films.
+  Returning sign-in has no bar, and two columns on laptops.
+- **Own sign-up (u4, only with `OPEN_SIGNUP` on)**: the same steps plus
+  Start your club with every default editable, then a "Get your club
+  going" checklist on Tonight and an Invite people screen.
+- **Club codes (u5)**: an optional short join code per club, off by
+  default, owner or admin; "Ask to join", approved by an owner or admin,
+  who is the provenance record. The cap (and later adults-only gating)
+  applies at approval, and a new code kills the old one. Private clubs are
+  never searchable. This adds a second way in beside §7's per-person
+  invites.
+- **Onboarding guidance**: a step bar only during sign-up and on Tonight's
+  week; the guided tour is separate.
+
 ---
 
 ## 6. Watchlists: global per person

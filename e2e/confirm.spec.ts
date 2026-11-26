@@ -2,6 +2,8 @@ import type { Page } from "@playwright/test";
 import { CLUB_3_ID, CLUB_4_ID, DISPLAY_NAME_3, DISPLAY_NAME_4, MEMBERSHIP_3, MEMBERSHIP_4 } from "../db/seed-fixtures";
 import { expect, test } from "./fixtures";
 import { signInAs } from "./session";
+import { setScore } from "./rating";
+import { whoseTurn } from "./tonight";
 
 const CLUB_3_URL = `/clubs/${CLUB_3_ID}`;
 const CLUB_4_URL = `/clubs/${CLUB_4_ID}`;
@@ -15,14 +17,10 @@ async function signInTo(page: Page, url: string, membershipId: string) {
 // RatingSlider (app/clubs/[clubId]/RatingSlider.tsx) is a client
 // component — the range input, the live number, and a paired number
 // input are all views onto one piece of React state, submitted via a
-// hidden input. Playwright's locator.fill() doesn't support type=range,
-// but does support the paired number input, which is exactly the
-// "type instead of dragging" affordance the component exists for — and
-// unlike a raw DOM value assignment on the range input, .fill() fires a
-// real input event, which is what actually updates the React state (and
-// therefore the hidden input the form submits).
-async function setSlider(page: Page, label: string, value: string) {
-  await page.getByLabel(`${label} (as a number)`).fill(value);
+// slider, by keyboard (e2e/rating.ts): one slider per score since the
+// Tonight redesign, no number box beside it.
+async function setSlider(page: Page, label: "Quality" | "Fun", value: string) {
+  await setScore(page, label, value);
 }
 
 // Club 3 (Leo/Mika/Theo, db/seed.ts) has a "locked" night, scheduled
@@ -67,7 +65,7 @@ test.describe("confirmation — watched path (club 3)", () => {
     // night's picker (CLAUDE.md ruling), so it agrees with the line
     // under it instead of naming whoever picks after Mika.
     await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
-    await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
+    await expect(whoseTurn(page)).toHaveText(
       DISPLAY_NAME_3.mika,
     );
     await expect(page.getByText(`Waiting on ${DISPLAY_NAME_3.mika} to nominate.`)).toBeVisible();
@@ -81,7 +79,7 @@ test.describe("confirmation — watched path (club 3)", () => {
     page,
   }) => {
     await signInTo(page, CLUB_3_URL, MEMBERSHIP_3.leo);
-    await expect(page.getByRole("heading", { name: "Whose turn" })).toBeVisible();
+    await expect(whoseTurn(page)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Rate Get Out" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "How the club rated Get Out" })).toHaveCount(0);
     await expect(page.getByRole("slider", { name: "Quality" })).toHaveCount(0);
@@ -98,8 +96,7 @@ test.describe("confirmation — watched path (club 3)", () => {
     await page.getByRole("button", { name: "Submit rating" }).click();
 
     await expect(page.getByRole("heading", { name: "Rate Get Out" })).toBeVisible();
-    // exact: true — "Quality (as a number)" (the paired number input)
-    // would otherwise also match a plain substring "Quality" query.
+    // exact: true, so it's the Quality slider and nothing else.
     await expect(page.getByLabel("Quality", { exact: true })).not.toBeVisible();
     await expect(page.getByText("1/2 ratings in")).toBeVisible();
     await expect(page.getByText("Amazing")).not.toBeVisible();
@@ -135,7 +132,7 @@ test.describe("confirmation — cancellation path (club 4)", () => {
     // Vik's night is locked, not yet confirmed: still in flight, so
     // "Whose turn" names Vik, not Ana who picks after him (CLAUDE.md
     // ruling).
-    await expect(page.getByRole("heading", { name: "Whose turn" }).locator("+ p")).toHaveText(
+    await expect(whoseTurn(page)).toHaveText(
       DISPLAY_NAME_4.vik,
     );
   });
@@ -150,7 +147,6 @@ test.describe("confirmation — cancellation path (club 4)", () => {
 
   test("a cancelled night doesn't consume the turn — Vik is up next again", async ({ page }) => {
     await signInTo(page, CLUB_4_URL, MEMBERSHIP_4.ana);
-    await expect(page.getByText("Whose turn")).toBeVisible();
-    await expect(page.locator("main")).toContainText(DISPLAY_NAME_4.vik);
+    await expect(whoseTurn(page)).toHaveText(DISPLAY_NAME_4.vik);
   });
 });

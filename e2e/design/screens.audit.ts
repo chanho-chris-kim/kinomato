@@ -233,6 +233,8 @@ test("app screens", async ({ page, browser }) => {
   });
   const confirm = await club("Confirm Club", { ana: "owner", ben: "member", cal: "member" });
   await night(confirm, confirm.m.ben, "locked", { scheduledAt: at(-40), lockedAt: at(-64), unconfirmAt: at(30), winningFilmId: F["Thief"] });
+  const started = await club("Watching Club", { ana: "owner", ben: "member", cal: "member" });
+  await night(started, started.m.ben, "locked", { scheduledAt: at(-1), lockedAt: at(-30), unconfirmAt: at(60), winningFilmId: F["Arrival"] });
   const late = await club("Late Club", { ana: "owner", ben: "member", cal: "member" });
   await night(late, late.m.ben, "unconfirmed", {
     scheduledAt: at(-100),
@@ -306,6 +308,7 @@ test("app screens", async ({ page, browser }) => {
   await shoot(page, "tonight-someone-else-drafting", `/clubs/${drafting.clubId}`);
   await shoot(page, "tonight-voting-voted", `/clubs/${voting.clubId}`);
   await shoot(page, "tonight-locked", `/clubs/${locked.clubId}`);
+  await shoot(page, "tonight-watch-started", `/clubs/${started.clubId}`);
   await shoot(page, "tonight-did-you-watch", `/clubs/${confirm.clubId}`);
   await shoot(page, "tonight-late-after-all", `/clubs/${late.clubId}`);
   await shoot(page, "tonight-rate-before-reveal", `/clubs/${rating.clubId}`);
@@ -321,6 +324,8 @@ test("app screens", async ({ page, browser }) => {
   await shoot(page, "members-admin", `/clubs/${voting.clubId}/members`);
   await as(U.cal);
   await shoot(page, "tonight-voting-not-voted", `/clubs/${voting.clubId}`);
+  // Cal never answered for Rating Club's night: "I was there" (u1).
+  await shoot(page, "tonight-i-was-there", `/clubs/${rating.clubId}`);
   await shoot(page, "members-member", `/clubs/${voting.clubId}/members`);
   await shoot(page, "members-member-leave-confirm", `/clubs/${voting.clubId}/members?leave=1`);
   await as(fay);

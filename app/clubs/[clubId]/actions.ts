@@ -38,6 +38,8 @@ import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
 import { findLateConfirmableNight } from "@/lib/clubStatus";
+import { mustRateBeforeReveal } from "@/lib/ratingReveal";
+import { canSayIWasThere, isVisiblyRevealed } from "@/lib/tonight";
 import type { NightState } from "@/lib/rotation";
 import { getOrCreateCurrentSeasonId } from "./season";
 import { passDraftCore } from "./passTurnCore";
@@ -171,6 +173,60 @@ export async function setRsvp(
     });
 
   revalidatePath(`/clubs/${clubId}`);
+}
+
+// "I was there" (ruled 2026-11-24, built 2026-11-25): someone who came
+// without answering joins the rating step, as a yes RSVP, until the night's
+// ratings are revealed (lib/tonight.ts: once a rating is visible). Only
+// this club's watched night, only with no answer yet; anything else is a
+// stale tab and a silent no-op. Never changes the pick. If a reveal lands
+// in the instant between the check and the write, the write is undone, so
+// a revealed night never goes back to hidden.
+export async function iWasThere(clubId: string, nightId: string) {
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  const membershipId = await requireCurrentMembershipId(clubId);
+  const done = () => revalidatePath(`/clubs/${clubId}`);
+
+  const [night] = await db.select().from(nights).where(eq(nights.id, nightId));
+  if (!night || night.clubId !== clubId) return done();
+
+  const revealState = async () => {
+    const [nightRsvps, nightRatings, active] = await Promise.all([
+      db.select({ membershipId: rsvps.membershipId, status: rsvps.status }).from(rsvps).where(eq(rsvps.nightId, nightId)),
+      db.select({ membershipId: ratings.membershipId }).from(ratings).where(eq(ratings.nightId, nightId)),
+      db
+        .select({ id: memberships.id })
+        .from(memberships)
+        .where(and(eq(memberships.clubId, clubId), isNull(memberships.leftAt))),
+    ]);
+    const activeIds = active.map((m) => m.id);
+    return {
+      mine: nightRsvps.find((r) => r.membershipId === membershipId)?.status ?? null,
+      attendingWithoutMe: mustRateBeforeReveal(nightRsvps, activeIds).filter((id) => id !== membershipId),
+      rated: nightRatings.map((r) => r.membershipId),
+    };
+  };
+
+  const before = await revealState();
+  const revealed = isVisiblyRevealed(before.attendingWithoutMe, before.rated);
+  if (!canSayIWasThere({ nightState: night.state, myRsvp: before.mine, revealed })) return done();
+
+  // Only over no answer: a "no" or "yes" already there stays as it is.
+  const [recorded] = await db
+    .insert(rsvps)
+    .values({ nightId, membershipId, status: "yes" })
+    .onConflictDoUpdate({
+      target: [rsvps.nightId, rsvps.membershipId],
+      set: { status: "yes", updatedAt: new Date() },
+      setWhere: isNull(rsvps.status),
+    })
+    .returning({ id: rsvps.id });
+
+  const after = await revealState();
+  if (recorded && isVisiblyRevealed(after.attendingWithoutMe, after.rated)) {
+    await db.delete(rsvps).where(eq(rsvps.id, recorded.id));
+  }
+  done();
 }
 
 // Nominees come only from the picker's own watchlist — analysis-v1.md
@@ -585,6 +641,7 @@ export async function updateClubSettings(clubId: string, formData: FormData) {
     confirmAt: formData.get("confirmAt"),
     lockTime: formData.get("lockTime"),
     autoAdvance: formData.get("autoAdvance"),
+    showVoteCounts: formData.get("showVoteCounts"),
   });
   if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ settingsError: result.error })}`));
   const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));

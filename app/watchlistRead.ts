@@ -90,7 +90,7 @@ export async function nominatableFilms(
   db: Db,
   clubId: string,
   userId: string,
-): Promise<{ films: { id: string; title: string; year: number }[]; listIsEmpty: boolean }> {
+): Promise<{ films: { id: string; title: string; year: number; posterPath: string | null }[]; listIsEmpty: boolean }> {
   const items = await clubVisibleItems(db, clubId, { userIds: [userId] });
   if (items.length === 0) return { films: [], listIsEmpty: true };
   const rows = await db
@@ -98,6 +98,7 @@ export async function nominatableFilms(
       id: films.id,
       title: films.title,
       year: films.year,
+      posterPath: films.posterPath,
       genreIds: films.genreIds,
       keywordIds: films.keywordIds,
       runtime: films.runtime,
@@ -122,7 +123,7 @@ export async function nominatableFilms(
   return {
     films: eligible
       .sort((a, b) => addedAt.get(a.id)! - addedAt.get(b.id)!)
-      .map((f) => ({ id: f.id, title: f.title, year: f.year })),
+      .map((f) => ({ id: f.id, title: f.title, year: f.year, posterPath: f.posterPath })),
     listIsEmpty: false,
   };
 }
