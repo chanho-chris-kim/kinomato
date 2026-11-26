@@ -23,3 +23,14 @@ export function chooseHelpFilms<F extends { id: string; title: string; othersWan
     .sort((a, b) => b.othersWant - a.othersWant || a.title.localeCompare(b.title))
     .slice(0, HELP_FILM_LIMIT);
 }
+
+// "Wanted in {club}" on the welcome page (u3): films other members want
+// that fit everyone, most wanted first, at most six. Unlike the picker's
+// help, a film you've just added stays, marked, so the page can show
+// "Added ✓". Counts only.
+export function chooseWantedFilms<F extends { title: string; othersWant: number }>(candidates: F[]): F[] {
+  return candidates
+    .filter((f) => f.othersWant > 0)
+    .sort((a, b) => b.othersWant - a.othersWant || a.title.localeCompare(b.title))
+    .slice(0, HELP_FILM_LIMIT);
+}

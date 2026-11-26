@@ -880,26 +880,27 @@ footer a::after {
   font-size: clamp(22px, 20px + 0.6vw, 26px);
 }
 
-/* The week bar: on phones a thin five-segment bar and one line of text;
-   from 620px the five labelled steps in a card. */
-.weekbar ol {
+/* A step bar (app/stepBar.tsx: Tonight's week, invited sign-up): on phones
+   a thin segment per step and one line of text; from 620px the labelled
+   steps in a card. */
+.stepbar ol {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   gap: 4px;
 }
-.weekbar li {
+.stepbar li {
   flex: 1;
   height: 4px;
   border-radius: 2px;
   box-shadow: inset 0 0 0 1px var(--field-line);
 }
-.weekbar li.done {
+.stepbar li.done {
   background: var(--mut);
   box-shadow: none;
 }
-.weekbar li.current {
+.stepbar li.current {
   background: var(--accent);
   box-shadow: none;
 }
@@ -917,18 +918,18 @@ footer a::after {
   color: var(--mut);
 }
 @container app (min-width: 620px) {
-  .weekbar {
+  .stepbar {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 12px 14px;
   }
-  .weekbar ol {
+  .stepbar ol {
     gap: 10px;
   }
-  .weekbar li,
-  .weekbar li.done,
-  .weekbar li.current {
+  .stepbar li,
+  .stepbar li.done,
+  .stepbar li.current {
     height: auto;
     background: none;
     box-shadow: none;
@@ -956,16 +957,16 @@ footer a::after {
     border-radius: 50%;
     border: 1px solid var(--field-line);
   }
-  .weekbar li.done .weekbar-mark {
+  .stepbar li.done .weekbar-mark {
     border-color: var(--accent);
     color: var(--accent);
   }
-  .weekbar li.current .weekbar-mark {
+  .stepbar li.current .weekbar-mark {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--on-accent);
   }
-  .weekbar li.current .weekbar-label {
+  .stepbar li.current .weekbar-label {
     color: var(--fg);
     font-weight: 600;
   }
@@ -1153,6 +1154,171 @@ footer a::after {
   .glance {
     display: none;
   }
+}
+
+/* ---------- Sign-in and invited sign-up (u3, §5.13) ----------
+   The step bar is the shared .stepbar above. Existing tokens only. */
+.center {
+  text-align: center;
+}
+.signin-main {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.signin-card {
+  padding: 20px 18px;
+}
+.pitch-title {
+  font-size: clamp(26px, 22px + 1.4vw, 34px);
+}
+.invite-card {
+  align-items: center;
+}
+/* The invite landing's two promises, each with its icon. */
+.promises li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-size: var(--text-small);
+  color: var(--mut);
+}
+.promises svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The code: one real input, drawn over six boxes. Each box is a cell the
+   width of one digit plus its spacing, so a typed or pasted digit lands in
+   its box. */
+.code-boxes {
+  --cell: 44px;
+  --gap: 8px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, var(--cell));
+  gap: var(--gap);
+  width: max-content;
+}
+.code-box {
+  height: 52px;
+  border: 1px solid var(--field-line);
+  border-radius: 9px;
+  background: var(--card);
+}
+.code-boxes input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+  letter-spacing: calc(var(--cell) + var(--gap) - 1ch);
+  padding-left: calc((var(--cell) - 1ch) / 2);
+}
+.code-boxes input:focus-visible {
+  outline: none;
+}
+.code-boxes:has(input:focus-visible) .code-box {
+  border-color: var(--focus);
+}
+.code-boxes:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 9px;
+}
+.resend-box .btn {
+  width: auto;
+}
+/* /welcome and /consent: the age as three large options. */
+.age-options {
+  gap: 8px;
+}
+.age-option {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--field-line);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+}
+.age-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.consent-terms.card {
+  padding: 12px 14px;
+}
+.licensing-more summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--accent);
+}
+/* /login from 900px: what Kinomato is beside the sign-in card. */
+.signin-split {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.signin-pitch {
+  display: none;
+}
+.pitch-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+.pitch-n {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-small);
+}
+@container app (min-width: 900px) {
+  .signin-split {
+    max-width: 960px;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding-top: 48px;
+  }
+  .signin-pitch {
+    display: block;
+  }
+}
+/* The club welcome page's three-film goal. */
+.goal-segments {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+}
+.goal-segments li {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--field-line);
+}
+.goal-segments li.filled {
+  background: var(--accent);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

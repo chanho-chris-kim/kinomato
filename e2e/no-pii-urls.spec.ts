@@ -40,7 +40,7 @@ test.describe("no personal data in URLs", () => {
       await existingAccount(email);
       await page.goto(`/login?${new URLSearchParams({ returnTo: "/watchlist" })}`);
       await page.getByLabel("Email").fill(email);
-      await page.getByRole("button", { name: "Send code" }).click();
+      await page.getByRole("button", { name: "Send my code" }).click();
       // returnTo stays: a path, not personal.
       await expect(page).toHaveURL(`/login/code?${new URLSearchParams({ returnTo: "/watchlist" })}`);
       await finishCodeSignIn(page, email);
@@ -112,14 +112,14 @@ test.describe("no personal data in URLs", () => {
     try {
       await page.goto(`/invite/${token}`);
       await page.getByLabel("Your email").fill(email);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Send my code" }).click();
       await expect(page).toHaveURL("/login/code");
       await finishCodeSignIn(page, email);
       await expect(page).toHaveURL(/\/welcome/);
       await expect(page.getByLabel("Display name")).toHaveValue(/^Ivor/);
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page).toHaveURL(`/clubs/${clubId}?joined=1`);
+      await expect(page).toHaveURL(`/clubs/${clubId}/welcome`);
       expectNoneContain(urls, email, "url.invitee", "Ivor");
       expect(errors).toEqual([]);
     } finally {
@@ -140,9 +140,9 @@ test.describe("no personal data in URLs", () => {
       // there too, not on an error page.
       await holdSignInAddress(page, "url.expired@example.com");
       await page.goto("/login/code");
-      await expect(page.getByLabel("6-digit code")).toBeVisible();
+      await expect(page.getByLabel("Your code")).toBeVisible();
       await context.clearCookies();
-      await page.getByLabel("6-digit code").fill("123456");
+      await page.getByLabel("Your code").fill("123456");
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
       await expect(page).toHaveURL(`/login?${new URLSearchParams({ error: SIGN_IN_TIMED_OUT })}`);
       await expect(page.getByText(SIGN_IN_TIMED_OUT)).toBeVisible();

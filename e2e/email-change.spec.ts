@@ -34,7 +34,7 @@ async function signIn(page: Page, email: string) {
   await existingAccount(email);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send my code" }).click();
   await finishCodeSignIn(page, email);
 }
 
@@ -102,7 +102,7 @@ test.describe("email change", () => {
     const b = await freshContext(browser);
     await b.page.goto("/login");
     await b.page.getByLabel("Email").fill(next);
-    await b.page.getByRole("button", { name: "Send code" }).click();
+    await b.page.getByRole("button", { name: "Send my code" }).click();
     await expect(b.page.getByText("We just sent one.")).toBeVisible();
     // Past every 30-second cooldown (the change code there, and the
     // sign-up code to the old address).
@@ -277,7 +277,7 @@ test.describe("email change", () => {
     const s = await freshContext(browser);
     await holdSignInAddress(s.page, next);
     await s.page.goto("/login/code");
-    await s.page.getByLabel("6-digit code").fill(code);
+    await s.page.getByLabel("Your code").fill(code);
     await s.page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(s.page).toHaveURL(/\/login\/code\?.*error=expired/);
     await s.page.goto("/settings");

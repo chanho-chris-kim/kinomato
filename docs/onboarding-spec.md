@@ -1132,7 +1132,11 @@ full.
 - **Sign-up and sign-in (u3)**: invited sign-up in three steps (Email →
   Code → About you) with the invite always in view, six code boxes, a
   resend countdown, then a skippable welcome page to add three films.
-  Returning sign-in has no bar, and two columns on laptops.
+  Returning sign-in has no bar, and two columns on laptops. *Built u3,
+  2026-11-26 (CLAUDE.md has the details):* the bar shows on the code step
+  whenever that sign-in started from an invite link, account or not (the
+  screen never reveals whether an address has one); Resend keeps the
+  invite; the welcome page is `/clubs/[clubId]/welcome`.
 - **Own sign-up (u4, only with `OPEN_SIGNUP` on)**: the same steps plus
   Start your club with every default editable, then a "Get your club
   going" checklist on Tonight and an Invite people screen.

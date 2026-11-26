@@ -933,6 +933,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   `RatingSlider`: the OS share sheet (`navigator.share`) and the
   clipboard only exist in the browser. The invite link is also always
   shown in a read-only field, so nothing depends on either API.
+- **`ResendButton` (`app/login/code/ResendButton.tsx`) is the fourth
+  justified client component** (u3): only its countdown ticks. The server
+  renders it already disabled, with the real wait in words ("Resend
+  available in 30 seconds"), from `app/signIn.ts` `resendWaitSeconds`, the
+  same rule `issueSignIn` applies, so the two can't disagree; without
+  script that render stands until a reload. The server refuses an early
+  send whatever the button shows.
 - **Tags on a rating are club-scoped, alongside the hot take, never
   replacing it.** `tags` (club_id, name, display_name) and `rating_tags`
   (rating_id, tag_id) — "cozy" is one tag per club, not six near-
@@ -1139,7 +1146,29 @@ Do not quietly change these — they encode decisions that took a while to reach
   one-time-code autofill, a visible resend countdown and a check-spam
   hint. After sign-up, a welcome page (no bar) to add at least three
   films, skippable. Returning sign-in has no step bar. On laptops, sign-in
-  is two columns: what Kinomato is, and the sign-in card.
+  is two columns: what Kinomato is, and the sign-in card. **Built (u3,
+  2026-11-26):**
+  - **The bar** is `app/stepBar.tsx`, shared with Tonight's week bar.
+    It's on the signed-out invite landing (Email) and on `/login/code`
+    (Code) when the address's newest code was requested from an invite.
+    That's server state, never a URL parameter, and never dependent on
+    whether an account exists, which would tell anyone typing an address
+    whether it has one. So a named account that signs in through an invite
+    sees Email and Code, then skips `/welcome`. On `/welcome` (About you)
+    it shows with `?invite=` (an invite id, nothing personal). A returning
+    `/login` never shows it.
+  - **The code** is one real input (numeric, one-time-code, maxlength 6,
+    `\d{6}`, "Your code") drawn over six decorative boxes.
+  - **Resend** carries over the invite of the address's newest unused code,
+    so an invitee's resend still signs them up. Before u3 it didn't: while
+    sign-up was closed they got the invite-only email and no code.
+  - **An invited new account** lands on `/clubs/[clubId]/welcome` after
+    the name step: three films to add, "Wanted in {club}" from
+    `app/watchlistRead.ts` `wantedInClub` (counts only, never names),
+    "Go to {club}" filled once three are added, and "Skip for now".
+  - **The data-sharing box** reads as one line, with the full current
+    wording unchanged under "More about this". Still unticked by default,
+    18 or older only, and recorded exactly as before.
 - **Own sign-up (ruled 2026-11-25, approved by Chanho; built in u4, live
   only when `OPEN_SIGNUP` is on).** The same three steps plus "Start your
   club": name, day, time, In person or Remote, and every default shown as

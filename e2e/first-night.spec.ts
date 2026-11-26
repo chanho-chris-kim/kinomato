@@ -57,7 +57,7 @@ test.describe("first night — a brand-new club, start to finish", () => {
     await page.locator("main").getByRole("link", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Send code" }).click();
+    await page.getByRole("button", { name: "Send my code" }).click();
     await finishCodeSignIn(page, email);
     await nameYourself(page, "Priya", "S");
 
@@ -93,12 +93,15 @@ test.describe("first night — a brand-new club, start to finish", () => {
       await page.goto(link);
       await expect(page.getByRole("heading", { name: "Hi Owen" })).toBeVisible();
       await page.getByLabel("Your email").fill(email);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(page, email);
       // Prefilled from Priya's invite; he keeps it.
       await expect(page.getByLabel("Display name")).toHaveValue("Owen R.");
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
+      // A new invitee lands on the club's welcome page (u3).
+      await expect(page).toHaveURL(`${clubUrl}/welcome`);
+      await page.goto(clubUrl);
       await expectYouAre(page, "Owen R.");
       owen = await context.storageState();
     } finally {

@@ -40,7 +40,7 @@ async function asStranger(browser: Browser, fn: (page: Page) => Promise<void>) {
 async function askForCode(page: Page, email: string, returnTo?: string) {
   await page.goto(returnTo ? `/login?${new URLSearchParams({ returnTo })}` : "/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send my code" }).click();
   await expect(page).toHaveURL(/\/login\/code/);
 }
 
@@ -59,7 +59,7 @@ test.describe("invite-only sign-up", () => {
     await askForCode(page, email);
     // The same screen as an existing account's: no enumeration (§4.3).
     await expect(page.locator(".masked-email")).toHaveText(maskEmail(email));
-    await expect(page.getByLabel("6-digit code")).toBeVisible();
+    await expect(page.getByLabel("Your code")).toBeVisible();
 
     await expect.poll(() => sentTo(email).length).toBe(1);
     const mail = sentTo(email);
@@ -69,7 +69,7 @@ test.describe("invite-only sign-up", () => {
     expect(await accountsWith(email)).toEqual([]);
 
     // A guessed code gets the same countdown as anyone's.
-    await page.getByLabel("6-digit code").fill("000000");
+    await page.getByLabel("Your code").fill("000000");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.getByText("That code didn't match. 4 tries left.")).toBeVisible();
 
@@ -136,12 +136,12 @@ test.describe("invite-only sign-up", () => {
     await asStranger(browser, async (page) => {
       await page.goto(`/invite/${token}`);
       await page.getByLabel("Your email").fill(email);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Send my code" }).click();
       await finishCodeSignIn(page, email);
       await expect(page).toHaveURL(/\/welcome/);
       await agreeToTerms(page);
       await page.getByRole("button", { name: "Continue" }).click();
-      await expect(page).toHaveURL(new RegExp(`/clubs/${clubId}\\?joined=1`));
+      await expect(page).toHaveURL(`/clubs/${clubId}/welcome`);
     });
     expect(await accountsWith(email)).toHaveLength(1);
     expect(sentTo(email).map((m) => m.kind)).toEqual(["sign-in"]);

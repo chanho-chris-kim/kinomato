@@ -13,6 +13,9 @@ import { joinInviteAsMe, joinInviteWithName, signOutForInvite, startInvite } fro
 import { readFormEcho } from "@/app/formEcho";
 import { clashMessage, shownName } from "@/lib/displayName";
 import { PublicShell } from "@/app/shell";
+import { StepBar } from "@/app/stepBar";
+import { InviteCard } from "@/app/inviteCard";
+import { SIGN_UP_STEPS } from "@/lib/steps";
 
 // The invite landing page (docs/onboarding-spec.md §5.3) — the most
 // important screen in the rebuild: "Hi Marco — Chris invited you to
@@ -214,37 +217,52 @@ export default async function InvitePage({
     );
   }
 
-  return card(
-    <>
-      <p className="eyebrow">You&apos;re invited</p>
-      <h1 className="h-display" style={{ fontSize: 32 }}>
-        Hi {inviteeName}
-      </h1>
-      <p className="muted mt-1">
-        {inviterName} invited you to <strong>{club.name}</strong>.
-      </p>
-      {error && (
-        <p className="small mt14" style={{ color: "var(--warn)" }}>
-          {error}
+  // Signed out: the first step of an invited sign-up (u3, §5.13).
+  return (
+    <PublicShell>
+      <main className="p-4 signin-main">
+        <StepBar steps={SIGN_UP_STEPS} current={0} label="Signing up" className="signup-steps" />
+        <InviteCard inviterName={inviterName} clubName={club.name} />
+        <div className="card mt14 signin-card">
+          <h1 className="h-display pitch-title">Hi {inviteeName}</h1>
+          <p className="muted mt-1">Let&apos;s get you into the club. It takes about a minute.</p>
+          {error && (
+            <p className="small mt14 warn" role="alert">
+              {error}
+            </p>
+          )}
+          <form action={startInvite.bind(null, token)} className="stack gap14 mt20">
+            <label className="small muted">
+              Your email
+              <div className="search mt-1">
+                <input type="email" name="email" required autoComplete="email" placeholder="you@example.com" />
+              </div>
+            </label>
+            <button type="submit" className="btn primary">
+              Send my code
+            </button>
+          </form>
+          <ul className="promises plain-list mt14">
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="9" rx="2" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+              </svg>
+              <span>No password, ever. We email you a 6-digit code each time.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 3l18 18" />
+                <path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c5 0 8.5 4.5 9 6-.3.9-1.2 2.3-2.6 3.6M6.3 7.6C4.5 8.9 3.3 10.7 3 12c.5 1.5 4 6 9 6 1.5 0 2.9-.4 4.1-1" />
+              </svg>
+              <span>No trackers following you around. Ever.</span>
+            </li>
+          </ul>
+        </div>
+        <p className="tiny dim mt14 center">
+          Not {inviteeName}? Ask {inviterName} for your own link.
         </p>
-      )}
-      <form action={startInvite.bind(null, token)} className="stack gap14 mt20">
-        <label className="small muted">
-          Your email
-          <div className="search mt-1">
-            <input type="email" name="email" required autoComplete="email" placeholder="you@example.com" />
-          </div>
-        </label>
-        <button type="submit" className="btn primary">
-          Continue
-        </button>
-        <p className="tiny dim" style={{ margin: 0 }}>
-          We&apos;ll email you a 6-digit code. No password, ever.
-        </p>
-      </form>
-      <p className="tiny dim mt14" style={{ textAlign: "center" }}>
-        Not {inviteeName}? Ask {inviterName} for your own link.
-      </p>
-    </>,
+      </main>
+    </PublicShell>
   );
 }

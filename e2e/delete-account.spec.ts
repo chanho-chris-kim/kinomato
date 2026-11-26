@@ -342,7 +342,7 @@ test.describe("Delete account", () => {
     // never reaches the anonymised account.
     await page.goto("/login");
     await page.getByLabel("Email").fill(P.dee.email);
-    await page.getByRole("button", { name: "Send code" }).click();
+    await page.getByRole("button", { name: "Send my code" }).click();
     await expect(page).toHaveURL(/\/login\/code/);
     await expect.poll(() => sentTo(P.dee.email).at(-1)?.kind).toBe("invite-only");
     // A fresh account can take it (an invite would make one the same way).

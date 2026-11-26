@@ -78,7 +78,7 @@ export async function finishCodeSignIn(page: Page, email: string): Promise<void>
   expect(page.url()).not.toContain(encodeURIComponent(email));
   expect(page.url()).not.toContain(email);
   const { code } = await setKnownSignIn(email);
-  await page.getByLabel("6-digit code").fill(code);
+  await page.getByLabel("Your code").fill(code);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
@@ -98,8 +98,11 @@ export async function nameYourself(page: Page, firstName: string, lastInitial: s
   await agreeToTerms(page);
   await page.getByRole("button", { name: "Continue" }).click();
   // Wait for the save to land: until it has, every signed-in page sends
-  // this account back to /welcome (the consent gate).
-  await expect(page).not.toHaveURL(/\/welcome/);
+  // this account back to /welcome (the consent gate). waitForURL waits as
+  // long as a navigation may take, not the 5 seconds an expect does (the
+  // save is a server action and a redirect, sometimes slower than that).
+  // An invitee lands on /clubs/{id}/welcome, so it's the exact path.
+  await page.waitForURL((url) => url.pathname !== "/welcome");
 }
 
 // An email change (rebuild step 7b) stores its code only as a hash too:

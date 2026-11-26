@@ -20,15 +20,20 @@ const at = new Date(Date.UTC(2026, 0, 1));
 // Elements that stick out of the frame, as "tag.class right-edge>frame".
 async function overflow(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const frame = document.querySelector("main .card") ?? document.querySelector("main");
-    if (!frame) return ["no frame"];
-    const f = frame.getBoundingClientRect();
+    // Every card on the page (since u3 a sign-up step has the invite card
+    // and the form's card), and the page's own column.
+    const main = document.querySelector("main");
+    if (!main) return ["no frame"];
+    const frames = [...main.querySelectorAll(".card"), main];
     const out: string[] = [];
-    for (const el of frame.querySelectorAll("*")) {
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) continue;
-      if (r.right > f.right + 0.5 || r.left < f.left - 0.5) {
-        out.push(`${el.tagName.toLowerCase()}.${el.className} ${Math.round(r.left)}–${Math.round(r.right)} outside ${Math.round(f.left)}–${Math.round(f.right)}`);
+    for (const frame of frames) {
+      const f = frame.getBoundingClientRect();
+      for (const el of frame.querySelectorAll("*")) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.right > f.right + 0.5 || r.left < f.left - 0.5) {
+          out.push(`${el.tagName.toLowerCase()}.${el.className} ${Math.round(r.left)}–${Math.round(r.right)} outside ${frame.tagName.toLowerCase()}.${frame.className} ${Math.round(f.left)}–${Math.round(f.right)}`);
+        }
       }
     }
     if (document.documentElement.scrollWidth > window.innerWidth) {

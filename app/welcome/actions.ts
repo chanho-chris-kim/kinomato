@@ -76,5 +76,9 @@ export async function saveWelcome(formData: FormData) {
   if (takenIn) return back({ takenIn, displayName: name.displayName });
 
   await recordConsent(db, userId, { age: consent.age, licensing: consent.licensing, displayName: name.displayName });
-  redirect(joining ? redeemDestination(await redeemInvite(db, joining.id, userId)) : next);
+  if (!joining) redirect(next);
+  // An invited new account that's just joined goes on to the club's
+  // welcome page (u3): add a few films before their first turn.
+  const joined = await redeemInvite(db, joining.id, userId);
+  redirect(joined.status === "joined" ? `/clubs/${joined.clubId}/welcome` : redeemDestination(joined));
 }

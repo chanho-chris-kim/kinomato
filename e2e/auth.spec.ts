@@ -13,7 +13,7 @@ const CLUB_7_URL = `/clubs/${CLUB_7_ID}`;
 async function requestCode(page: Page, email: string) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send my code" }).click();
   await expect(page).toHaveURL(/\/login\/code/);
 }
 
@@ -60,15 +60,15 @@ test.describe("auth — sign-in codes and links", () => {
     const wrong = "000000"; // not KNOWN_CODE
 
     for (const left of ["4 tries", "3 tries", "2 tries", "1 try"]) {
-      await page.getByLabel("6-digit code").fill(wrong);
+      await page.getByLabel("Your code").fill(wrong);
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
       await expect(page.getByText(`That code didn't match. ${left} left.`)).toBeVisible();
     }
-    await page.getByLabel("6-digit code").fill(wrong);
+    await page.getByLabel("Your code").fill(wrong);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.getByText("Too many tries. Send a new code.")).toBeVisible();
     // The code form is gone; only "Send a new code" is left.
-    await expect(page.getByLabel("6-digit code")).toHaveCount(0);
+    await expect(page.getByLabel("Your code")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Send a new code" })).toBeVisible();
   });
 
@@ -106,9 +106,14 @@ test.describe("auth — sign-in codes and links", () => {
     await requestCode(page, email);
     const first = await latestSignInRow(email);
 
-    await page.getByRole("button", { name: "Resend" }).click();
+    // Resend is held back for the cooldown (u3); forced anyway, the server
+    // still refuses.
+    const resend = page.getByRole("button", { name: "Resend" });
+    await expect(resend).toBeDisabled();
+    await resend.evaluate((b) => ((b as HTMLButtonElement).disabled = false));
+    await resend.click();
     await expect(
-      page.getByText("We just sent one. Check your inbox, or try again in a minute."),
+      page.getByText("We just sent one. Check your inbox, or try again in a moment."),
     ).toBeVisible();
     expect((await latestSignInRow(email))!.id).toBe(first!.id);
   });

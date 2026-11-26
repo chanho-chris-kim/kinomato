@@ -1,7 +1,11 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { invites, users } from "@/db/schema";
+import { users } from "@/db/schema";
+import { loadInviteById } from "@/app/invites";
+import { InviteCard } from "@/app/inviteCard";
+import { StepBar } from "@/app/stepBar";
+import { SIGN_UP_STEPS } from "@/lib/steps";
 import { safePath } from "@/app/baseUrl";
 import { getSessionUserId } from "@/app/session";
 import { clashMessage } from "@/lib/displayName";
@@ -45,20 +49,19 @@ export default async function WelcomePage({
     redirect(gaps.length ? `/consent?${new URLSearchParams({ next })}` : next);
   }
 
-  let suggested = "";
-  if (inviteId && /^[0-9a-f-]{36}$/i.test(inviteId)) {
-    const [invite] = await db.select().from(invites).where(eq(invites.id, inviteId));
-    if (invite) suggested = invite.inviteeName;
-  }
+  // An invited sign-up (u3, §5.13): the last step of the bar, with the
+  // invite still in view. Without an invite there's no bar.
+  const invited = inviteId ? await loadInviteById(db, inviteId) : null;
+  const suggested = invited?.invite.inviteeName ?? "";
 
   return (
     <PublicShell>
-      <main className="p-4" style={{ maxWidth: 440, margin: "0 auto" }}>
-        <div className="card" style={{ padding: "20px 18px" }}>
+      <main className="p-4 signin-main">
+        {invited && <StepBar steps={SIGN_UP_STEPS} current={2} label="Signing up" className="signup-steps" />}
+        {invited && <InviteCard inviterName={invited.inviterName ?? "Someone"} clubName={invited.club.name} />}
+        <div className="card mt14 signin-card">
           <p className="eyebrow">One more thing</p>
-          <h1 className="h-display" style={{ fontSize: 28 }}>
-            What should your club call you?
-          </h1>
+          <h1 className="h-display stage-title">What should the club call you?</h1>
           {message && (
             <p className="small mt14 warn" role="alert">
               {message}

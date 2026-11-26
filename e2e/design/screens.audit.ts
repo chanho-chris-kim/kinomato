@@ -8,7 +8,7 @@ import * as schema from "../../db/schema";
 import { hashToken } from "../../lib/authCredentials";
 import { LEGAL } from "../../lib/legal";
 import { signInAsUser } from "../session";
-import { holdSignInAddress } from "../signIn";
+import { agreeToTerms, holdSignInAddress, setKnownSignIn } from "../signIn";
 
 // Design screenshots (`npm run audit:screens`, e2e/design/audit.config.ts):
 // every page in its real states, built on the E2E database, shot at 375
@@ -298,6 +298,7 @@ test("app screens", async ({ page, browser }) => {
   await shoot(out, "unsubscribe", `/unsubscribe/${token}`);
   await out.close();
 
+
   const as = (userId: string) => signInAsUser(page, userId);
   await as(U.ana);
   await shoot(page, "home-clubcards", "/");
@@ -332,6 +333,38 @@ test("app screens", async ({ page, browser }) => {
   await shoot(page, "consent", "/consent");
   await as(gus);
   await shoot(page, "welcome", "/welcome");
+
+  // Last, so it changes no screen above: an invited sign-up, step by step (u3): the code step and the name step
+  // with the bar and the invite, then the club's welcome page.
+  // Its own invite, to Drafting Club, so Saturday Club's screens stay as
+  // they were.
+  const [ownerOfDrafting] = await db.select().from(schema.memberships).where(eq(schema.memberships.id, drafting.m.ana));
+  const signUpToken = `auditsignup${id().replaceAll("-", "").slice(0, 11)}`;
+  await db.insert(schema.invites).values({
+    clubId: drafting.clubId,
+    token: signUpToken,
+    inviteeName: "Max",
+    invitedByMembershipId: ownerOfDrafting.id,
+  });
+  const invitee = await browser.newPage();
+  const inviteeEmail = `max.audit.${id().slice(0, 6)}@example.com`;
+  await invitee.goto(`/invite/${signUpToken}`);
+  await invitee.getByLabel("Your email").fill(inviteeEmail);
+  await invitee.getByRole("button", { name: "Send my code" }).click();
+  await invitee.waitForURL("**/login/code");
+  await shoot(invitee, "login-code-invited", "/login/code");
+  const { code } = await setKnownSignIn(inviteeEmail);
+  await invitee.getByLabel("Your code").fill(code);
+  await invitee.getByRole("button", { name: "Sign in", exact: true }).click();
+  await invitee.waitForURL("**/welcome?**");
+  const welcomeUrl = new URL(invitee.url()).pathname + new URL(invitee.url()).search;
+  await shoot(invitee, "welcome-invited", welcomeUrl);
+  await invitee.getByLabel("18 or older").check();
+  await agreeToTerms(invitee);
+  await invitee.getByRole("button", { name: "Continue" }).click();
+  await invitee.waitForURL(`**/clubs/${drafting.clubId}/welcome`);
+  await shoot(invitee, "club-welcome", `/clubs/${drafting.clubId}/welcome`);
+  await invitee.close();
 
   writeFileSync(path.join(OUT, "metrics.json"), JSON.stringify(metrics, null, 2));
   await client.end();
