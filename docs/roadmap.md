@@ -9,7 +9,7 @@ a step ships, in the same branch. Recorded 2026-11-24 (approved by Chanho).
 
 | Item | Status | Purpose |
 |---|---|---|
-| SES cutover (`docs/ses-cutover.md`) | next | Email actually goes out through Amazon SES in Canada, so sign-in codes and reminders reach people. Manual, between movie nights. |
+| SES cutover (`docs/ses-cutover.md`) | done (2026-11-23) | Email goes out through Amazon SES in Canada. Production sign-in email sent through SES ca-central-1; Gmail showed SPF, DKIM and DMARC passing and no tracking pixel. The `BREVO_API_KEY` secret is deleted, Brevo's DNS records are removed, and `_dmarc` reports go to Chanho. Closing the Brevo account itself stays under launch switches (#17). |
 
 ## Now
 
@@ -52,6 +52,7 @@ a step ships, in the same branch. Recorded 2026-11-24 (approved by Chanho).
 | 25 | Owner upgrade | later | A paid club tier, paid by one member, for clubs that want more than the free six seats. |
 | 26 | Institutions tier | later | Organisations (schools, libraries, film societies) pay for their clubs. |
 | 27 | Long-absence pause | later | A member can step out for months (parental leave, deployment) without being skipped every week. |
+| 28 | Public genre clubs | later | `analysis-v2.md` §8 and the public-club column of its table: strangers in an asynchronous club. Needs moderation and a report path before launch. The only club pages where a labeled contextual ad or sponsored pick may ever appear. Ruled 2026-11-24 by Chanho: after launch. |
 
 ## The lawyer's list
 
