@@ -189,6 +189,11 @@ only a person's tap signs anyone in.
   `magic_links` row and expire together; using either consumes both.
 - **5 wrong attempts invalidates the code.** A new one has to be requested.
   With a 10⁶ space and 5 tries, a guess succeeds 1 time in 200,000.
+  Five tries means five comparisons, however fast guesses arrive: each
+  claims a try in the database (a conditional increment) before it's
+  compared, the right code included (fixed 2026-11-26: simultaneous
+  guesses had all been compared). The same for email-change (§5.9) and
+  deletion (§11.4) codes.
 - **Stored hashed from the first commit.** The code is new, so there's no
   reason to repeat the plaintext-token gap (CLAUDE.md Open Questions); a
   6-digit code in plaintext is trivially usable by anyone who can read the

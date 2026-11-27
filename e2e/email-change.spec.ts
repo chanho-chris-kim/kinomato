@@ -7,6 +7,7 @@ import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { signInAs } from "./session";
 import { existingAccount, finishCodeSignIn, holdSignInAddress, nameYourself, setKnownEmailChangeCode } from "./signIn";
+import { submitAndSettle } from "./submit";
 
 // Email change (docs/onboarding-spec.md §5.9 rulings; rebuild step 7b).
 // Every account here is made fresh through the real code sign-in, so no
@@ -15,6 +16,13 @@ import { existingAccount, finishCodeSignIn, holdSignInAddress, nameYourself, set
 test.describe.configure({ mode: "serial" });
 
 const SUPPORT = "support@kinomato.test";
+
+// Fresh addresses per attempt: in serial mode a retry reruns the whole
+// file, and the first attempt's accounts (named, with a club) are still
+// there, so a fixed address would sign straight in past the name step.
+// Masks keep only the first letter and the domain (lib/emailAddress.ts).
+const RUN = crypto.randomUUID().slice(0, 8);
+const addr = (local: string) => `${local}.${RUN}@example.com`;
 
 async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => Promise<T>): Promise<T> {
   const client = postgres(process.env.E2E_DATABASE_URL!);
@@ -82,8 +90,8 @@ test.describe("email change", () => {
     browser,
   }) => {
     test.setTimeout(120_000);
-    const old = "ec-ann@example.com";
-    const next = "ec-ann-new@example.com";
+    const old = addr("ec-ann");
+    const next = addr("ec-ann-new");
     await signUpWithClub(page, old, "Ann", "Ann's Club");
 
     await requestChange(page, next);
@@ -135,8 +143,8 @@ test.describe("email change", () => {
     browser,
   }) => {
     test.setTimeout(120_000);
-    const old = "ec-ben@example.com";
-    const next = "ec-ben-new@example.com";
+    const old = addr("ec-ben");
+    const next = addr("ec-ben-new");
     await signUpWithClub(page, old, "Ben", "Ben's Club");
     const ben = (await userByEmail(old))!;
     // A second browser signed in as Ben (a session row, like any other
@@ -191,12 +199,16 @@ test.describe("email change", () => {
   });
 
   test("5 wrong codes lock it; Cancel ends it", async ({ page }) => {
-    const me = "ec-cy@example.com";
+    const me = addr("ec-cy");
     await signUpWithClub(page, me, "Cy", "Cy's Club");
-    await requestChange(page, "ec-cy-new@example.com");
+    await requestChange(page, addr("ec-cy-new"));
     await setKnownEmailChangeCode(me);
+    // Each try waits for its own page: the four read the same, so an expect
+    // alone would pass on the try before (e2e/submit.ts).
     for (let i = 1; i <= 4; i++) {
-      await enterCode(page, "111111");
+      const code = pendingCard(page).getByLabel("Code");
+      await code.fill("111111");
+      await submitAndSettle(page, page.getByRole("button", { name: "Confirm" }), code);
       await expect(alertText(page)).toHaveText("That code didn't work.");
     }
     await enterCode(page, "111111");
@@ -213,25 +225,25 @@ test.describe("email change", () => {
       db
         .select({ n: count() })
         .from(schema.emailChanges)
-        .where(and(eq(schema.emailChanges.newEmail, "ec-cy-new@example.com"), isNotNull(schema.emailChanges.cancelledAt))),
+        .where(and(eq(schema.emailChanges.newEmail, addr("ec-cy-new")), isNotNull(schema.emailChanges.cancelledAt))),
     );
     expect(cancelled[0].n).toBe(1);
   });
 
   test("a newer request cancels the older one", async ({ page }) => {
-    const me = "ec-dee@example.com";
+    const me = addr("ec-dee");
     await signUpWithClub(page, me, "Dee", "Dee's Club");
-    await requestChange(page, "p-dee@example.com");
+    await requestChange(page, addr("p-dee"));
     await expect(pendingCard(page)).toContainText("Code sent to p•••@example.com.");
-    await requestChange(page, "q-dee@example.com");
+    await requestChange(page, addr("q-dee"));
     await expect(pendingCard(page)).toContainText("Code sent to q•••@example.com.");
 
     const rows = await withDb((db) =>
-      db.select().from(schema.emailChanges).where(eq(schema.emailChanges.newEmail, "p-dee@example.com")),
+      db.select().from(schema.emailChanges).where(eq(schema.emailChanges.newEmail, addr("p-dee"))),
     );
     expect(rows[0].cancelledAt).not.toBeNull();
     // The older request's code no longer works, even if it's right.
-    await enterCode(page, await setKnownEmailChangeCode(me, "p-dee@example.com"));
+    await enterCode(page, await setKnownEmailChangeCode(me, addr("p-dee")));
     await expect(alertText(page)).toHaveText("That code didn't work.");
     expect((await userByEmail(me))?.email).toBe(me);
   });
@@ -239,7 +251,7 @@ test.describe("email change", () => {
   test("an address that already has an account: the identical screen, a notice there, nothing changed", async ({
     page,
   }) => {
-    const me = "ec-eve@example.com";
+    const me = addr("ec-eve");
     // Kit's, a seeded account nothing else here emails (so it's outside the
     // shared per-address cooldown). Only the test outbox records the notice.
     const taken = "kit@example.com";
@@ -268,8 +280,8 @@ test.describe("email change", () => {
   });
 
   test("a change code typed at /login/code does nothing", async ({ page, browser }) => {
-    const me = "ec-fay@example.com";
-    const next = "ec-fay-new@example.com";
+    const me = addr("ec-fay");
+    const next = addr("ec-fay-new");
     await signUpWithClub(page, me, "Fay", "Fay's Club");
     await requestChange(page, next);
     const code = await setKnownEmailChangeCode(me);
@@ -288,15 +300,15 @@ test.describe("email change", () => {
   });
 
   test("at most 3 change requests a day", async ({ page }) => {
-    const me = "ec-gus@example.com";
+    const me = addr("ec-gus");
     await signUpWithClub(page, me, "Gus", "Gus's Club");
-    for (const to of ["a-gus@example.com", "b-gus@example.com", "c-gus@example.com"]) {
+    for (const to of [addr("a-gus"), addr("b-gus"), addr("c-gus")]) {
       await requestChange(page, to);
       await expect(page).toHaveURL("/settings?emailChange=sent");
     }
-    await requestChange(page, "d-gus@example.com");
+    await requestChange(page, addr("d-gus"));
     await expect(alertText(page)).toHaveText("You can ask to change your email 3 times a day. Try again tomorrow.");
-    expect(sentTo("d-gus@example.com")).toEqual([]);
+    expect(sentTo(addr("d-gus"))).toEqual([]);
     const gus = (await userByEmail(me))!;
     const n = await withDb((db) =>
       db.select({ n: count() }).from(schema.emailChanges).where(eq(schema.emailChanges.userId, gus.id)),

@@ -128,7 +128,12 @@ another month over the thing that picks a film faster.
   the clear (`lib/authCredentials.ts`): session and link tokens as
   SHA-256, the code as an HMAC keyed by `AUTH_SECRET` (a bare hash of a
   6-digit code is cracked in milliseconds). 5 wrong codes kill that
-  code; sends are limited to one per 30s and 5 an hour per address.
+  code, however fast they arrive: **each guess claims one of the five
+  tries in one conditional update before it's compared** (fixed
+  2026-11-26; before, simultaneous guesses all read the same count and
+  were all compared). Sign-in (`app/signInCode.ts`), email change and
+  account deletion do the same; `e2e/code-lock-race.spec.ts` sends ten at
+  once and expects five comparisons. Sends are limited to one per 30s and 5 an hour per address.
   `AUTH_SECRET` falls back to a fixed dev value outside production and
   **throws in production when unset** — set it as a Worker secret.
   **Changing your email** (Settings, `docs/onboarding-spec.md` §5.9) is a

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { emailChanges, magicLinks, users } from "@/db/schema";
 import { checkSendAllowed, codeMatches, generateSignInCode, getAuthSecret, hashCode, CODE_MAX_ATTEMPTS } from "@/lib/authCredentials";
@@ -124,12 +124,19 @@ export async function confirmEmailChange(
   if (state === "expired") return { ok: false, error: "That code has expired. Ask for a new one." };
   if (state === "locked") return { ok: false, error: "Too many wrong codes. Ask for a new one." };
 
+  // Each guess claims one of the CODE_MAX_ATTEMPTS tries in one
+  // conditional update before it's compared, so simultaneous guesses can't
+  // all read the same count and all be compared (app/signInCode.ts).
+  const [claimed] = await db
+    .update(emailChanges)
+    .set({ attempts: sql`${emailChanges.attempts} + 1` })
+    .where(and(eq(emailChanges.id, row.id), lt(emailChanges.attempts, CODE_MAX_ATTEMPTS)))
+    .returning({ attempts: emailChanges.attempts });
+  if (!claimed) return { ok: false, error: "Too many wrong codes. Ask for a new one." };
   if (!codeMatches(rawCode.replace(/\s+/g, ""), row.codeHash, getAuthSecret())) {
-    const attempts = row.attempts + 1;
-    await db.update(emailChanges).set({ attempts }).where(eq(emailChanges.id, row.id));
     return {
       ok: false,
-      error: attempts >= CODE_MAX_ATTEMPTS ? "Too many wrong codes. Ask for a new one." : "That code didn't work.",
+      error: claimed.attempts >= CODE_MAX_ATTEMPTS ? "Too many wrong codes. Ask for a new one." : "That code didn't work.",
     };
   }
 
