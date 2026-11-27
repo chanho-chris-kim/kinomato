@@ -38,6 +38,7 @@ import { requireCurrentMembershipId } from "./identity";
 import { lockNightCore } from "./lockNightCore";
 import { NON_TERMINAL_STATES } from "./nightState";
 import { findLateConfirmableNight } from "@/lib/clubStatus";
+import { readGettingStarted, type GettingStartedState } from "@/lib/gettingStarted";
 import { mustRateBeforeReveal } from "@/lib/ratingReveal";
 import { canSayIWasThere, isVisiblyRevealed } from "@/lib/tonight";
 import type { NightState } from "@/lib/rotation";
@@ -543,8 +544,12 @@ export async function castVeto(clubId: string, nominationId: string) {
 // into the room. Validation errors the person should see go back via
 // ?inviteError= (CLAUDE.md's form-error convention).
 
-function inviteError(clubId: string, message: string): never {
-  redirect(`/clubs/${clubId}/members?inviteError=${encodeURIComponent(message)}`);
+// The invite page (u4) or the Members tab: whichever the form was on.
+const invitePagePath = (clubId: string, onInvitePage: boolean) =>
+  onInvitePage ? `/clubs/${clubId}/members/invite` : `/clubs/${clubId}/members`;
+
+function inviteError(clubId: string, message: string, onInvitePage = false): never {
+  redirect(`${invitePagePath(clubId, onInvitePage)}?inviteError=${encodeURIComponent(message)}`);
 }
 
 async function insertInvite(
@@ -567,25 +572,28 @@ export async function createInvite(clubId: string, formData: FormData) {
   const { db, membership } = await requireOwnerOrAdmin(clubId, "manage invites");
   // A greeting only (ruled 2026-11-25): they choose their own display name
   // when they join.
+  const onInvitePage = formData.get("from") === "invite";
   const name = validateInviteeName(String(formData.get("inviteeName") ?? ""));
-  if ("error" in name) inviteError(clubId, name.error);
+  if ("error" in name) inviteError(clubId, name.error, onInvitePage);
 
   const [active, pending] = await Promise.all([
     activeMemberCount(db, clubId),
     pendingInviteCount(db, clubId),
   ]);
   if (!canCreateInvite(active, pending)) {
-    inviteError(clubId, "Every seat is taken or held by a pending invite. Revoke one to free a seat.");
+    inviteError(clubId, "Every seat is taken or held by a pending invite. Revoke one to free a seat.", onInvitePage);
   }
 
   const id = await insertInvite(db, clubId, name.name, membership.id);
-  redirect(`/clubs/${clubId}/members?invite=${id}`);
+  redirect(`${invitePagePath(clubId, onInvitePage)}?invite=${id}`);
 }
 
 // Kills one person's link without touching anyone else's (Ruling C). Only
 // a pending invite: a redeemed one is history, and removing someone who
 // joined is member removal, not this.
-export async function revokeInvite(clubId: string, inviteId: string) {
+// `from`: "invite" when bound by the invite page (u4); bound with two
+// arguments, as on the Members tab, the form's data arrives here instead.
+export async function revokeInvite(clubId: string, inviteId: string, from?: "invite" | FormData) {
   const { db } = await requireOwnerOrAdmin(clubId, "manage invites");
   await db
     .update(invites)
@@ -598,7 +606,7 @@ export async function revokeInvite(clubId: string, inviteId: string) {
         isNull(invites.revokedAt),
       ),
     );
-  redirect(`/clubs/${clubId}/members`);
+  redirect(invitePagePath(clubId, from === "invite"));
 }
 
 // Revoke + a fresh invite for the same name: "I sent it to the wrong chat."
@@ -646,10 +654,43 @@ export async function updateClubSettings(clubId: string, formData: FormData) {
   const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
   await db
     .update(clubs)
-    .set({ settings: mergeClubSettings(club?.settings, result.settings) })
+    .set({ settings: withRunningChecked(mergeClubSettings(club?.settings, result.settings)) })
     .where(eq(clubs.id, clubId));
   revalidatePath(`/clubs/${clubId}`, "layout");
   redirect(settingsUrl(clubId, "?saved=settings"));
+}
+
+// "Get {club} going" (u4): saving any setting or detail ticks "Check how the
+// club runs" on a club that has the list. A club from before u4 has none,
+// and nothing is added to it.
+function withRunningChecked(settings: unknown): Record<string, unknown> {
+  const base = typeof settings === "object" && settings !== null ? (settings as Record<string, unknown>) : {};
+  const state = readGettingStarted(base);
+  return state ? { ...base, gettingStarted: { ...state, checked: true } } : base;
+}
+
+async function updateGettingStarted(clubId: string, change: Partial<GettingStartedState>) {
+  const { db } = await requireOwner(clubId, "change the getting-started list");
+  const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
+  const state = readGettingStarted(club?.settings);
+  if (state) {
+    const base = club.settings as Record<string, unknown>;
+    await db
+      .update(clubs)
+      .set({ settings: { ...base, gettingStarted: { ...state, ...change } } })
+      .where(eq(clubs.id, clubId));
+  }
+  revalidatePath(`/clubs/${clubId}`);
+}
+
+// "Looks good": the owner has checked how the club runs.
+export async function gettingStartedLooksGood(clubId: string) {
+  await updateGettingStarted(clubId, { checked: true });
+}
+
+// "Hide this list".
+export async function hideGettingStarted(clubId: string) {
+  await updateGettingStarted(clubId, { hidden: true });
 }
 
 // Pause or resume. Pausing never ends the night in flight (CLAUDE.md: the
@@ -713,7 +754,7 @@ export async function updateClubDetails(clubId: string, formData: FormData) {
 
   await db
     .update(clubs)
-    .set({ ...details, settings })
+    .set({ ...details, settings: withRunningChecked(settings) })
     .where(eq(clubs.id, clubId));
   revalidatePath("/", "layout");
   redirect(`${membersPath}?saved=details#club-details`);

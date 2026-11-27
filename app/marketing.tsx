@@ -12,7 +12,9 @@ import { PublicShell } from "@/app/shell";
 
 // Built like app/auth.ts's loginUrl, so it's the same URL a signed-out
 // visit to /new redirects to.
-const START_HREF = `/login?${new URLSearchParams({ returnTo: "/new" })}`;
+// "Start a club" (u4): its own sign-up flow, with a step bar through to
+// the new club (app/login/start).
+const START_HREF = "/login/start";
 
 const STEPS: { title: string; body: string }[] = [
   {

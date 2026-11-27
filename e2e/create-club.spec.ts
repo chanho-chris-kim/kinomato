@@ -40,9 +40,11 @@ test.describe("club creation and invites", () => {
       await expect(memberNames(owner.page)).toHaveText(["Robin B. (you)"]);
       await expect(owner.page.getByText("1 of 6 seats.")).toBeVisible();
 
-      // --- Robin invites Sam; Sam joins with that link. ---
+      // --- Robin invites Sam from the invite page (u4); Sam joins with that link. ---
+      await owner.page.getByRole("link", { name: "Add a person" }).click();
+      await expect(owner.page).toHaveURL(`${clubUrl}/members/invite`);
       await owner.page.getByLabel("Their name").fill("Sam K.");
-      await owner.page.getByRole("button", { name: "Create invite" }).click();
+      await owner.page.getByRole("button", { name: "Create invite link" }).click();
       const samLink = await owner.page.getByLabel("Invite link for Sam K.").inputValue();
 
       const friend = await newPage();
@@ -63,6 +65,7 @@ test.describe("club creation and invites", () => {
       await expect(memberNames(friend.page)).toHaveText(["Robin B.", "Sam K. (you)"]);
 
       // --- Pending invites hold seats: four more fill the club to six. ---
+      await owner.page.goto(`${clubUrl}/members/invite`);
       for (const [first, initial] of [
         ["Ann", "O"],
         ["Bo", "L"],
@@ -70,13 +73,16 @@ test.describe("club creation and invites", () => {
         ["Dee", "N"],
       ] as const) {
         await owner.page.getByLabel("Their name").fill(`${first} ${initial}.`);
-        await owner.page.getByRole("button", { name: "Create invite" }).click();
+        await owner.page.getByRole("button", { name: "Create invite link" }).click();
         await expect(owner.page.getByLabel(`Invite link for ${first} ${initial}.`)).toBeVisible();
       }
 
       // --- The seventh isn't offered, and the page says why. ---
+      await expect(owner.page.locator(".seats-left")).toHaveText("Each person gets their own link. No seats left.");
+      await expect(owner.page.getByRole("button", { name: "Create invite link" })).toHaveCount(0);
+      await owner.page.goto(`${clubUrl}/members`);
       await expect(owner.page.getByText("6 of 6 seats.")).toBeVisible();
-      await expect(owner.page.getByRole("button", { name: "Create invite" })).toHaveCount(0);
+      await expect(owner.page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
       await expect(
         owner.page.getByText("E2E Test Club is full: 2 members and 4 pending invites."),
       ).toBeVisible();

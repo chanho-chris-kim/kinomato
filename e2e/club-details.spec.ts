@@ -3,8 +3,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
+import { getDraftToCreate } from "../lib/clubStatus";
 import { LEGAL } from "../lib/legal";
-import { addDays, getNextOccurrence, localDateParts, zonedTimeToUtc } from "../lib/schedule";
+import { addDays, localDateParts, zonedTimeToUtc } from "../lib/schedule";
 import { expect, test } from "./fixtures";
 import { signInAsUser } from "./session";
 
@@ -166,13 +167,18 @@ test.describe("club details", () => {
     await page.goto(`/clubs/${c.clubId}`);
     const [next] = await inFlight(c.clubId);
     expect(next.id).not.toBe(draft.id);
+    // The page's own rule (lib/clubStatus.ts getDraftToCreate), on the club
+    // as it was just before that draft: the next Friday 6:15pm, unless its
+    // auto-pass point (24 hours before) has already gone by, then the one
+    // after. Computing it by hand fails on the day before a club night.
     const row = await clubRow(c.clubId);
-    const expected = getNextOccurrence(
-      { cadence: "weekly", defaultDay: 5, defaultTime: "18:15", timezone: TZ },
-      new Date(),
-      row.createdAt,
-    );
-    expect(next.scheduledAt.toISOString()).toBe(expected!.toISOString());
+    const before = await withDb(async (db) => ({
+      memberships: await db.select().from(schema.memberships).where(eq(schema.memberships.clubId, c.clubId)),
+      nights: (await db.select().from(schema.nights).where(eq(schema.nights.clubId, c.clubId))).filter((n) => n.id !== next.id),
+    }));
+    const expected = getDraftToCreate({ club: row, memberships: before.memberships, nights: before.nights, now: new Date() });
+    expect(expected!.scheduledAt.getUTCDay()).toBe(next.scheduledAt.getUTCDay());
+    expect(next.scheduledAt.toISOString()).toBe(expected!.scheduledAt.toISOString());
   });
 
   test("weekly to every other week needs a first night: on the day, not past; the next draft lands on it", async ({

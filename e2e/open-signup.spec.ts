@@ -11,18 +11,19 @@ import { finishCodeSignIn, nameYourself } from "./signIn";
 // (playwright.config.ts); the main server is closed (invite-only.spec.ts).
 
 test.describe("open sign-up (OPEN_SIGNUP=true)", () => {
-  test("Start a club is back, and a new address signs up by code and lands on /new", async ({ page }) => {
+  test("Start a club is back, and a new address signs up by code and lands on Start your club", async ({ page }) => {
     const email = "open.signup@example.com";
     await page.goto("/");
     await expect(page.locator("main").getByText("Invite-only for now", { exact: true })).toHaveCount(0);
     await page.locator("main").getByRole("link", { name: "Start a club" }).click();
-    await expect(page).toHaveURL("/login?returnTo=%2Fnew");
+    // Its own sign-up flow since u4 (e2e/start-club.open-signup.spec.ts).
+    await expect(page).toHaveURL("/login/start");
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send my code" }).click();
     await finishCodeSignIn(page, email);
     expect(sentTo(email).map((m) => m.kind)).toEqual(["sign-in"]);
     await nameYourself(page, "Ola", "S");
-    await expect(page).toHaveURL("/new");
+    await expect(page).toHaveURL("/new?start=1");
 
     const client = postgres(process.env.E2E_DATABASE_URL!);
     try {

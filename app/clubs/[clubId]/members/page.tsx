@@ -19,7 +19,6 @@ import {
 import type { ConfirmAt } from "@/lib/confirmTiming";
 import {
   addLimit,
-  createInvite,
   deleteClubAsLastMember,
   leaveClub,
   makeAdmin,
@@ -34,7 +33,7 @@ import {
   updateClubDetails,
   updateClubSettings,
 } from "../actions";
-import { COMMON_TIMEZONES, DAY_LABELS } from "@/app/clubFormOptions";
+import { COMMON_TIMEZONES, CONFIRM_AT_LABELS, DAY_LABELS, hoursLabel } from "@/app/clubFormOptions";
 import { readFormEcho } from "@/app/formEcho";
 import Link from "next/link";
 import { canChangeRole, canRemove, canTransferOwnership, type RoleMember } from "@/lib/roles";
@@ -49,19 +48,6 @@ import { loadClubMemberships } from "../members";
 import { ShareInvite } from "../ShareInvite";
 
 // When "Did you watch it?" is asked (lib/confirmTiming.ts), in plain words.
-const CONFIRM_AT_LABELS: Record<ConfirmAt, string> = {
-  same_night: "That night",
-  morning_after: "The next morning",
-  manual_only: "Any time, even before the night",
-};
-
-// The night deadlines' settings (ruled 2026-11-21), as hours, in words.
-function hoursLabel(hours: number): string {
-  if (hours === 168) return "1 week";
-  if (hours >= 24 && hours % 24 === 0) return hours === 24 ? "1 day" : `${hours / 24} days`;
-  return hours === 1 ? "1 hour" : `${hours} hours`;
-}
-
 // The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c, m1). In
 // order: Members, Invited (only when there are pending invites), Add a
 // person (owners and admins), Your limits in this club (the viewer's own
@@ -368,23 +354,10 @@ export default async function MembersPage({
             </p>
           )}
           {canCreateInvite(activeMemberships.length, pendingInvites.length) ? (
-            <form
-              action={createInvite.bind(null, clubId)}
-              className="name-row mt14"
-            >
-              <label className="small muted name-first">
-                Their name
-                <div className="search mt-1">
-                  <input name="inviteeName" required maxLength={30} aria-describedby="invitee-name-hint" />
-                </div>
-              </label>
-              <button type="submit" className="btn">
-                Create invite
-              </button>
-              <p id="invitee-name-hint" className="tiny dim flush invitee-hint">
-                So the invite can greet them. They&apos;ll choose their own display name when they join.
-              </p>
-            </form>
+            // The invite page (u4): a link per person, shared from there.
+            <Link href={`/clubs/${clubId}/members/invite`} className="btn block-link mt14 add-person-link">
+              Add a person
+            </Link>
           ) : (
             <p className="small mt14">
               {club.name} is full: {activeMemberships.length} members and {pendingInvites.length}{" "}

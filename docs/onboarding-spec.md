@@ -1139,7 +1139,11 @@ full.
   invite; the welcome page is `/clubs/[clubId]/welcome`.
 - **Own sign-up (u4, only with `OPEN_SIGNUP` on)**: the same steps plus
   Start your club with every default editable, then a "Get your club
-  going" checklist on Tonight and an Invite people screen.
+  going" checklist on Tonight and an Invite people screen. *Built u4,
+  2026-11-26 (CLAUDE.md has the details):* the flow is `/login/start` →
+  code → `/welcome` → `/new?start=1`; `/new` no longer offers "no fixed
+  schedule" (as editing doesn't, §5.10); the checklist is only for clubs
+  started since u4; Members' Add a person opens the invite page.
 - **Club codes (u5)**: an optional short join code per club, off by
   default, owner or admin; "Ask to join", approved by an owner or admin,
   who is the provenance record. The cap (and later adults-only gating)

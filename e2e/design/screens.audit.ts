@@ -370,6 +370,48 @@ test("app screens", async ({ page, browser }) => {
   await client.end();
 });
 
+// "Start a club" with sign-up open (the open-signup server, u4): each step
+// of the flow, as far as the build in front of it goes, then the new club.
+test("start a club screens", async ({ browser }) => {
+  mkdirSync(OUT, { recursive: true });
+  const context = await browser.newContext({ baseURL: "http://localhost:3102" });
+  const page = await context.newPage();
+  const email = `founder.audit.${id().slice(0, 6)}@example.com`;
+  const shootHere = async (name: string) => {
+    const url = new URL(page.url());
+    await shoot(page, name, url.pathname + url.search);
+  };
+  await shoot(page, "start-marketing", "/");
+  await page.getByRole("link", { name: "Start a club" }).first().click();
+  // The click's navigation has to land before the URL is read.
+  await page.waitForURL((url) => url.pathname !== "/");
+  await shootHere("start-email");
+  await page.getByLabel(/^Email/).fill(email);
+  await page.getByRole("button", { name: /^Send/ }).click();
+  await page.waitForURL("**/login/code**");
+  await shootHere("start-code");
+  const { code } = await setKnownSignIn(email);
+  await page.getByLabel("Your code").fill(code);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL("**/welcome**");
+  await shootHere("start-welcome");
+  await page.getByLabel("Display name").fill("Fern F.");
+  await page.getByLabel("18 or older").check();
+  await agreeToTerms(page);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.waitForURL("**/new**");
+  await shootHere("start-club");
+  await page.getByLabel("Club name").fill("Fern's Film Club");
+  await page.getByLabel(/^Time ?zone/i).fill("America/New_York");
+  await page.getByRole("button", { name: "Create club" }).click();
+  await page.waitForURL(/\/clubs\/[0-9a-f-]{36}$/);
+  await shootHere("start-tonight");
+  const clubPath = new URL(page.url()).pathname;
+  const invite = await page.goto(`${clubPath}/members/invite`);
+  if (invite?.ok()) await shootHere("start-invite");
+  await context.close();
+});
+
 // docs/prototype.html's matching screens, in each of its themes.
 test("prototype screens", async ({ page }) => {
   mkdirSync(PROTOTYPE_OUT, { recursive: true });

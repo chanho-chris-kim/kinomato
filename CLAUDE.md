@@ -864,8 +864,10 @@ Do not quietly change these — they encode decisions that took a while to reach
 - **A new club gets a distinct first-run prompt, not a generic empty
   state.** On Tonight (`/clubs/[clubId]`), while the owner is the only
   member and no night has ever finished, an owner or admin sees "Add the
-  people you watch with." with a link to the Members tab's Add a person
-  form (`/clubs/[clubId]/members#add-person`). "No nights at all" can't be
+  people you watch with." with a link to the invite page
+  (`/clubs/[clubId]/members/invite`, u4). **A club started since u4 gets
+  the owner's "Get {club} going" checklist instead** (see "Own sign-up"),
+  which takes this prompt's place while it shows. "No nights at all" can't be
   the test: the first page load lazily creates the owner's draft night
   (the lazy-creation ruling above). A club with nobody active to pick
   still gets its own "No night scheduled yet" state, pointing at the
@@ -1177,7 +1179,36 @@ Do not quietly change these — they encode decisions that took a while to reach
   friend's club instead?" linking to Join. Then a "Get your club going"
   checklist on Tonight (create ✓, invite your people, add at least three
   films to your watchlist, check how the club runs) that disappears when
-  done, and an Invite people screen with the bottom tab bar.
+  done, and an Invite people screen with the bottom tab bar. **Built (u4,
+  2026-11-26):**
+  - **The flow:** "Start a club" (sign-up open) is `/login/start` (Email)
+    → `/login/code` (Code) → `/welcome` (About you) → `/new?start=1` (Your
+    club). Its only marker is returnTo `/new?start=1` (`lib/steps.ts`
+    `START_CLUB_PATH`), a fixed path, so no new cookie and nothing personal
+    in a URL. The bar shows for anyone who enters this way, account or
+    not; an account already named goes from Code straight to Your club,
+    About you ticked. With sign-up closed, `/login/start` is `/login` and
+    no screen shows this bar.
+  - **`/new` ("Start your club")** shows every setting, prefilled from the
+    readers' own defaults (`lib/newClub.ts` `NEW_CLUB_DEFAULTS`). It's read
+    by `readNewClubForm` on the Members tab's own readers
+    (`readClubDetailsForm`, `readClubSettingsForm`, `checkFirstNight`), so
+    the two never disagree. "No fixed schedule" isn't offered any more, the
+    same rule as editing (ruled 2026-11-10). Every other week or monthly
+    needs a first night. The "Joining a friend's club instead?" link waits
+    for u5.
+  - **The checklist** (`lib/gettingStarted.ts`) is stored in
+    `clubs.settings.gettingStarted` (`{ checked, hidden }`, written at
+    creation; malformed fails loud). Clubs from before u4 have none and no
+    list. It's for the owner only, while incomplete and not hidden, and is
+    always the "do this now" card then, so the week's card below has
+    outlined buttons. Invite is done with another active member or a
+    pending invite; films at three of the owner's own; Check how it runs
+    with "Looks good" or any saved setting or detail.
+  - **The invite page** (`/clubs/[clubId]/members/invite`, owner or admin;
+    others go back to Members) has the same server rules as before. The
+    Members tab's Add a person is a link to it, as are the rails' "Add a
+    person →".
 - **Club codes (ruled 2026-11-25, approved by Chanho; built in u5).** A
   second way in, beside per-person invites (Chanho's decision). Each
   club may have a short join code, off by default, turned on and

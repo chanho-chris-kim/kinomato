@@ -39,7 +39,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ clubId
         <RailMembers
           members={active}
           meId={me.id}
-          addPersonHref={canAdd ? `/clubs/${clubId}/members#add-person` : undefined}
+          addPersonHref={canAdd ? `/clubs/${clubId}/members/invite` : undefined}
         />
       }
     >

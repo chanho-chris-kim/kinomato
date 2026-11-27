@@ -87,11 +87,12 @@ test.describe("club tabs", () => {
     );
   });
 
-  test("on a phone, Members (with the Add a person form) fits the screen", async ({ page }) => {
+  test("on a phone, Members (with Add a person) fits the screen", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await signInAs(page, MEMBERSHIP_8.hana); // owner of a club with free seats
     await page.goto(`/clubs/${CLUB_8_ID}/members`);
-    await expect(page.getByRole("button", { name: "Create invite" })).toBeInViewport({ ratio: 1 });
+    await page.getByRole("link", { name: "Add a person", exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole("link", { name: "Add a person", exact: true })).toBeInViewport({ ratio: 1 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 
@@ -131,7 +132,7 @@ test.describe("club tabs", () => {
     await page.goto(CLUB_URL);
     await expect(rail(page).getByRole("link", { name: "Add a person →" })).toHaveAttribute(
       "href",
-      `${CLUB_URL}/members#add-person`,
+      `${CLUB_URL}/members/invite`,
     );
 
     await signInAs(page, MEMBERSHIP.dana); // member
@@ -161,7 +162,7 @@ test.describe("club tabs", () => {
     await expect(page.locator("#add-person")).toHaveCount(0);
   });
 
-  test("first run: a new club's owner is pointed at Add a person, and the link lands on it", async ({
+  test("first run: a new club's owner gets the getting-started list, whose Invite people lands on the invite page", async ({
     page,
   }) => {
     const email = "tabs-firstrun@example.com";
@@ -180,13 +181,16 @@ test.describe("club tabs", () => {
     await expect(page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
     const clubPath = new URL(page.url()).pathname;
 
-    await expect(page.getByRole("heading", { name: "Add the people you watch with." })).toBeVisible();
+    // A club started since u4 gets "Get {club} going" in place of the
+    // old first-run prompt; its Invite people is the way in.
+    await expect(page.getByRole("heading", { name: "Get Tabs First Run going" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add the people you watch with." })).toHaveCount(0);
+    await page.locator("main").getByRole("link", { name: "Invite people", exact: true }).click();
+    await expect(page).toHaveURL(`${clubPath}/members/invite`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Who's coming to Tabs First Run?");
+    await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 5 seats left.");
     // No Invited section on Members when nothing is pending.
-    // The main column's prompt (the rail has its own "Add a person →").
-    await page.locator("main").getByRole("link", { name: "Add a person", exact: true }).click();
-    await expect(page).toHaveURL(`${clubPath}/members#add-person`);
-    await expect(page.locator("#add-person").getByRole("heading", { name: "Add a person" })).toBeVisible();
-    await expect(page.locator("#add-person")).toBeInViewport();
+    await page.goto(`${clubPath}/members`);
     await expect(page.getByText("1 of 6 seats.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Invited" })).toHaveCount(0);
     await expect(memberNames(page)).toHaveText(["Tess V. (you)"]);

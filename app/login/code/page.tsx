@@ -10,7 +10,8 @@ import { loadInviteById } from "@/app/invites";
 import { latestSignInFor, resendWaitSeconds } from "@/app/signIn";
 import { getSignInEmail, loginAgainUrl } from "@/app/signInCookie";
 import { maskEmail } from "@/lib/emailAddress";
-import { SIGN_UP_STEPS } from "@/lib/steps";
+import { SIGN_UP_STEPS, START_CLUB_PATH, START_CLUB_STEPS } from "@/lib/steps";
+import { signupOpen } from "@/app/signIn";
 import { ResendButton } from "./ResendButton";
 
 // "Check your email" (docs/onboarding-spec.md §5.5; redesigned u3): the code
@@ -54,15 +55,18 @@ export default async function CodePage({
   const [latest, waitSeconds] = await Promise.all([latestSignInFor(db, email!), resendWaitSeconds(db, email!, now)]);
   const invited = latest?.inviteId && !latest.consumedAt ? await loadInviteById(db, latest.inviteId) : null;
   const masked = <strong className="masked-email">{maskEmail(email!)}</strong>;
+  // "Start a club" with sign-up open (u4): its own bar, from returnTo alone.
+  const startingClub = !invited && returnTo === START_CLUB_PATH && signupOpen();
 
   return (
     <PublicShell>
       <main className="p-4 signin-main">
         {invited && <StepBar steps={SIGN_UP_STEPS} current={1} label="Signing up" className="signup-steps" />}
         {invited && <InviteCard inviterName={invited.inviterName ?? "Someone"} clubName={invited.club.name} />}
+        {startingClub && <StepBar steps={START_CLUB_STEPS} current={1} label="Starting a club" className="signup-steps" />}
         <div className="card mt14 signin-card">
           <h1 className="h-display stage-title">Check your email</h1>
-          {invited ? (
+          {invited || startingClub ? (
             <p className="small muted mt-1">We sent a 6-digit code to {masked}.</p>
           ) : (
             <p className="small muted mt-1">

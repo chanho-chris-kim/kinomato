@@ -1304,6 +1304,60 @@ footer a::after {
     display: block;
   }
 }
+.full {
+  display: block;
+  width: 100%;
+}
+.day-time {
+  align-items: flex-end;
+}
+
+/* "Get {club} going" on Tonight (u4). */
+.checklist-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.checklist-item:first-child {
+  border-top: 0;
+}
+.checklist-mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--field-line);
+  color: var(--accent);
+  font-size: var(--text-small);
+}
+.checklist-item.done .checklist-mark {
+  border-color: var(--accent);
+}
+.checklist-item.current .checklist-mark {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.checklist-item.done .checklist-title {
+  text-decoration: line-through;
+  color: var(--mut);
+}
+.hide-checklist,
+.back-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--mut);
+  text-decoration: none;
+}
+.hide-checklist {
+  text-decoration: underline;
+}
+
 /* The club welcome page's three-film goal. */
 .goal-segments {
   display: flex;
