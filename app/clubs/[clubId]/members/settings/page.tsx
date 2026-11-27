@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs } from "@/db/schema";
@@ -22,13 +21,15 @@ import { makeNewJoinCode, setJoinCodeOn, updateClubDetails, updateClubSettings }
 import { CopyCode } from "../../CopyCode";
 import { MembersFrame, RowLink } from "../membersFrame";
 
-// How {club} runs (u6, ruled 2026-11-27; the settings ruled 2026-11-10):
-// owners and admins only, everyone else a 404. Three groups shown as
-// values, each with its own Edit, which opens that group alone as a form
-// (?edit=club|voting|after, nothing personal); the others stay values. The
-// same readers validate (lib/clubDetails.ts, lib/clubSettings.ts), and a
-// mistake comes back with what was typed (form-echo cookie). Then the club
-// code and pausing.
+// How {club} runs (u6, ruled 2026-11-27; the settings ruled 2026-11-10:
+// every member sees them, owners and admins change them). Three groups
+// shown as values. For owners and admins each has its own Edit, which opens
+// that group alone as a form (?edit=club|voting|after, nothing personal);
+// the others stay values. The same readers validate (lib/clubDetails.ts,
+// lib/clubSettings.ts), and a mistake comes back with what was typed
+// (form-echo cookie). Then the club code and pausing, owners and admins
+// only. A plain member gets the values alone: no Edit, no code, no Pause;
+// the actions refuse them anyway.
 type Group = "club" | "voting" | "after";
 const GROUP_NAMES: Record<Group, string> = { club: "The club", voting: "Voting", after: "After the night" };
 
@@ -43,9 +44,10 @@ export default async function ClubSettingsPage({
   const { edit: rawEdit, saved, settingsError, detailsError, code: codeNotice } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}/members/settings`);
-  if (me.role !== "owner" && me.role !== "admin") notFound();
+  const canChange = me.role === "owner" || me.role === "admin";
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
-  const edit: Group | null = rawEdit === "club" || rawEdit === "voting" || rawEdit === "after" ? rawEdit : null;
+  const edit: Group | null =
+    canChange && (rawEdit === "club" || rawEdit === "voting" || rawEdit === "after") ? rawEdit : null;
   const here = `/clubs/${clubId}/members/settings`;
 
   const nomineesPerTurn = getNomineesPerTurn(club.settings);
@@ -76,7 +78,7 @@ export default async function ClubSettingsPage({
       <h2 id={`${group}-heading`} className="sec flush">
         {GROUP_NAMES[group]}
       </h2>
-      {edit !== group && (
+      {canChange && edit !== group && (
         <Link href={`${here}?edit=${group}#${group}`} className="underline tap small edit-link" aria-label={`Edit ${GROUP_NAMES[group].toLowerCase()}`}>
           Edit
         </Link>
@@ -285,43 +287,48 @@ export default async function ClubSettingsPage({
         )}
       </section>
 
-      <section id="join-code" className="card mt14" aria-labelledby="join-code-heading">
-        <h2 id="join-code-heading" className="sec flush">
-          Club code
-        </h2>
-        {/* A submit button with role="switch": it works without script. */}
-        <form action={setJoinCodeOn.bind(null, clubId, !club.joinCode)} className="mt-1">
-          <button type="submit" role="switch" aria-checked={club.joinCode !== null} className="consent-choice small switch-button">
-            <span className="switch-track" aria-hidden="true" />
-            Let people ask to join with a code
-          </button>
-        </form>
-        <p className="tiny dim flush">Anyone with the code can ask to join. Nobody gets in until you or an admin says yes.</p>
-        {club.joinCode && (
-          <div className="stack gap8 mt14">
-            <CopyCode code={formatJoinCode(club.joinCode)} label={`Club code for ${club.name}`} />
-            {codeNotice === "new" && (
-              <p className="small flush saved-note" role="status">
-                New code made. The old one doesn&apos;t work any more.
-              </p>
-            )}
-            <form action={makeNewJoinCode.bind(null, clubId)}>
-              <button type="submit" className="btn ghost">
-                Make a new code (the old one stops working)
-              </button>
-            </form>
-          </div>
-        )}
-      </section>
+      {/* Owners and admins only: the code and pausing. */}
+      {canChange && (
+        <>
+        <section id="join-code" className="card mt14" aria-labelledby="join-code-heading">
+          <h2 id="join-code-heading" className="sec flush">
+            Club code
+          </h2>
+          {/* A submit button with role="switch": it works without script. */}
+          <form action={setJoinCodeOn.bind(null, clubId, !club.joinCode)} className="mt-1">
+            <button type="submit" role="switch" aria-checked={club.joinCode !== null} className="consent-choice small switch-button">
+              <span className="switch-track" aria-hidden="true" />
+              Let people ask to join with a code
+            </button>
+          </form>
+          <p className="tiny dim flush">Anyone with the code can ask to join. Nobody gets in until you or an admin says yes.</p>
+          {club.joinCode && (
+            <div className="stack gap8 mt14">
+              <CopyCode code={formatJoinCode(club.joinCode)} label={`Club code for ${club.name}`} />
+              {codeNotice === "new" && (
+                <p className="small flush saved-note" role="status">
+                  New code made. The old one doesn&apos;t work any more.
+                </p>
+              )}
+              <form action={makeNewJoinCode.bind(null, clubId)}>
+                <button type="submit" className="btn ghost">
+                  Make a new code (the old one stops working)
+                </button>
+              </form>
+            </div>
+          )}
+        </section>
 
-      <section className="card mt14" aria-label="Pause the club">
-        {saved === "pause" && (
-          <p className="small flush saved-note" role="status">
-            {club.pausedAt ? "Paused. No new nights are scheduled." : "Running again. The next night is scheduled as usual."}
-          </p>
-        )}
-        <RowLink href={`${here}/pause`} label="Pause the club" value={club.pausedAt ? "Paused" : "Running"} />
-      </section>
+        <section className="card mt14" aria-label="Pause the club">
+          {saved === "pause" && (
+            <p className="small flush saved-note" role="status">
+              {club.pausedAt ? "Paused. No new nights are scheduled." : "Running again. The next night is scheduled as usual."}
+            </p>
+          )}
+          <RowLink href={`${here}/pause`} label="Pause the club" value={club.pausedAt ? "Paused" : "Running"} />
+        </section>
+        </>
+      )}
     </MembersFrame>
   );
 }

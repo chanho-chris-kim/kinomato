@@ -261,7 +261,7 @@ test.describe("club details", () => {
     expect((await inFlight(c.clubId)).map((n) => n.state)).toEqual(["draft"]);
   });
 
-  test("a member gets a 404 on the settings page; a post from someone not owner or admin is refused", async ({
+  test("a member sees the details but no form; a post from someone not owner or admin is refused", async ({
     page,
     browser,
   }) => {
@@ -272,10 +272,12 @@ test.describe("club details", () => {
       ]),
     );
     await signInAsUser(page, c.users.mel);
-    // Since u6 (ruled 2026-11-27) only owners and admins see how the club
-    // runs: a plain member gets a 404, form or not.
-    // (A request, not a page load: a 404 page logs a console error.)
-    expect((await page.request.get(editDetails(c.clubId))).status()).toBe(404);
+    // Every member sees the details (ruled 2026-11-10); no form for them,
+    // even asked for one.
+    await page.goto(editDetails(c.clubId));
+    await expect(page.locator(".club-values")).toContainText("Weekly, Saturdays at 8:00pm");
+    await expect(page.locator(".club-values")).toContainText(TZ);
+    await expect(detailsForm(page)).toHaveCount(0);
 
     const context = await browser.newContext();
     try {

@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
 import { hashToken } from "../lib/authCredentials";
+import { generateJoinCode } from "../lib/joinCode";
 import { LEGAL } from "../lib/legal";
 import { expect, test } from "./fixtures";
 import { signInAsUser } from "./session";
@@ -76,7 +77,7 @@ test.describe("card-wrapped forms fit their frame", () => {
       const asker = id();
       await db.insert(schema.users).values({ id: asker, email: `fit.asker.${asker.slice(0, 8)}@example.com`, displayName: "Wilhelmina-Josephine R." });
       await db.insert(schema.joinRequests).values({ clubId, userId: asker });
-      await db.update(schema.clubs).set({ joinCode: "K7M2QX9P" }).where(eq(schema.clubs.id, clubId));
+      await db.update(schema.clubs).set({ joinCode: generateJoinCode() }).where(eq(schema.clubs.id, clubId));
       const unsubscribe = `Fit${id().replaceAll("-", "")}${id().replaceAll("-", "")}`;
       await db.insert(schema.reminderUnsubscribeTokens).values({ tokenHash: hashToken(unsubscribe), userId: owner, clubId });
       // Nothing answered: /consent asks age, Terms and data sharing.

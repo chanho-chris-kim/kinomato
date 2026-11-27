@@ -879,10 +879,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   Members tab; anything else with no night in flight gets the generic
   "No open vote right now".
 - **How this club runs (club settings) and pause, ruled 2026-11-10**
-  (`docs/onboarding-spec.md` §5.10). ~~Every member sees the settings~~
-  **Amended 2026-11-27 (u6, approved by Chanho): only owners and admins
-  see them**, on `/clubs/[clubId]/members/settings`; anyone else gets a
-  404. **Owner and admin change them, with equal powers**, through the one
+  (`docs/onboarding-spec.md` §5.10). Every member sees the settings
+  (since u6 on `/clubs/[clubId]/members/settings`, read-only for a plain
+  member); **owner and admin change them, with equal powers**, through the one
   role gate in `app/clubs/[clubId]/actions.ts` (`requireOwnerOrAdmin`,
   also used by closing voting and invites), re-checked on every call.
   **Changes apply from the next time they matter and never rewrite a
@@ -1301,7 +1300,8 @@ Do not quietly change these — they encode decisions that took a while to reach
     admin: How this club runs, "Weekly · Sat 8:00pm · 3 films"; Club code,
     "On · XXXX-XXXX" or "Off"; Pause the club, "Running" or "Paused"); and
     "Leave this club", a danger-outlined button to the existing two-tap
-    leave. A plain member sees People (no ⋯), Just for you and Leave. From
+    leave. A plain member sees People (no ⋯), Just for you, a "Club" card
+    with How this club runs (the same summary) and Leave. From
     900px two columns: Asking and People left; Just for you, Club settings
     and Leave right, in place of the rail.
   - **"Not opened yet" isn't shown:** opening an invite link records
@@ -1320,13 +1320,17 @@ Do not quietly change these — they encode decisions that took a while to reach
     cards, "About what?" as a three-way segmented radio, the matching
     field, "Add limit"; the "Also on weeks I'm not coming" switch (a submit
     button with `role="switch"`); when a change counts.
-  - **`members/settings`** (owner or admin, else 404): "How {club} runs",
-    three groups shown as values, each with its own Edit (`?edit=club`,
-    `voting` or `after`), which opens that group alone as a form; the
-    others stay values. **A group saves only its own fields**: the other
+  - **`members/settings`**: "How {club} runs", three groups shown as
+    values. Every member sees it (the 2026-11-10 ruling stands); for a
+    plain member it's read-only: no Edit, no club code, no Pause, and
+    `?edit=` opens nothing (the actions refuse them anyway). For owners
+    and admins each group has its own Edit (`?edit=club`, `voting` or
+    `after`), which opens that group alone as a form; the others stay
+    values. **A group saves only its own fields**: the other
     group's come from what's stored (`lib/clubSettings.ts`
-    `groupSettingsFields`), then the usual readers validate. Then the
-    club code card and a Pause row → `members/settings/pause`.
+    `groupSettingsFields`), then the usual readers validate. Then, for
+    owners and admins, the club code card and a Pause row →
+    `members/settings/pause` (a 404 for anyone else).
   - **Old anchors:** `#limits`, `#club-settings`, `#club-details`,
     `#join-code` and `#add-person` land on their new pages through
     `OldAnchorRedirect` (`app/clubs/[clubId]/members/OldAnchorRedirect.tsx`,

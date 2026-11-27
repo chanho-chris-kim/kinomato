@@ -29,7 +29,8 @@ import { OldAnchorRedirect } from "./OldAnchorRedirect";
 // The Members tab (u6, ruled 2026-11-27; sub-pages ruled 2026-11-24, all
 // under the Members tab, §5.10). In order: Asking to join (owners and
 // admins, while someone's asking), People, Just for you, Club settings
-// (owners and admins), and Leave this club. From 900px two columns: Asking
+// (owners and admins; a plain member's "Club" card has How this club runs
+// only), and Leave this club. From 900px two columns: Asking
 // to join and People on the left; Just for you, Club settings and Leave on
 // the right, in place of the club rail. Managing a person, your limits and
 // how the club runs are pages of their own; every server check is the
@@ -265,6 +266,22 @@ export default async function MembersPage({
     </section>
   );
 
+  // Everyone sees how the club runs (ruled 2026-11-10); a plain member's
+  // page is read-only.
+  const clubCard = !isOwnerOrAdmin && (
+    <section className="card mt14 club-card" aria-labelledby="club-card-heading">
+      <h2 id="club-card-heading" className="sec flush">
+        Club
+      </h2>
+      <RowLink
+        href={`/clubs/${clubId}/members/settings`}
+        label="How this club runs"
+        value={runsSummary(club, getNomineesPerTurn(club.settings))}
+        className="mt-1"
+      />
+    </section>
+  );
+
   const leaveSection = (
     <section id="leave" className="mt20" aria-labelledby="leave-heading">
       <h2 id="leave-heading" className="sr-only">
@@ -355,6 +372,7 @@ export default async function MembersPage({
         <div className="members-col">
           {justForYou}
           {settingsCard}
+          {clubCard}
           {leaveSection}
         </div>
       </div>

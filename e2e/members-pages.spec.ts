@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { and, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "../db/schema";
+import { generateJoinCode } from "../lib/joinCode";
 import { LEGAL } from "../lib/legal";
 import { expect, test } from "./fixtures";
 import { signInAsUser } from "./session";
@@ -61,7 +62,8 @@ async function club(name: string) {
 }
 
 const url = (clubId: string, path = "") => `/clubs/${clubId}/members${path}`;
-const card = (page: Page, heading: string) => page.locator("main section").filter({ has: page.getByRole("heading", { name: heading }) });
+const card = (page: Page, heading: string) =>
+  page.locator("main section").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
 const membershipOf = async (membershipId: string) =>
   (await db.select().from(schema.memberships).where(eq(schema.memberships.id, membershipId)))[0];
 const clubRow = async (clubId: string) => (await db.select().from(schema.clubs).where(eq(schema.clubs.id, clubId)))[0];
@@ -127,7 +129,9 @@ test.describe("Members (u6)", () => {
     await expect(p.page.getByRole("heading", { name: "Club settings" })).toHaveCount(0);
     await expect(p.page.getByRole("heading", { name: "Asking to join" })).toHaveCount(0);
     await expect(p.page.getByRole("link", { name: "Leave this club" })).toBeVisible();
-    for (const path of ["/settings", "/settings/pause", `/${c.m.max}`, `/${c.m.owner}`]) {
+    // Everyone sees how the club runs (ruled 2026-11-10), in their own Club card.
+    await expect(card(p.page, "Club")).toContainText("How this club runsWeekly · Sat 8:00pm · 3 films");
+    for (const path of ["/settings/pause", `/${c.m.max}`, `/${c.m.owner}`]) {
       expect((await p.page.request.get(url(c.id, path))).status(), path).toBe(404);
     }
     await p.context.close();
@@ -343,6 +347,46 @@ test.describe("Members (u6)", () => {
     // lib/clubDetails.ts.)
     expectNoneContain(urls, `Renamed ${RUN}`);
     await o.context.close();
+  });
+
+  test("a plain member sees how the club runs, read-only: no Edit, no code, no Pause; a forged edit is refused", async ({
+    browser,
+  }) => {
+    const c = await club("Read Only Club");
+    // Codes are unique across clubs: a fresh one, never a fixed string.
+    const code = generateJoinCode();
+    await db.update(schema.clubs).set({ joinCode: code }).where(eq(schema.clubs.id, c.id));
+    const p = await as(browser, c.people.mia);
+    await p.page.goto(url(c.id));
+    await p.page.getByRole("link", { name: /How this club runs/ }).click();
+    await expect(p.page).toHaveURL(url(c.id, "/settings"));
+    await expect(p.page.locator(".page-title")).toHaveText(`How ${c.name} runs`);
+    await expect(p.page.locator(".club-values")).toContainText("WhenWeekly, Saturdays at 8:00pm");
+    await expect(p.page.locator(".voting-values")).toContainText("Films each picker offers3");
+    await expect(p.page.locator(".after-values")).toContainText("When to ask “Did you watch it?”That night");
+    await expect(p.page.getByRole("link", { name: /^Edit / })).toHaveCount(0);
+    await expect(p.page.locator("#join-code")).toHaveCount(0);
+    await expect(p.page.locator("main")).not.toContainText(code.slice(0, 4));
+    await expect(p.page.getByRole("link", { name: /Pause the club/ })).toHaveCount(0);
+    await expect(p.page.locator("main form")).toHaveCount(0);
+    // ?edit= opens nothing for them.
+    for (const edit of ["club", "voting", "after"]) {
+      await p.page.goto(url(c.id, `/settings?edit=${edit}`));
+      await expect(p.page.locator("main form"), edit).toHaveCount(0);
+    }
+    await p.context.close();
+
+    // A forged edit: the admin's own form, submitted after they're made a
+    // plain member, as a stale or forged post arrives. Refused, unchanged.
+    const a = await as(browser, c.people.admin);
+    await a.page.goto(url(c.id, "/settings?edit=voting"));
+    await a.page.getByLabel("Films each picker offers").fill("1");
+    await db.update(schema.memberships).set({ role: "member" }).where(eq(schema.memberships.id, c.m.admin));
+    const response = a.page.waitForResponse((r) => r.request().method() === "POST");
+    await a.page.getByRole("button", { name: "Save", exact: true }).click();
+    expect((await response).status()).toBe(500);
+    expect((await clubRow(c.id)).settings).toMatchObject({ nomineesPerTurn: 3 });
+    await a.context.close();
   });
 
   test("the club code card and pausing, from the settings page", async ({ browser }) => {

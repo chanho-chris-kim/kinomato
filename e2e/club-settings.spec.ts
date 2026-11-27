@@ -80,13 +80,14 @@ const inFlight = (clubId: string) =>
       .where(and(eq(schema.nights.clubId, clubId), inArray(schema.nights.state, ["draft", "open", "locked"]))),
   );
 
-// How this club runs is its own page since u6 (ruled 2026-11-27): owners
-// and admins only, each group edited alone (?edit=voting, ?edit=after).
+// How this club runs is its own page since u6 (ruled 2026-11-27): every
+// member sees it (ruled 2026-11-10); owners and admins edit each group alone
+// (?edit=voting, ?edit=after).
 const settingsPage = (clubId: string, edit?: "voting" | "after") =>
   `/clubs/${clubId}/members/settings${edit ? `?edit=${edit}` : ""}`;
 
 test.describe("How this club runs", () => {
-  test("a plain member gets a 404 on the settings page (amended 2026-11-27); a member's post is refused", async ({ page, browser }) => {
+  test("a plain member sees the settings, but no form; a member's post is refused", async ({ page, browser }) => {
     const c = await withDb((db) =>
       clubWith(db, "Settings Club", [
         { key: "olive", role: "owner" },
@@ -95,12 +96,14 @@ test.describe("How this club runs", () => {
     );
 
     await signInAsUser(page, c.users.milo);
-    for (const path of [settingsPage(c.clubId), settingsPage(c.clubId, "voting"), `${settingsPage(c.clubId)}/pause`]) {
-      // A request, not a page load: a 404 page logs a console error.
-      expect((await page.request.get(path)).status(), path).toBe(404);
-    }
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.getByRole("heading", { name: "Club settings" })).toHaveCount(0);
+    await page.goto(settingsPage(c.clubId, "voting"));
+    await expect(page.locator(".voting-values")).toContainText("Films each picker offers3");
+    await expect(page.locator(".after-values")).toContainText("The next morning");
+    await expect(page.locator("main form")).toHaveCount(0);
+    await expect(page.getByLabel("Films each picker offers")).toHaveCount(0);
+    // Pausing is owners' and admins' (a request, not a page load: a 404 page
+    // logs a console error).
+    expect((await page.request.get(`${settingsPage(c.clubId)}/pause`)).status()).toBe(404);
 
     // A post from someone who isn't owner or admin: the owner's own form,
     // submitted after the owner is demoted, as a stale or forged post

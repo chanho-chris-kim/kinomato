@@ -1186,17 +1186,17 @@ CLAUDE.md has them in full. Everything stays under the Members tab
   pending invites one line each), Just for you (Your limits, a count of
   your own), Club settings (owner or admin: How this club runs, Club code,
   Pause the club), and Leave this club. Two columns from 900px; the right
-  one replaces the rail. A plain member sees People, Just for you and
-  Leave.
+  one replaces the rail. A plain member sees People, Just for you, a Club
+  card with How this club runs, and Leave.
 - **Manage a person** (`members/{membershipId}`): only the actions the
   viewer may take, each with its confirm; a 404 when there are none.
 - **Your limits** (`members/limits`): Never or Rather not as two radio
   cards, A genre / A length / A topic as a segmented control, the "Also on
   weeks I'm not coming" switch.
-- **How {club} runs** (`members/settings`, owner or admin, else 404): three
-  groups as values, each edited alone; the club code; pausing on its own
-  small page. **This amends §5.10's "every member sees the settings":
-  plain members no longer see them.**
+- **How {club} runs** (`members/settings`): three groups as values. Every
+  member sees it, as §5.10 rules; read-only for a plain member (no Edit, no
+  club code, no Pause). Owners and admins edit each group alone, and have
+  the club code and pausing on its own small page.
 - **Wording:** "Hard limit / Prefer not" become **"Never / Rather not"**
   wherever a person reads them; internal names don't change.
 - **A pending invite says "not started yet" or "started signing up"**, not

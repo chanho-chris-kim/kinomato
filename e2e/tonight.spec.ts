@@ -200,10 +200,11 @@ test.describe("Tonight", () => {
     await expect(page.locator(".vote-count")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("1 vote");
 
-    // Only the owner or an admin sees and changes it (u6, 2026-11-27).
-    await open(page, c, "ana");
+    // Every member sees the setting; only the owner or an admin changes it.
     await page.goto(`/clubs/${c.clubId}/members/settings`);
     await expect(page.locator(".voting-values")).toContainText("Hidden until voting closes");
+
+    await open(page, c, "ana");
     await page.goto(`/clubs/${c.clubId}/members/settings?edit=voting`);
     const counts = page.getByLabel("Show vote counts while voting is open");
     await expect(counts).not.toBeChecked();
