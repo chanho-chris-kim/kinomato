@@ -189,6 +189,11 @@ only a person's tap signs anyone in.
   `magic_links` row and expire together; using either consumes both.
 - **5 wrong attempts invalidates the code.** A new one has to be requested.
   With a 10⁶ space and 5 tries, a guess succeeds 1 time in 200,000.
+  Five tries means five comparisons, however fast guesses arrive: each
+  claims a try in the database (a conditional increment) before it's
+  compared, the right code included (fixed 2026-11-26: simultaneous
+  guesses had all been compared). The same for email-change (§5.9) and
+  deletion (§11.4) codes.
 - **Stored hashed from the first commit.** The code is new, so there's no
   reason to repeat the plaintext-token gap (CLAUDE.md Open Questions); a
   6-digit code in plaintext is trivially usable by anyone who can read the
@@ -1139,7 +1144,11 @@ full.
   invite; the welcome page is `/clubs/[clubId]/welcome`.
 - **Own sign-up (u4, only with `OPEN_SIGNUP` on)**: the same steps plus
   Start your club with every default editable, then a "Get your club
-  going" checklist on Tonight and an Invite people screen.
+  going" checklist on Tonight and an Invite people screen. *Built u4,
+  2026-11-26 (CLAUDE.md has the details):* the flow is `/login/start` →
+  code → `/welcome` → `/new?start=1`; `/new` no longer offers "no fixed
+  schedule" (as editing doesn't, §5.10); the checklist is only for clubs
+  started since u4; Members' Add a person opens the invite page.
 - **Club codes (u5)**: an optional short join code per club, off by
   default, owner or admin; "Ask to join", approved by an owner or admin,
   who is the provenance record. The cap (and later adults-only gating)

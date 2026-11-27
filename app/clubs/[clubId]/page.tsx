@@ -29,7 +29,7 @@ import {
 } from "@/lib/tonight";
 import { requireClubMember } from "@/app/auth";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
-import { helpFilmsFor, nominatableFilms } from "@/app/watchlistRead";
+import { helpFilmsFor, nominatableFilms, ownFilmIds } from "@/app/watchlistRead";
 import { byJoinedAt, RailMembers } from "./memberViews";
 import { loadClubMemberships, nameOf } from "./members";
 import { closedTally, liveVotes } from "./historyRead";
@@ -42,6 +42,10 @@ import { ThisWeekGlance, ThisWeekRail, type ThisWeekFacts } from "./_tonight/Thi
 import { VoteStage, type NomineeCard } from "./_tonight/VoteStage";
 import { ConfirmCard, LateConfirmCard, LockedHero, type LockedFilm } from "./_tonight/WatchStage";
 import { WeekBar } from "./_tonight/WeekBar";
+import { GettingStarted } from "./_tonight/GettingStarted";
+import { pendingInviteCount } from "@/app/invites";
+import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
+import { firstNightWords, gettingStartedItems, readGettingStarted, showGettingStarted } from "@/lib/gettingStarted";
 
 // Tonight (the Tonight redesign, ruled 2026-11-25). Every stage in one
 // order: club header and tabs, the week bar, ONE "do this now" card, the
@@ -355,7 +359,39 @@ export default async function ClubPage({
 
   // First run (§5.10): the owner is the only member and no night has ever
   // finished. Only someone who can add people sees it.
+  // "Get {club} going" (u4, §5.13): the owner's checklist, for a club started
+  // since u4, while it's incomplete and not hidden. While it shows it's the
+  // "do this now" card, and it takes the first-run prompt's place.
+  const gettingStarted = readGettingStarted(club.settings);
+  let checklist: ReactNode = null;
+  if (gettingStarted && currentMembership.role === "owner" && !gettingStarted.hidden) {
+    const [pending, mine] = await Promise.all([pendingInviteCount(db, clubId), ownFilmIds(db, currentMembership.userId)]);
+    const items = gettingStartedItems({
+      hasOtherPeople: activeMemberships.length > 1 || pending > 0,
+      ownFilms: mine.size,
+      checked: gettingStarted.checked,
+    });
+    if (showGettingStarted({ state: gettingStarted, isOwner: true, items })) {
+      // A club with no night yet, or only its first draft: when it is.
+      const firstNight =
+        clubNights.length === 1 && clubNights[0].state === "draft" && clubNights[0].pickerMembershipId === currentMembership.id
+          ? firstNightWords(clubNights[0].scheduledAt, club.timezone)
+          : null;
+      checklist = (
+        <GettingStarted
+          clubId={clubId}
+          clubName={club.name}
+          items={items}
+          seatsLeft={Math.max(0, FREE_TIER_MEMBER_CAP - activeMemberships.length - pending)}
+          ownFilms={mine.size}
+          firstNight={firstNight}
+        />
+      );
+    }
+  }
+
   const isFirstRun =
+    !checklist &&
     activeMemberships.length === 1 &&
     isOwnerOrAdmin &&
     !clubNights.some((n) => ["watched", "cancelled", "unconfirmed"].includes(n.state));
@@ -441,7 +477,7 @@ export default async function ClubPage({
       render: (main) => (
         <StageCard main={main} id="first-run" eyebrow="First night" title="Add the people you watch with.">
           <p className="small muted mt-1">Each person gets their own link that greets them by name.</p>
-          <Link href={`/clubs/${clubId}/members#add-person`} className={buttonClass(main, "mt14 block-link")}>
+          <Link href={`/clubs/${clubId}/members/invite`} className={buttonClass(main, "mt14 block-link")}>
             Add a person
           </Link>
         </StageCard>
@@ -582,8 +618,11 @@ export default async function ClubPage({
 
   // The "do this now" card: an action at the week's current step, else any
   // action, else what the current step is, else the first card.
-  const main =
-    sections.find((s) => s.action && s.stage === stage) ??
+  // While the getting-started list shows, it's the "do this now" card and
+  // every card below it has outlined buttons only.
+  const main = checklist
+    ? undefined
+    : sections.find((s) => s.action && s.stage === stage) ??
     sections.find((s) => s.action) ??
     sections.find((s) => s.stage === stage) ??
     sections[0];
@@ -638,7 +677,7 @@ export default async function ClubPage({
             <RailMembers
               members={[...activeMemberships].sort(byJoinedAt)}
               meId={currentMembership.id}
-              addPersonHref={isOwnerOrAdmin ? `/clubs/${clubId}/members#add-person` : undefined}
+              addPersonHref={isOwnerOrAdmin ? `/clubs/${clubId}/members/invite` : undefined}
             />
           }
         />
@@ -663,6 +702,7 @@ export default async function ClubPage({
       )}
 
       {stage && <WeekBar stage={stage} />}
+      {checklist}
       {main?.render(true)}
       {rsvpableNight && (
         <RsvpCard

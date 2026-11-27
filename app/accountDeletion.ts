@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { getDb } from "@/db";
 import {
@@ -156,12 +156,19 @@ export async function confirmAccountDeletion(db: Db, user: User, rawCode: string
   if (state === "expired") return { ok: false, error: "That code has expired. Ask for a new one." };
   if (state === "locked") return { ok: false, error: "Too many wrong codes. Ask for a new one." };
 
+  // Each guess claims one of the CODE_MAX_ATTEMPTS tries in one
+  // conditional update before it's compared, so simultaneous guesses can't
+  // all read the same count and all be compared (app/signInCode.ts).
+  const [claimed] = await db
+    .update(accountDeletionRequests)
+    .set({ attempts: sql`${accountDeletionRequests.attempts} + 1` })
+    .where(and(eq(accountDeletionRequests.id, row.id), lt(accountDeletionRequests.attempts, CODE_MAX_ATTEMPTS)))
+    .returning({ attempts: accountDeletionRequests.attempts });
+  if (!claimed) return { ok: false, error: "Too many wrong codes. Ask for a new one." };
   if (!codeMatches(rawCode.replace(/\s+/g, ""), row.codeHash, getAuthSecret())) {
-    const attempts = row.attempts + 1;
-    await db.update(accountDeletionRequests).set({ attempts }).where(eq(accountDeletionRequests.id, row.id));
     return {
       ok: false,
-      error: attempts >= CODE_MAX_ATTEMPTS ? "Too many wrong codes. Ask for a new one." : "That code didn't work.",
+      error: claimed.attempts >= CODE_MAX_ATTEMPTS ? "Too many wrong codes. Ask for a new one." : "That code didn't work.",
     };
   }
 

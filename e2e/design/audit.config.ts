@@ -9,7 +9,11 @@ import repo from "../../playwright.config";
 // design-audit/<AUDIT_LABEL>/ (gitignored), so a redesign step can shoot
 // "before" on main and "after" on its branch and compare the pairs.
 const ROOT = path.resolve(__dirname, "../..");
-const servers = (Array.isArray(repo.webServer) ? repo.webServer : [repo.webServer]).slice(0, 1);
+// The app's own server, and (u4) the open-signup one on the same build, for
+// the "Start a club" screens.
+const servers = (Array.isArray(repo.webServer) ? repo.webServer : [repo.webServer]).filter(
+  (w, i) => i === 0 || String(w?.url).endsWith(":3102"),
+);
 
 export default defineConfig({
   ...repo,

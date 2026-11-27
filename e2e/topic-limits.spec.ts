@@ -7,6 +7,7 @@ import { LEGAL } from "../lib/legal";
 import { expect, test } from "./fixtures";
 import { signInAsUser } from "./session";
 import { expectNoneContain, recordRequestUrls } from "./signIn";
+import { submitAndSettle } from "./submit";
 
 // Topic limits (docs/onboarding-spec.md §5.10, ruled 2026-11-12): a
 // curated list of content topics (lib/contentTopics.ts), each a bundle of
@@ -185,7 +186,9 @@ test.describe("topic limits", () => {
           el.appendChild(option);
           (el as HTMLSelectElement).value = value;
         }, forged);
-      await form(page).getByRole("button", { name: "Add" }).click();
+      // Each refusal reads the same: wait for this one's page, or the next
+      // forged form can be reset under the test (e2e/submit.ts).
+      await submitAndSettle(page, form(page).getByRole("button", { name: "Add" }), form(page).locator('select[name="topic"]'));
       await expect(alert, forged).toHaveText("Choose a topic from the list.");
     }
 

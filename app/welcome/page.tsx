@@ -5,7 +5,8 @@ import { users } from "@/db/schema";
 import { loadInviteById } from "@/app/invites";
 import { InviteCard } from "@/app/inviteCard";
 import { StepBar } from "@/app/stepBar";
-import { SIGN_UP_STEPS } from "@/lib/steps";
+import { SIGN_UP_STEPS, START_CLUB_PATH, START_CLUB_STEPS } from "@/lib/steps";
+import { signupOpen } from "@/app/signIn";
 import { safePath } from "@/app/baseUrl";
 import { getSessionUserId } from "@/app/session";
 import { clashMessage } from "@/lib/displayName";
@@ -58,6 +59,9 @@ export default async function WelcomePage({
     <PublicShell>
       <main className="p-4 signin-main">
         {invited && <StepBar steps={SIGN_UP_STEPS} current={2} label="Signing up" className="signup-steps" />}
+        {!invited && next === START_CLUB_PATH && signupOpen() && (
+          <StepBar steps={START_CLUB_STEPS} current={2} label="Starting a club" className="signup-steps" />
+        )}
         {invited && <InviteCard inviterName={invited.inviterName ?? "Someone"} clubName={invited.club.name} />}
         <div className="card mt14 signin-card">
           <p className="eyebrow">One more thing</p>

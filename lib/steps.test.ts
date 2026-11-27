@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resendWaitText, SIGN_UP_STEPS, stepsLine } from "./steps";
+import { resendWaitText, SIGN_UP_STEPS, START_CLUB_STEPS, stepsLine } from "./steps";
 
 // The step bar's one line on phones (Tonight's week, and invited sign-up).
 describe("stepsLine", () => {
@@ -7,6 +7,8 @@ describe("stepsLine", () => {
     expect(stepsLine(SIGN_UP_STEPS, 0)).toBe("Step 1 of 3 · Email · then Code, About you");
     expect(stepsLine(SIGN_UP_STEPS, 1)).toBe("Step 2 of 3 · Code · then About you");
     expect(stepsLine(SIGN_UP_STEPS, 2)).toBe("Step 3 of 3 · About you");
+    expect(stepsLine(START_CLUB_STEPS, 0)).toBe("Step 1 of 4 · Email · then Code, About you, Your club");
+    expect(stepsLine(START_CLUB_STEPS, 3)).toBe("Step 4 of 4 · Your club");
   });
 });
 

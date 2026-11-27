@@ -232,10 +232,10 @@ test.describe("display name", () => {
     const ownerId = await person("Ola O.", "dn-owner");
     const c = await club("Greeting Club", ownerId);
     await signInAsUser(page, ownerId);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(`/clubs/${c.clubId}/members/invite`);
     await expect(page.getByText("So the invite can greet them. They'll choose their own display name when they join.")).toBeVisible();
     await page.getByLabel("Their name").fill("Gran");
-    await page.getByRole("button", { name: "Create invite" }).click();
+    await page.getByRole("button", { name: "Create invite link" }).click();
     await expect(page.getByLabel("Invite link for Gran")).toBeVisible();
     const link = await page.getByLabel("Invite link for Gran").inputValue();
     await page.context().clearCookies();

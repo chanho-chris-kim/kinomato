@@ -80,9 +80,9 @@ test.describe("first night — a brand-new club, start to finish", () => {
   test("Priya invites Owen, and he joins with his own link", async ({ browser }) => {
     let link = "";
     await as(browser, priya, async (page) => {
-      await page.goto(`${clubUrl}/members`);
+      await page.goto(`${clubUrl}/members/invite`);
       await page.getByLabel("Their name").fill("Owen R.");
-      await page.getByRole("button", { name: "Create invite" }).click();
+      await page.getByRole("button", { name: "Create invite link" }).click();
       link = await page.getByLabel("Invite link for Owen R.").inputValue();
     });
 

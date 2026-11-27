@@ -34,10 +34,15 @@ async function signInTo(page: Page, membershipId: string, url = `${CLUB_8_URL}/m
 
 // The invite's name only greets them (ruled 2026-11-25); the specs use
 // "First L." greetings.
+// Created on the invite page (u4), then back to the Members tab with it
+// highlighted, as the rest of each test reads it.
 async function createInvite(page: Page, firstName: string, lastInitial: string) {
+  await page.goto(`${CLUB_8_URL}/members/invite`);
   await page.getByLabel("Their name").fill(`${firstName} ${lastInitial.toUpperCase()}.`);
-  await page.getByRole("button", { name: "Create invite" }).click();
-  await expect(page).toHaveURL(/\?invite=/);
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  await expect(page).toHaveURL(/\/members\/invite\?invite=/);
+  const id = new URL(page.url()).searchParams.get("invite");
+  await page.goto(`${CLUB_8_URL}/members?invite=${id}`);
 }
 
 async function inviteLink(page: Page, inviteeName: string): Promise<string> {
@@ -89,7 +94,7 @@ test.describe("per-person invites", () => {
   }) => {
     await signInTo(page, MEMBERSHIP_8.ivo);
     await expect(page.getByText("Marco R.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create invite" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
     await expect(page.getByLabel("Invite link for Marco R.")).toHaveCount(0);
   });
@@ -260,7 +265,7 @@ test.describe("per-person invites", () => {
     await expect(
       page.getByText("Movie Night Crew is full: 6 members and 1 pending invite."),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create invite" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
   });
 
   // memberships_one_active_per_user_per_club (docs/onboarding-spec.md

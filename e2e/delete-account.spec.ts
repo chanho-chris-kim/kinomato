@@ -9,6 +9,7 @@ import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { signInAsUser } from "./session";
 import { existingAccount, KNOWN_CODE } from "./signIn";
+import { submitAndSettle } from "./submit";
 
 // Delete account (docs/onboarding-spec.md §11.4; launch foundations (f)).
 // Builds its own people and clubs, so no seeded club changes:
@@ -35,15 +36,19 @@ const id = () => crypto.randomUUID();
 const at = (n: number) => new Date(Date.UTC(2026, 0, n));
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
+// Fresh addresses per attempt: a retry runs in a new worker, which seeds
+// again with new ids, and the first attempt's accounts are still there.
+const RUN = crypto.randomUUID().slice(0, 8);
+const email = (local: string) => `${local}.${RUN}@example.com`;
 const P = {
-  dee: { id: id(), email: "dee.delete@example.com", name: "Dee F." },
-  mo: { id: id(), email: "mo.delete@example.com", name: "Mo C." },
-  ann: { id: id(), email: "ann.delete@example.com", name: "Ann D." },
-  moe: { id: id(), email: "moe.delete@example.com", name: "Moe E." },
-  abe: { id: id(), email: "abe.delete@example.com", name: "Abe B." },
-  ola: { id: id(), email: "ola.delete@example.com", name: "Ola G." },
-  lu: { id: id(), email: "lu.delete@example.com", name: "Lu H." },
-  ivy: { id: id(), email: "ivy.delete@example.com", name: "Ivy J." },
+  dee: { id: id(), email: email("dee.delete"), name: "Dee F." },
+  mo: { id: id(), email: email("mo.delete"), name: "Mo C." },
+  ann: { id: id(), email: email("ann.delete"), name: "Ann D." },
+  moe: { id: id(), email: email("moe.delete"), name: "Moe E." },
+  abe: { id: id(), email: email("abe.delete"), name: "Abe B." },
+  ola: { id: id(), email: email("ola.delete"), name: "Ola G." },
+  lu: { id: id(), email: email("lu.delete"), name: "Lu H." },
+  ivy: { id: id(), email: email("ivy.delete"), name: "Ivy J." },
 };
 const CLUB = { keep: id(), admin: id(), other: id(), solo: id() };
 const M = {
@@ -204,11 +209,17 @@ test.describe("Delete account", () => {
     await expect(page).toHaveURL("/settings/delete-account");
     expect(sentTo(P.ivy.email).filter((m) => m.kind === "account-deletion-code")).toHaveLength(1);
 
-    for (let i = 1; i <= 5; i++) {
+    // Each try waits for its own page: the first four read the same, so an
+    // expect alone would pass on the try before (e2e/submit.ts).
+    for (let i = 1; i <= 4; i++) {
       await page.getByLabel("Code").fill("000000");
-      await page.getByRole("button", { name: "Delete my account" }).click();
-      await expect(alert(page)).toHaveText(i < 5 ? "That code didn't work." : "Too many wrong codes. Ask for a new one.");
+      await submitAndSettle(page, page.getByRole("button", { name: "Delete my account" }), page.getByLabel("Code"));
+      await expect(alert(page)).toHaveText("That code didn't work.");
+      expect((await requestsOf(P.ivy.id))[0].attempts).toBe(i);
     }
+    await page.getByLabel("Code").fill("000000");
+    await page.getByRole("button", { name: "Delete my account" }).click();
+    await expect(alert(page)).toHaveText("Too many wrong codes. Ask for a new one.");
     // Locked: no code field, only a new code.
     await expect(page.getByLabel("Code")).toHaveCount(0);
     expect((await requestsOf(P.ivy.id))[0].attempts).toBe(5);
