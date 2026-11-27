@@ -43,6 +43,10 @@ const input: ExportInput = {
     { newEmail: "kit2@example.com", requestedAt: at("2026-06-01"), confirmedAt: null, cancelledAt: at("2026-06-02") },
   ],
   remindersSent: [{ kind: "voting_closes", clubName: "A Club", sentAt: at("2026-11-20") }],
+  joinRequests: [
+    { clubName: "B Club", status: "declined", askedAt: at("2026-11-21"), decidedAt: at("2026-11-22") },
+    { clubName: "C Club", status: "pending", askedAt: at("2026-11-20"), decidedAt: null },
+  ],
 };
 
 describe("exportFilename", () => {
@@ -104,6 +108,12 @@ describe("shapeExport", () => {
       "vetoes",
       "email_change_requests",
       "reminders_sent",
+      "requests_to_join",
+    ]);
+    // Your own requests to join with a code (u5), oldest first.
+    expect(out.requests_to_join).toEqual([
+      { club: "C Club", status: "pending", asked_at: "2026-11-20T12:00:00.000Z", decided_at: null },
+      { club: "B Club", status: "declined", asked_at: "2026-11-21T12:00:00.000Z", decided_at: "2026-11-22T12:00:00.000Z" },
     ]);
     // Your own reminder emails (ruled 2026-11-23): kind, club, when.
     expect(out.reminders_sent).toEqual([

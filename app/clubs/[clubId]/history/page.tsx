@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs } from "@/db/schema";
 import { requireClubMember } from "@/app/auth";
+import { askingBadge } from "@/app/joinRequests";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { clubHistory, type HistoryNight } from "../historyRead";
 import { byJoinedAt, RailMembers } from "../memberViews";
@@ -32,7 +33,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ clubId
       header={
         <>
           <ClubHeader club={club} />
-          <ClubTabs clubId={clubId} current="history" />
+          <ClubTabs clubId={clubId} current="history" asking={await askingBadge(db, clubId, me.role)} />
         </>
       }
       rail={

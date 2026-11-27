@@ -251,6 +251,19 @@ footer a::after {
   background: var(--accent-soft);
   color: var(--accent);
 }
+/* People asking to join (u5): a count on Members, owners and admins only. */
+.tab-badge {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
 /* The viewer's own member row: an accent border alongside the "(you)"
    text — never colour alone. */
 .card.me {
@@ -1380,4 +1393,53 @@ footer a::after {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* The club code switch (u5): a submit button with role="switch", so it
+   works without script. The track shows the state; aria-checked says it. */
+.consent-choice.join-code-switch {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  align-items: center;
+}
+.join-code-switch .switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--field-line);
+  background: var(--card);
+}
+.join-code-switch .switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mut);
+}
+.join-code-switch[aria-checked="true"] .switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.join-code-switch[aria-checked="true"] .switch-track::after {
+  left: 18px;
+  background: var(--on-accent);
+}
+.join-code-switch:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.join-code {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 2px;
+  font-size: 18px;
 }

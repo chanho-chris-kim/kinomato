@@ -28,6 +28,7 @@ import {
   type WeekStage,
 } from "@/lib/tonight";
 import { requireClubMember } from "@/app/auth";
+import { askingBadge } from "@/app/joinRequests";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { helpFilmsFor, nominatableFilms, ownFilmIds } from "@/app/watchlistRead";
 import { byJoinedAt, RailMembers } from "./memberViews";
@@ -665,7 +666,7 @@ export default async function ClubPage({
       header={
         <>
           <ClubHeader club={club} />
-          <ClubTabs clubId={clubId} current="tonight" />
+          <ClubTabs clubId={clubId} current="tonight" asking={await askingBadge(db, clubId, currentMembership.role)} />
         </>
       }
       rail={

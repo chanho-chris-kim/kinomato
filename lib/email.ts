@@ -58,7 +58,8 @@ interface Message {
     | "email-taken-notice"
     | "email-changed-notice"
     | "account-deletion-code"
-    | "account-deleted-receipt";
+    | "account-deleted-receipt"
+    | "join-approved";
   to: string;
   subject: string;
   html: string;
@@ -278,6 +279,13 @@ export async function sendAccountDeletedReceipt(email: string): Promise<void> {
     subject: "Your Kinomato account was deleted",
     html: `<p>Your Kinomato account was deleted.</p>`,
   });
+}
+
+// "You're in {club}" (u5): to someone whose request to join was approved.
+// Transactional: it never looks at reminder settings or counts against the
+// reminder budget. Content from lib/joinRequests.ts.
+export async function sendJoinApproved(email: string, message: { subject: string; html: string; text: string }): Promise<void> {
+  await send({ kind: "join-approved", to: email, ...message });
 }
 
 // A reminder email (ruled 2026-11-23; content from lib/reminders.ts

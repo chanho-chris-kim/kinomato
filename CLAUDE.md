@@ -951,6 +951,9 @@ Do not quietly change these — they encode decisions that took a while to reach
   client component** (2026-11-26): only the browser knows the device's
   time zone. It fills an empty field once and never replaces what was
   typed or echoed back; the server validates the zone as before.
+- **`CopyCode` (`app/clubs/[clubId]/CopyCode.tsx`) is the sixth justified
+  client component** (u5): the clipboard, as for `ShareInvite`. The code
+  is always in a read-only field too.
 - **Tags on a rating are club-scoped, alongside the hot take, never
   replacing it.** `tags` (club_id, name, display_name) and `rating_tags`
   (rating_id, tag_id) — "cozy" is one tag per club, not six near-
@@ -1209,8 +1212,8 @@ Do not quietly change these — they encode decisions that took a while to reach
     night. **The time zone is prefilled from the device**
     (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when the browser
     lists it, else left empty; it stays required and is validated on the
-    server, and without script it's empty (2026-11-26). The "Joining a friend's club instead?" link waits
-    for u5.
+    server, and without script it's empty (2026-11-26). The "Joining a friend's club instead?" link goes to
+    `/join` (u5).
   - **The checklist** (`lib/gettingStarted.ts`) is stored in
     `clubs.settings.gettingStarted` (`{ checked, hidden }`, written at
     creation; malformed fails loud). Clubs from before u4 have none and no
@@ -1233,7 +1236,51 @@ Do not quietly change these — they encode decisions that took a while to reach
   approval. Private clubs are never searchable; search belongs to public
   genre clubs (`docs/roadmap.md` #28). The approval is the provenance
   record for someone who arrived by code, as `invites.invited_by_membership_id`
-  is for an invite ("Every rating is a verified member's").
+  is for an invite ("Every rating is a verified member's"). **Details
+  decided 2026-11-26 (approved by Chanho), built (u5):**
+  - **The code** (`lib/joinCode.ts`): 8 Crockford base32 characters (no
+    I, L, O, U) from crypto randomness, shown XXXX-XXXX, stored without
+    the dash in `clubs.join_code` (null = off; `clubs_join_code_idx`
+    unique, a collision regenerates). Input ignores case, spaces and
+    dashes, and reads I and L as 1 and O as 0, as Crockford does.
+  - **Owner or admin, on Members** (until the Members redesign): "Let
+    people ask to join with a code" (a submit button with `role="switch"`,
+    so no script needed), the code with Copy, and "Make a new code" (the
+    old one stops at once). Off nulls the code; pending requests stay
+    decidable. Plain members never see the code or requests.
+  - **`/join`** (signed in; signed out → `/login?returnTo=/join`, which
+    says a code needs an account while sign-up is closed): "Join a
+    friend's club", the code, then the club's name only and "Ask to join
+    {club}". The code never rides in a URL: the form-echo cookie carries
+    it to the confirm step, which shows the name only while that cookie's
+    club id and code match the club's current code (so a hand-made cookie
+    can't test codes). **Ten wrong codes an hour per person**
+    (`join_code_attempts`): each try is recorded before the lookup, so
+    simultaneous tries can't share one, and a right code gives its try
+    back; a wrong and a switched-off code read the same. At most 5 pending
+    requests per person (a plain count, an accepted gap like the seat
+    cap); **one pending per person per club is the partial unique index
+    `join_requests_one_pending_per_user_per_club`**. A decline shows
+    "{club} didn't accept your request." and blocks asking that club for
+    30 days. Already in: "You're already in {club}".
+  - **Approving** (`app/joinRequests.ts` `approveJoinRequest`): first the
+    seat cap **counting pending invites too** (so an approval never takes
+    a seat an invite holds), the u2 name clash ("Someone in {club} already
+    goes by {name}.", carried by the form-echo cookie, never the URL) and
+    "not already in"; any of them leaves the request pending. Then one
+    `db.batch`: mark it approved while still pending, and insert the
+    membership (`approved_by_membership_id` = the approver) selected from
+    *that* approval (this approver, this instant), so a second approver
+    or a concurrent decline does nothing. Then "You're in {club}" (one
+    link, transactional, never a reminder). Decline: no email. Approvers
+    are never emailed. The Members tab shows a count badge to owners and
+    admins.
+  - **Lifecycle:** only `app/joinRequests.ts` touches `join_requests` and
+    `join_code_attempts` (`lib/joinRequestAccess.test.ts`). Export has your
+    own requests; account deletion deletes your requests and tries; club
+    deletion its requests; leaving or removal neither. Retention: decided
+    or cancelled 90 days after the decision, pending after 30 days, tries
+    after a day.
 - **Onboarding guidance (ruled 2026-11-25).** A step bar exists only
   during sign-up and on Tonight's week. The guided first-time tour
   (`docs/roadmap.md`) stays separate.

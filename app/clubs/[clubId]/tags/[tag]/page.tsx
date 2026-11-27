@@ -5,6 +5,7 @@ import { areTakesRevealed, mustRateBeforeReveal } from "@/lib/ratingReveal";
 import { loadClubMemberships } from "../../members";
 import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
 import { requireClubMember } from "@/app/auth";
+import { askingBadge } from "@/app/joinRequests";
 import { Poster } from "../../Poster";
 
 // Club-scoped only (CLAUDE.md) — no cross-club or global tag
@@ -21,7 +22,7 @@ export default async function TagPage({
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
 
   // Signed in and an active member, or /login / 404 (docs/onboarding-spec.md §5.1).
-  await requireClubMember(clubId, `/clubs/${clubId}/tags/${tagName}`);
+  const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}/tags/${tagName}`);
   const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
 
   const [tagRow] = await db
@@ -89,7 +90,7 @@ export default async function TagPage({
         <>
           <ClubHeader club={club} />
           {/* A tag page lives under History (§5.11.2). */}
-          <ClubTabs clubId={clubId} current="history" />
+          <ClubTabs clubId={clubId} current="history" asking={await askingBadge(db, clubId, me.role)} />
         </>
       }
     >

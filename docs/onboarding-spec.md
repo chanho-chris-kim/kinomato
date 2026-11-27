@@ -1158,7 +1158,20 @@ full.
   who is the provenance record. The cap (and later adults-only gating)
   applies at approval, and a new code kills the old one. Private clubs are
   never searchable. This adds a second way in beside §7's per-person
-  invites.
+  invites. *Details decided 2026-11-26 (approved by Chanho), built u5
+  (CLAUDE.md has them in full):* an 8-character Crockford base32 code
+  (XXXX-XXXX) in `clubs.join_code`, null when off; owner or admin turn it
+  on, copy it and make a new one on Members. `/join` takes the code, shows
+  only the club's name, and sends the request; ten wrong codes an hour per
+  person, five pending requests at most, one per club (a partial unique
+  index), and a decline blocks that club for 30 days. Approving checks the
+  seat cap (pending invites included), the display-name clash and "not
+  already in", then creates the membership with
+  `memberships.approved_by_membership_id` in one batch conditional on the
+  request still pending, and emails "You're in {club}". Export includes
+  your requests; account and club deletion delete them, leaving doesn't;
+  retention deletes decided ones 90 days after the decision, pending ones
+  after 30.
 - **Onboarding guidance**: a step bar only during sign-up and on Tonight's
   week; the guided tour is separate.
 

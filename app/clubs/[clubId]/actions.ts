@@ -20,8 +20,15 @@ import {
   vetoes,
 } from "@/db/schema";
 import { getSessionUserId } from "@/app/session";
+import { getBaseUrl } from "@/app/baseUrl";
 import { nominatableFilms } from "@/app/watchlistRead";
 import { activeMemberCount, pendingInviteCount } from "@/app/invites";
+import {
+  approveJoinRequest,
+  declineJoinRequest,
+  newJoinCode,
+  turnJoinCodeOff,
+} from "@/app/joinRequests";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateInviteeName } from "@/lib/displayName";
 import { getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
@@ -1094,4 +1101,54 @@ export async function passTurnFor(clubId: string, targetMembershipId: string) {
   const target = await loadMembership(db, targetMembershipId);
   if (!target || target.clubId !== clubId) throw new Error("That turn isn't in this club.");
   await passDraft(db, clubId, target.id);
+}
+
+// ---- Club codes and asking to join (u5, ruled 2026-11-25; details 2026-11-26) ----
+// Owner or admin, re-checked on every call. The code and requests live in
+// app/joinRequests.ts. A refused approval (the club full, the name taken)
+// can name the requester, so its message comes back through the form-echo
+// cookie with only ?asking=refused in the URL (§11.6).
+const askingUrl = (clubId: string, extra = "") => `/clubs/${clubId}/members${extra}#asking`;
+
+export async function setJoinCodeOn(clubId: string, on: boolean) {
+  const { db } = await requireOwnerOrAdmin(clubId, on ? "turn on the club code" : "turn off the club code");
+  if (on) {
+    const [club] = await db.select({ joinCode: clubs.joinCode }).from(clubs).where(eq(clubs.id, clubId));
+    // Already on (a second tab): keep the code people may have been given.
+    if (!club?.joinCode) await newJoinCode(db, clubId);
+  } else {
+    await turnJoinCodeOff(db, clubId);
+  }
+  revalidatePath("/", "layout");
+  // A query value, not just the hash: a redirect to the same URL with only
+  // a new hash wouldn't render the page again.
+  redirect(`/clubs/${clubId}/members?code=${on ? "on" : "off"}#join-code`);
+}
+
+export async function makeNewJoinCode(clubId: string) {
+  const { db } = await requireOwnerOrAdmin(clubId, "make a new club code");
+  const [club] = await db.select({ joinCode: clubs.joinCode }).from(clubs).where(eq(clubs.id, clubId));
+  // Only while codes are on: a stale tab can't turn them back on this way.
+  if (club?.joinCode) await newJoinCode(db, clubId);
+  revalidatePath("/", "layout");
+  redirect(`/clubs/${clubId}/members?code=new#join-code`);
+}
+
+export async function approveJoinRequestAction(clubId: string, requestId: string) {
+  const { db, membership } = await requireOwnerOrAdmin(clubId, "let someone in");
+  const result = await approveJoinRequest(db, membership.id, clubId, requestId, await getBaseUrl(), new Date());
+  revalidatePath("/", "layout");
+  if (!result.ok && result.error) {
+    await setFormEcho(`/clubs/${clubId}/members`, { askingError: result.error });
+    redirect(askingUrl(clubId, "?asking=refused"));
+  }
+  // Approved, or someone else decided first: the list shows how it is now.
+  redirect(askingUrl(clubId, result.ok ? "?asking=approved" : "?asking=updated"));
+}
+
+export async function declineJoinRequestAction(clubId: string, requestId: string) {
+  const { db, membership } = await requireOwnerOrAdmin(clubId, "decline a request");
+  await declineJoinRequest(db, membership.id, clubId, requestId, new Date());
+  revalidatePath("/", "layout");
+  redirect(askingUrl(clubId, "?asking=declined"));
 }

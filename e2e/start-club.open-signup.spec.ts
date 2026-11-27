@@ -76,6 +76,20 @@ test.describe("Start a club (OPEN_SIGNUP=true)", () => {
     await expect(doneSteps(page)).toHaveText(["Email (done)", "Code (done)", "About you (done)"]);
   });
 
+  test("Join a friend's club: \"Start your own\" shows with sign-up open; Your club links to /join", async ({ page }) => {
+    const email = `start.join.${crypto.randomUUID().slice(0, 8)}@example.com`;
+    await page.goto("/login/start");
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: "Send my code" }).click();
+    await finishCodeSignIn(page, email);
+    await nameYourself(page, "Jo", "S");
+    await expect(page).toHaveURL("/new?start=1");
+    await page.getByRole("link", { name: "Joining a friend's club instead?" }).click();
+    await expect(page).toHaveURL("/join");
+    await page.getByRole("link", { name: "Start your own" }).click();
+    await expect(page).toHaveURL("/new");
+  });
+
   test("plain sign-in never shows the bar", async ({ page }) => {
     const email = `start.plain.${crypto.randomUUID().slice(0, 8)}@example.com`;
     await existingAccount(email);

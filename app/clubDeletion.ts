@@ -18,6 +18,7 @@ import {
 import { deleteVotesAndVetoesOfClubs } from "@/app/clubs/[clubId]/historyRead";
 import { deleteUnsubscribeTokensOfClubs } from "@/app/reminderUnsubscribe";
 import { deleteNotificationLogOfClubs } from "@/app/notificationLog";
+import { deleteJoinRequestsOfClubs } from "@/app/joinRequests";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -48,6 +49,8 @@ export function clubDeletionStatements(db: Db, clubIds: string[]): BatchItem<"pg
     db.delete(tags).where(inArray(tags.clubId, clubIds)),
     db.update(magicLinks).set({ inviteId: null }).where(inArray(magicLinks.inviteId, clubInvites)),
     db.delete(invites).where(inArray(invites.clubId, clubIds)),
+    // Requests to join (u5), before the memberships that decided them.
+    deleteJoinRequestsOfClubs(db, clubIds),
     db.delete(constraints).where(inArray(constraints.membershipId, clubMemberships)),
     db.delete(memberships).where(inArray(memberships.clubId, clubIds)),
     db.delete(seasons).where(inArray(seasons.clubId, clubIds)),

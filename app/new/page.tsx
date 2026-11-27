@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireNamedUser } from "@/app/auth";
 import { GlobalShell } from "@/app/shell";
 import { StepBar } from "@/app/stepBar";
@@ -43,6 +44,11 @@ export default async function NewClubPage({
         {start && signupOpen() && <StepBar steps={START_CLUB_STEPS} current={3} label="Starting a club" className="signup-steps" />}
         <h1 className="h-display stage-title mt14">Start your club</h1>
         <p className="small muted mt-1">We&apos;ve filled in sensible defaults. Change anything you like.</p>
+        <p className="small mt-1 join-instead">
+          <Link href="/join" className="underline tap">
+            Joining a friend&apos;s club instead?
+          </Link>
+        </p>
         {error && (
           <p className="small mt14 warn" role="alert">
             {error}

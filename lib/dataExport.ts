@@ -44,6 +44,7 @@ export interface ExportInput {
   vetoes: { clubName: string; nightAt: Date; filmTitle: string; castAt: Date }[];
   emailChanges: { newEmail: string; requestedAt: Date; confirmedAt: When; cancelledAt: When }[];
   remindersSent: { kind: string; clubName: string; sentAt: Date }[];
+  joinRequests: { clubName: string; status: string; askedAt: Date; decidedAt: When }[];
 }
 
 const iso = (d: When) => (d ? d.toISOString() : null);
@@ -143,6 +144,12 @@ export function shapeExport(input: ExportInput, now: Date) {
       kind: r.kind,
       club: r.clubName,
       sent_at: iso(r.sentAt),
+    })),
+    requests_to_join: oldestFirst(input.joinRequests, (r) => r.askedAt).map((r) => ({
+      club: r.clubName,
+      status: r.status,
+      asked_at: iso(r.askedAt),
+      decided_at: iso(r.decidedAt),
     })),
   };
 }
