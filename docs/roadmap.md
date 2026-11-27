@@ -19,8 +19,8 @@ a step ships, in the same branch. Recorded 2026-11-24 (approved by Chanho).
 | u1 | Redesign: Tonight | done (2026-11-25, #54) | The week at a glance: a week bar (Nominate → Vote → Locked → Watch → Rate), one "do this now" card, poster-card voting with "Your vote ✓", the locked film as the hero, one slider per score, "I was there" until the reveal, and the "Show vote counts while voting is open" setting (ruled 2026-11-25). |
 | u2 | Display name | done (2026-11-26, #55) | One free-text display name (1–30 characters, unique within each club, case-insensitively) replaces first name + last initial; the invitee picks theirs on joining (ruled 2026-11-25). |
 | u3 | Sign-up and sign-in | done (2026-11-26, #56) | Invited sign-up as three steps (Email → Code → About you) with the invite always in view, six code boxes with paste and autofill, a resend countdown, then a welcome page to add three films; returning sign-in with no step bar; two columns on laptops. |
-| u4 | Own sign-up | next | Live only when `OPEN_SIGNUP` is on: the same three steps plus "Start your club" with every default shown and editable, then a "Get your club going" checklist on Tonight and an Invite people screen. |
-| u5 | Club codes | later | A second way in beside per-person invites: an optional short code, off by default; "Ask to join", approved by an owner or admin. Private clubs are never searchable. |
+| u4 | Own sign-up | done (2026-11-26, #57) | Live only when `OPEN_SIGNUP` is on: the same three steps plus "Start your club" with every default shown and editable, then a "Get your club going" checklist on Tonight and an Invite people screen. |
+| u5 | Club codes | built (2026-11-26, branch `u5-club-codes`, awaiting the production schema push and merge) | A second way in beside per-person invites: an optional short code, off by default; "Ask to join", approved by an owner or admin. Private clubs are never searchable. With it, two u4 follow-ups: "No fixed schedule" back on `/new`, and the time zone prefilled from the device. |
 | 3 | Redesign: Members | later | People first; Your limits, How this club runs, and Leave/Pause move to their own pages under the Members tab (ruled 2026-11-24). |
 | 4 | Redesign: Settings | later | A menu of rows that open pages on phones; menu and panel side by side on wide screens. |
 | 5 | Wide-screen layouts | later | Real multi-column layouts at laptop widths, not a phone column stretched. |
@@ -83,6 +83,13 @@ Everything to settle in one review before public sign-ups open.
   that identifies me."), with the full wording the opt-in is given against
   under "More about this", unchanged. Is that enough for the consent to
   be informed?
+- **Club codes in the Privacy text** (u5): asking to join shows the
+  requester's display name to that club's owner and admins, and nothing
+  else; requests are kept 90 days after they're decided (30 if still
+  pending), code tries a day. "What we collect" doesn't say so yet, and
+  the form-echo cookie now also carries a typed club code to the confirm
+  step (its listed role, "what you typed into a form for a minute", still
+  fits).
 - **Contextual ads disclosure**: what the Terms and Privacy must say about
   contextual ads and direct sponsorships, given no tracking and no viewing
   data ever reaches an ad provider.

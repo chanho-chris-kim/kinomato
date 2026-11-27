@@ -6,13 +6,30 @@ const ago = (days: number, hours = 0) => new Date(NOW.getTime() - (days * 24 + h
 
 describe("retentionCutoffs", () => {
   it("is 7 days for expired credentials and sessions, 90 for revoked invites' names and unsubscribe tokens, 30 for the reminder log", () => {
-    expect(RETENTION).toEqual({ expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90, notificationLogDays: 30 });
+    expect(RETENTION).toEqual({
+      expiredDays: 7,
+      revokedInviteNameDays: 90,
+      unsubscribeTokenDays: 90,
+      notificationLogDays: 30,
+      decidedJoinRequestDays: 90,
+      pendingJoinRequestDays: 30,
+      joinCodeAttemptDays: 1,
+    });
     expect(retentionCutoffs(NOW)).toEqual({
       expiredBefore: ago(7),
       revokedBefore: ago(90),
       unsubscribeTokensBefore: ago(90),
       notificationLogBefore: ago(30),
+      decidedJoinRequestsBefore: ago(90),
+      pendingJoinRequestsBefore: ago(30),
+      joinCodeAttemptsBefore: ago(1),
     });
+  });
+
+  it("a declined request outlives its 30-day cooldown, and a code attempt its hour", async () => {
+    const { DECLINE_COOLDOWN_DAYS } = await import("./joinRequests");
+    expect(RETENTION.decidedJoinRequestDays).toBeGreaterThan(DECLINE_COOLDOWN_DAYS);
+    expect(RETENTION.joinCodeAttemptDays * 24).toBeGreaterThan(1);
   });
 
   it("an unsubscribe token is deleted once it stops working (lib/reminderPrefs.ts)", async () => {

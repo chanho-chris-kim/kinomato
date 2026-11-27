@@ -53,6 +53,14 @@ export default async function LoginPage({
         <div className="card signin-card">
           <h1 className="h-display stage-title">Sign in</h1>
           <p className="small muted mt-1">No password, ever. We&apos;ll email you a 6-digit code.</p>
+          {/* From /join (u5): a code joins an account to a club, it can't
+              make one while sign-up is closed (lib/signupGate.ts). */}
+          {returnTo === "/join" && !signupOpen() && (
+            <p className="small mt14 join-needs-account">
+              Sign in to join a club with its code. You need an account first, and Kinomato is
+              invite-only for now: to make one, ask someone in a club for a personal invite link.
+            </p>
+          )}
 
           {error && (
             <p className="small mt14 warn" role="alert">

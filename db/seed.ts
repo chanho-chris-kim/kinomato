@@ -19,6 +19,8 @@ import postgres from "postgres";
 import * as schema from "./schema";
 import { LEGAL } from "../lib/legal";
 import {
+  joinCodeAttempts,
+  joinRequests,
   accountDeletionRequests,
   clubs,
   consentEvents,
@@ -145,6 +147,8 @@ async function main() {
   await db.delete(accountDeletionRequests);
   await db.delete(dataLicensingConsents);
   await db.delete(constraints);
+  await db.delete(joinRequests);
+  await db.delete(joinCodeAttempts);
   await db.delete(memberships);
   await db.delete(seasons);
   await db.delete(tags);

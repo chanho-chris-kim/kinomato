@@ -17,7 +17,8 @@ export interface SentEmail {
     | "email-taken-notice"
     | "email-changed-notice"
     | "account-deletion-code"
-    | "account-deleted-receipt";
+    | "account-deleted-receipt"
+    | "join-approved";
   to: string;
   subject: string;
   html: string;

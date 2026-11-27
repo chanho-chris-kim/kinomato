@@ -54,10 +54,13 @@ export default async function Home() {
             <Link href="/new" className="btn primary" style={{ display: "block" }}>
               Start a club
             </Link>
+            <Link href="/join" className="btn ghost mt-1 join-with-code" style={{ display: "block" }}>
+              Join a club with a code
+            </Link>
           </div>
           <p className="tiny dim mt14">
-            Waiting to join a friend&apos;s club? Ask them for your own invite link, since each
-            link is made for one person.
+            Waiting to join a friend&apos;s club? Ask them for its code, or for your own invite
+            link, since each link is made for one person.
           </p>
         </>
       ) : (

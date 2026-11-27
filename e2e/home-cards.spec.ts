@@ -126,7 +126,7 @@ test.describe("club cards on /", () => {
     await expect(start).toHaveClass(/primary/);
     await expect(
       page.getByText(
-        "Waiting to join a friend's club? Ask them for your own invite link, since each link is made for one person.",
+        "Waiting to join a friend's club? Ask them for its code, or for your own invite link, since each link is made for one person.",
       ),
     ).toBeVisible();
     await expect(cards(page)).toHaveCount(0);

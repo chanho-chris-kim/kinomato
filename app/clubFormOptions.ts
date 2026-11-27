@@ -24,13 +24,15 @@ export const COMMON_TIMEZONES = [
   "Australia/Sydney",
 ];
 
-// How often (no fixed schedule isn't offered until nights can be scheduled
-// by hand, ruled 2026-11-10).
+// How often. Editing offers these three (no fixed schedule isn't offered
+// until nights can be scheduled by hand, ruled 2026-11-10); /new adds
+// NEW_CLUB_CADENCE_OPTIONS' "No fixed schedule".
 export const CADENCE_OPTIONS = [
   ["weekly", "Weekly"],
   ["biweekly", "Every other week"],
   ["monthly", "Monthly"],
 ] as const;
+export const NEW_CLUB_CADENCE_OPTIONS = [...CADENCE_OPTIONS, ["ad_hoc", "No fixed schedule"]] as const;
 
 // When "Did you watch it?" is asked (lib/confirmTiming.ts).
 export const CONFIRM_AT_LABELS: Record<ConfirmAt, string> = {

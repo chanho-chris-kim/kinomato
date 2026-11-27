@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   date,
@@ -88,10 +89,14 @@ export const clubs = pgTable("clubs", {
   // Non-null = the club (and its rotation) is paused. Same shape as
   // memberships.postponed_at.
   pausedAt: timestamp("paused_at", { withTimezone: true }),
+  // The club code (u5, ruled 2026-11-25): 8 Crockford base32 characters
+  // (lib/joinCode.ts), stored without the dash. Null = codes are off, the
+  // default. A new code replaces the old one, which stops working at once.
+  joinCode: text("join_code"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [uniqueIndex("clubs_join_code_idx").on(table.joinCode)]);
 
 // Consent and age (docs/onboarding-spec.md §11.1–§11.3). "Under 13" is a
 // form answer, never a stored value: nothing about that person persists.
@@ -303,6 +308,10 @@ export const memberships = pgTable(
     postponedAt: timestamp("postponed_at", { withTimezone: true }),
     // "Mute reminders from {club}" (ruled 2026-11-23). Non-null = muted.
     remindersMutedAt: timestamp("reminders_muted_at", { withTimezone: true }),
+    // Who let them in, for someone who joined with a club code (u5, ruled
+    // 2026-11-25): the provenance record, as invites.invited_by_membership_id
+    // is for an invite. Null for everyone else.
+    approvedByMembershipId: uuid("approved_by_membership_id").references((): AnyPgColumn => memberships.id),
   },
   (table) => [
     index("memberships_club_id_idx").on(table.clubId),
@@ -709,6 +718,56 @@ export const invites = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (table) => [index("invites_club_id_idx").on(table.clubId)],
+);
+
+// Asking to join with a club code (u5, ruled 2026-11-25; details
+// 2026-11-26). Approvers see only the requester's display name. At most
+// one pending request per person per club (the partial unique index).
+// Deleted with the account or the club, not when someone leaves; the
+// retention job deletes decided or cancelled ones 90 days after the
+// decision and pending ones after 30 days. Only app/joinRequests.ts touches
+// this table and join_code_attempts (lib/joinRequestAccess.test.ts).
+export const joinRequestStatusEnum = pgEnum("join_request_status", ["pending", "approved", "declined", "cancelled"]);
+
+export const joinRequests = pgTable(
+  "join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    status: joinRequestStatusEnum("status").notNull().default("pending"),
+    // When it was approved, declined or cancelled.
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // The owner or admin who approved or declined; null when cancelled.
+    decidedByMembershipId: uuid("decided_by_membership_id").references(() => memberships.id),
+  },
+  (table) => [
+    uniqueIndex("join_requests_one_pending_per_user_per_club")
+      .on(table.clubId, table.userId)
+      .where(sql`${table.status} = 'pending'`),
+    index("join_requests_user_id_idx").on(table.userId),
+  ],
+);
+
+// One row per club code someone tried (u5): ten an hour per person
+// (lib/joinRequests.ts). Recorded before the code is looked up, and removed
+// again when it was right, so only wrong or switched-off codes count.
+// Deleted after a day by the retention job, and with the account.
+export const joinCodeAttempts = pgTable(
+  "join_code_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("join_code_attempts_user_created_idx").on(table.userId, table.createdAt)],
 );
 
 // Reminder emails sent (ruled 2026-11-23, docs/onboarding-spec.md §5.9):

@@ -13,8 +13,20 @@
 // - notification_log: deleted once more than 30 days old (ruled
 //   2026-11-23). The budget looks back 7 days; never-twice is per night,
 //   and no reminder's window reaches 30 days.
+// - join_requests (u5, 2026-11-26): a decided or cancelled request is
+//   deleted 90 days after it was decided (past the 30-day decline
+//   cooldown), a pending one 30 days after it was made.
+// - join_code_attempts: deleted after a day; the limit looks back an hour.
 
-export const RETENTION = { expiredDays: 7, revokedInviteNameDays: 90, unsubscribeTokenDays: 90, notificationLogDays: 30 } as const;
+export const RETENTION = {
+  expiredDays: 7,
+  revokedInviteNameDays: 90,
+  unsubscribeTokenDays: 90,
+  notificationLogDays: 30,
+  decidedJoinRequestDays: 90,
+  pendingJoinRequestDays: 30,
+  joinCodeAttemptDays: 1,
+} as const;
 
 const DAY_MS = 24 * 3600_000;
 
@@ -23,12 +35,18 @@ export function retentionCutoffs(now: Date): {
   revokedBefore: Date;
   unsubscribeTokensBefore: Date;
   notificationLogBefore: Date;
+  decidedJoinRequestsBefore: Date;
+  pendingJoinRequestsBefore: Date;
+  joinCodeAttemptsBefore: Date;
 } {
   return {
     expiredBefore: new Date(now.getTime() - RETENTION.expiredDays * DAY_MS),
     revokedBefore: new Date(now.getTime() - RETENTION.revokedInviteNameDays * DAY_MS),
     unsubscribeTokensBefore: new Date(now.getTime() - RETENTION.unsubscribeTokenDays * DAY_MS),
     notificationLogBefore: new Date(now.getTime() - RETENTION.notificationLogDays * DAY_MS),
+    decidedJoinRequestsBefore: new Date(now.getTime() - RETENTION.decidedJoinRequestDays * DAY_MS),
+    pendingJoinRequestsBefore: new Date(now.getTime() - RETENTION.pendingJoinRequestDays * DAY_MS),
+    joinCodeAttemptsBefore: new Date(now.getTime() - RETENTION.joinCodeAttemptDays * DAY_MS),
   };
 }
 

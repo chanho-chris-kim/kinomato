@@ -5,6 +5,7 @@ import { deleteExpiredDeletionRequests } from "@/app/accountDeletion";
 import { deleteExpiredEmailChanges } from "@/app/emailChange";
 import { deleteExpiredUnsubscribeTokens } from "@/app/reminderUnsubscribe";
 import { deleteOldNotificationLog } from "@/app/notificationLog";
+import { deleteOldJoinCodeAttempts, deleteOldJoinRequests } from "@/app/joinRequests";
 import { retentionCutoffs } from "@/lib/retention";
 
 type Db = ReturnType<typeof getDb>;
@@ -19,6 +20,8 @@ export interface RetentionCounts {
   invite_names_cleared: number;
   unsubscribe_links: number;
   reminder_log: number;
+  requests_to_join: number;
+  join_code_tries: number;
 }
 
 // The daily retention job (docs/onboarding-spec.md §11.6), run only by the
@@ -28,8 +31,16 @@ export interface RetentionCounts {
 // modules that own them. Logs one line of counts and nothing else; any
 // failure throws, so the run shows as failed in Workers Logs.
 export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionCounts> {
-  const { expiredBefore, revokedBefore, unsubscribeTokensBefore, notificationLogBefore } = retentionCutoffs(now);
-  const [links, changes, deletions, oldSessions, names, unsubscribeLinks, reminderLog] = await db.batch([
+  const {
+    expiredBefore,
+    revokedBefore,
+    unsubscribeTokensBefore,
+    notificationLogBefore,
+    decidedJoinRequestsBefore,
+    pendingJoinRequestsBefore,
+    joinCodeAttemptsBefore,
+  } = retentionCutoffs(now);
+  const [links, changes, deletions, oldSessions, names, unsubscribeLinks, reminderLog, requests, codeTries] = await db.batch([
     db.delete(magicLinks).where(lt(magicLinks.expiresAt, expiredBefore)).returning({ id: magicLinks.id }),
     deleteExpiredEmailChanges(db, expiredBefore),
     deleteExpiredDeletionRequests(db, expiredBefore),
@@ -41,6 +52,8 @@ export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionC
       .returning({ id: invites.id }),
     deleteExpiredUnsubscribeTokens(db, unsubscribeTokensBefore),
     deleteOldNotificationLog(db, notificationLogBefore),
+    deleteOldJoinRequests(db, decidedJoinRequestsBefore, pendingJoinRequestsBefore),
+    deleteOldJoinCodeAttempts(db, joinCodeAttemptsBefore),
   ]);
   const counts: RetentionCounts = {
     sign_in_codes: links.length,
@@ -50,6 +63,8 @@ export async function runRetentionCleanup(db: Db, now: Date): Promise<RetentionC
     invite_names_cleared: names.length,
     unsubscribe_links: unsubscribeLinks.length,
     reminder_log: reminderLog.length,
+    requests_to_join: requests.length,
+    join_code_tries: codeTries.length,
   };
   console.log(`[retention] ${JSON.stringify(counts)}`);
   return counts;

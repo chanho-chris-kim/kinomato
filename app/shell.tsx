@@ -167,7 +167,9 @@ export type ClubTab = "tonight" | "history" | "members";
 // Club-level tabs under the club header (§5.10–5.11.2): Tonight · History ·
 // Members, the same at every width. `current` is null on a club page that
 // isn't one of the tabs.
-export function ClubTabs({ clubId, current }: { clubId: string; current: ClubTab | null }) {
+// `asking`: people asking to join with the club code (u5), a badge on
+// Members for owners and admins; callers pass 0 for everyone else.
+export function ClubTabs({ clubId, current, asking = 0 }: { clubId: string; current: ClubTab | null; asking?: number }) {
   const tabs: { key: ClubTab; href: string; label: string }[] = [
     { key: "tonight", href: `/clubs/${clubId}`, label: "Tonight" },
     { key: "history", href: `/clubs/${clubId}/history`, label: "History" },
@@ -177,8 +179,18 @@ export function ClubTabs({ clubId, current }: { clubId: string; current: ClubTab
     <div className="ctabs">
       <nav className="segc" aria-label="Club">
         {tabs.map((t) => (
-          <Link key={t.key} href={t.href} aria-current={t.key === current ? "page" : undefined}>
+          <Link
+            key={t.key}
+            href={t.href}
+            aria-current={t.key === current ? "page" : undefined}
+            aria-label={t.key === "members" && asking > 0 ? `Members, ${asking} asking to join` : undefined}
+          >
             {t.label}
+            {t.key === "members" && asking > 0 && (
+              <span className="tab-badge" aria-hidden="true">
+                {asking}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

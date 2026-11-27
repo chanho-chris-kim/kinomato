@@ -32,7 +32,14 @@ import {
   transferOwnership,
   updateClubDetails,
   updateClubSettings,
+  approveJoinRequestAction,
+  declineJoinRequestAction,
+  makeNewJoinCode,
+  setJoinCodeOn,
 } from "../actions";
+import { CopyCode } from "../CopyCode";
+import { pendingRequestsFor } from "@/app/joinRequests";
+import { formatJoinCode } from "@/lib/joinCode";
 import { COMMON_TIMEZONES, CONFIRM_AT_LABELS, DAY_LABELS, hoursLabel } from "@/app/clubFormOptions";
 import { readFormEcho } from "@/app/formEcho";
 import Link from "next/link";
@@ -74,6 +81,8 @@ export default async function MembersPage({
     leaveError?: string;
     limits?: string;
     limitsError?: string;
+    asking?: string;
+    code?: string;
   }>;
 }) {
   const { clubId } = await params;
@@ -92,6 +101,8 @@ export default async function MembersPage({
     leaveError,
     limits,
     limitsError,
+    asking,
+    code: codeNotice,
   } = await searchParams;
   const db = getDb(); // request-scoped (React cache()) — see db/index.ts
   const now = new Date();
@@ -112,6 +123,10 @@ export default async function MembersPage({
     .where(and(eq(invites.clubId, clubId), isNull(invites.redeemedAt), isNull(invites.revokedAt)))
     .orderBy(asc(invites.createdAt));
   const baseUrl = await getBaseUrl();
+  // Asking to join with the club code (u5): owners and admins only; plain
+  // members never see the code or the requests.
+  const askingRequests = isOwnerOrAdmin ? await pendingRequestsFor(db, clubId) : [];
+  const askingEcho = asking === "refused" ? await readFormEcho() : {};
   const seatsTaken = activeMemberships.length + pendingInvites.length;
   // The viewer's own limits, and only theirs (ruled 2026-11-12): nobody else
   // sees them, so nothing here loads anyone else's.
@@ -229,7 +244,7 @@ export default async function MembersPage({
       header={
         <>
           <ClubHeader club={club} />
-          <ClubTabs clubId={clubId} current="members" />
+          <ClubTabs clubId={clubId} current="members" asking={askingRequests.length} />
         </>
       }
     >
@@ -364,6 +379,94 @@ export default async function MembersPage({
               pending {pendingInvites.length === 1 ? "invite" : "invites"}. Revoke an invite to free
               a seat.
             </p>
+          )}
+        </section>
+      )}
+
+      {isOwnerOrAdmin && (askingRequests.length > 0 || asking) && (
+        <section id="asking" className="mt20" aria-labelledby="asking-heading">
+          <h2 id="asking-heading" className="sec">
+            Asking to join
+          </h2>
+          {asking === "refused" && askingEcho.askingError && (
+            <p className="small mt-1 warn" role="alert">
+              {askingEcho.askingError}
+            </p>
+          )}
+          {asking === "approved" && (
+            <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+              They&apos;re in. We&apos;ve emailed them.
+            </p>
+          )}
+          {asking === "declined" && (
+            <p className="small mt-1" role="status">
+              Declined.
+            </p>
+          )}
+          {askingRequests.length === 0 ? (
+            <p className="small muted mt-1">Nobody&apos;s asking right now.</p>
+          ) : (
+            <ul className="plain-list stack gap8 mt14 asking-list">
+              {askingRequests.map((r) => (
+                <li key={r.id} className="card">
+                  <div className="between">
+                    <span>{r.name}</span>
+                    <span className="tiny dim">{timeAgo(r.createdAt, now)}</span>
+                  </div>
+                  <div className="row gap8 mt14">
+                    <form action={approveJoinRequestAction.bind(null, clubId, r.id)} style={{ flex: 1 }}>
+                      <button type="submit" className="btn" aria-label={`Approve ${r.name}`}>
+                        Approve
+                      </button>
+                    </form>
+                    <form action={declineJoinRequestAction.bind(null, clubId, r.id)} style={{ flex: 1 }}>
+                      <button type="submit" className="btn ghost" aria-label={`Decline ${r.name}`}>
+                        Decline
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {isOwnerOrAdmin && (
+        <section id="join-code" className="mt20" aria-labelledby="join-code-heading">
+          <h2 id="join-code-heading" className="sec">
+            Club code
+          </h2>
+          <p className="small muted flush">
+            Anyone with the code can ask to join. Nobody gets in until you or an admin says yes.
+          </p>
+          {/* A button with role="switch": it works without script. */}
+          <form action={setJoinCodeOn.bind(null, clubId, !club.joinCode)} className="mt14">
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={club.joinCode !== null}
+              className="consent-choice small join-code-switch"
+            >
+              <span className="switch-track" aria-hidden="true" />
+              Let people ask to join with a code
+            </button>
+          </form>
+          {club.joinCode && (
+            <div className="stack gap8 mt14">
+              <CopyCode code={formatJoinCode(club.joinCode)} label={`Club code for ${club.name}`} />
+              {codeNotice === "new" && (
+                <p className="small flush" role="status" style={{ color: "var(--accent)" }}>
+                  New code made. The old one doesn&apos;t work any more.
+                </p>
+              )}
+              <form action={makeNewJoinCode.bind(null, clubId)}>
+                <button type="submit" className="btn ghost">
+                  Make a new code
+                </button>
+              </form>
+              <p className="tiny dim flush">A new code stops the old one working at once.</p>
+            </div>
           )}
         </section>
       )}
