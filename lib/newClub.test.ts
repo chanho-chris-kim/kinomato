@@ -83,8 +83,10 @@ describe("readNewClubForm", () => {
     expect(readNewClubForm(form({ lockTime: "2" }), NOW)).toEqual({ ok: false, error: "Pick when voting closes." });
   });
 
-  it("no fixed schedule isn't offered: the same rule as editing", () => {
-    expect(readNewClubForm(form({ cadence: "ad_hoc" }), NOW)).toMatchObject({ ok: false });
+  it("no fixed schedule is offered on /new (unlike editing), with no first night and no anchor", () => {
+    const r = readNewClubForm(form({ cadence: "ad_hoc", firstNightOn: "" }), NOW);
+    expect(r).toMatchObject({ ok: true, details: { cadence: "ad_hoc" } });
+    expect(r.ok && "scheduleAnchor" in r.settings).toBe(false);
   });
 
   it("every other week and monthly need a first night, on the day, not past; it's stored as the anchor", () => {

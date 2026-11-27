@@ -1146,9 +1146,13 @@ full.
   Start your club with every default editable, then a "Get your club
   going" checklist on Tonight and an Invite people screen. *Built u4,
   2026-11-26 (CLAUDE.md has the details):* the flow is `/login/start` →
-  code → `/welcome` → `/new?start=1`; `/new` no longer offers "no fixed
-  schedule" (as editing doesn't, §5.10); the checklist is only for clubs
+  code → `/welcome` → `/new?start=1`; the checklist is only for clubs
   started since u4; Members' Add a person opens the invite page.
+  *Follow-ups, 2026-11-26 (approved by Chanho):* `/new` offers "No fixed
+  schedule" again (u4 had dropped it, which was never a ruling; editing
+  still doesn't, §5.10), and its time zone is prefilled from the device
+  when the browser lists that zone, still required and checked on the
+  server.
 - **Club codes (u5)**: an optional short join code per club, off by
   default, owner or admin; "Ask to join", approved by an owner or admin,
   who is the provenance record. The cap (and later adults-only gating)

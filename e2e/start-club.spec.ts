@@ -73,7 +73,7 @@ test.describe("Start your club", () => {
     await expect(page.getByLabel("At", { exact: true })).toHaveValue("20:00");
     await expect(page.getByLabel("In person")).toBeChecked();
     await expect(page.getByLabel("How often")).toHaveValue("weekly");
-    await expect(page.getByLabel("How often").locator("option")).toHaveText(["Weekly", "Every other week", "Monthly"]);
+    await expect(page.getByLabel("How often").locator("option")).toHaveText(["Weekly", "Every other week", "Monthly", "No fixed schedule"]);
     await expect(page.getByLabel("First night on")).toBeHidden();
     await expect(page.getByLabel("Films each picker offers")).toHaveValue("3");
     await expect(page.getByLabel(/^Voting closes/)).toHaveValue("24");
@@ -100,8 +100,48 @@ test.describe("Start your club", () => {
     });
   });
 
-  test("bad values are refused with the Members tab's own messages, and what was typed comes back", async ({ page }) => {
+  test("no fixed schedule is offered and saved, with no first night and no draft", async ({ page }) => {
+    const me = await person("Ivo I.", "sc-adhoc");
+    await signInAsUser(page, me);
+    await page.goto("/new");
+    await page.getByLabel("Club name").fill("Loose Start Club");
+    await page.getByLabel("Timezone").fill("America/New_York");
+    await page.getByLabel("How often").selectOption("ad_hoc");
+    await page.getByRole("button", { name: "Create club" }).click();
+    await expect(page).toHaveURL(/\/clubs\/[0-9a-f-]{36}$/);
+    const clubId = new URL(page.url()).pathname.split("/")[2];
+    const club = await clubRow(clubId);
+    expect(club.cadence).toBe("ad_hoc");
+    expect(club.settings).not.toHaveProperty("scheduleAnchor");
+    // Today's ad hoc behaviour: nothing drafted automatically.
+    expect(await db.select().from(schema.nights).where(eq(schema.nights.clubId, clubId))).toEqual([]);
+  });
+
+  test("the time zone is the device's when it's a listed zone; still required, never overwriting what's typed", async ({
+    browser,
+  }) => {
+    const me = await person("Joy J.", "sc-tz");
+    const listed = await browser.newContext({ timezoneId: "America/Chicago" });
+    const page = await listed.newPage();
+    await signInAsUser(page, me);
+    await page.goto("/new");
+    await expect(page.getByLabel("Timezone")).toHaveValue("America/Chicago");
+    await expect(page.getByLabel("Timezone")).toHaveAttribute("required", "");
+    await listed.close();
+
+    // Without script it stays empty, and required.
+    const noScript = await browser.newContext({ timezoneId: "America/Chicago", javaScriptEnabled: false });
+    const plain = await noScript.newPage();
+    await signInAsUser(plain, me);
+    await plain.goto("/new");
+    await expect(plain.getByLabel("Timezone")).toHaveValue("");
+    await expect(plain.getByLabel("Timezone")).toHaveAttribute("required", "");
+    await noScript.close();
+  });
+
+  test("bad values are refused with the Members tab's own messages, and what was typed comes back", async ({ browser }) => {
     const me = await person("Eli E.", "sc-bad");
+    const page = await (await browser.newContext({ timezoneId: "America/Chicago" })).newPage();
     await signInAsUser(page, me);
     await page.goto("/new");
     await page.locator("form.club-details-form").evaluate((f) => f.setAttribute("novalidate", ""));
@@ -113,6 +153,8 @@ test.describe("Start your club", () => {
       "Films each picker nominates must be a whole number from 1 to 5.",
     );
     await expect(page.getByLabel("Club name")).toHaveValue("Bad Values Club");
+    // What was typed comes back, never replaced by the device's zone.
+    await expect(page.getByLabel("Timezone")).toHaveValue("America/New_York");
 
     // Every other week needs a first night (ruled 2026-11-10), as on Members.
     await page.locator("form.club-details-form").evaluate((f) => f.setAttribute("novalidate", ""));

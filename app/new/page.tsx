@@ -4,8 +4,9 @@ import { StepBar } from "@/app/stepBar";
 import { readFormEcho } from "@/app/formEcho";
 import { signupOpen } from "@/app/signIn";
 import { createClub } from "./actions";
+import { TimezoneField } from "./TimezoneField";
 import {
-  CADENCE_OPTIONS,
+  NEW_CLUB_CADENCE_OPTIONS,
   COMMON_TIMEZONES,
   CONFIRM_AT_LABELS,
   DAY_LABELS,
@@ -101,7 +102,7 @@ export default async function NewClubPage({
             <label className="small muted">
               How often
               <select name="cadence" defaultValue={value("cadence", d.cadence)} className="sel mt-1 full">
-                {CADENCE_OPTIONS.map(([cadence, label]) => (
+                {NEW_CLUB_CADENCE_OPTIONS.map(([cadence, label]) => (
                   <option key={cadence} value={cadence}>
                     {label}
                   </option>
@@ -165,14 +166,7 @@ export default async function NewClubPage({
             <label className="small muted">
               Timezone
               <div className="search mt-1">
-                <input
-                  type="text"
-                  name="timezone"
-                  list="timezone-options"
-                  placeholder="America/New_York"
-                  required
-                  defaultValue={value("timezone", "")}
-                />
+                <TimezoneField listId="timezone-options" defaultValue={value("timezone", "")} />
               </div>
               <datalist id="timezone-options">
                 {COMMON_TIMEZONES.map((tz) => (

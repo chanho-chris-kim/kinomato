@@ -947,6 +947,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   same rule `issueSignIn` applies, so the two can't disagree; without
   script that render stands until a reload. The server refuses an early
   send whatever the button shows.
+- **`TimezoneField` (`app/new/TimezoneField.tsx`) is the fifth justified
+  client component** (2026-11-26): only the browser knows the device's
+  time zone. It fills an empty field once and never replaces what was
+  typed or echoed back; the server validates the zone as before.
 - **Tags on a rating are club-scoped, alongside the hot take, never
   replacing it.** `tags` (club_id, name, display_name) and `rating_tags`
   (rating_id, tag_id) — "cozy" is one tag per club, not six near-
@@ -1198,9 +1202,14 @@ Do not quietly change these — they encode decisions that took a while to reach
     readers' own defaults (`lib/newClub.ts` `NEW_CLUB_DEFAULTS`). It's read
     by `readNewClubForm` on the Members tab's own readers
     (`readClubDetailsForm`, `readClubSettingsForm`, `checkFirstNight`), so
-    the two never disagree. "No fixed schedule" isn't offered any more, the
-    same rule as editing (ruled 2026-11-10). Every other week or monthly
-    needs a first night. The "Joining a friend's club instead?" link waits
+    the two never disagree. "No fixed schedule" is offered again (restored
+    2026-11-26: u4 dropped it, which was never a ruling); editing still
+    can't switch to it (ruled 2026-11-10), and an ad hoc club gets no
+    automatic drafts, as before. Every other week or monthly needs a first
+    night. **The time zone is prefilled from the device**
+    (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when the browser
+    lists it, else left empty; it stays required and is validated on the
+    server, and without script it's empty (2026-11-26). The "Joining a friend's club instead?" link waits
     for u5.
   - **The checklist** (`lib/gettingStarted.ts`) is stored in
     `clubs.settings.gettingStarted` (`{ checked, hidden }`, written at

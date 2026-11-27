@@ -31,8 +31,9 @@ export function readNewClubForm(
   fields: Record<string, unknown>,
   now: Date,
 ): { ok: true; details: ClubDetails; settings: Record<string, unknown> } | { ok: false; error: string } {
-  // No fixed schedule isn't offered until nights can be scheduled by hand,
-  // the same rule as editing (ruled 2026-11-10).
+  // No fixed schedule is offered here, as before u4 (2026-11-26): editing
+  // still can't switch to it until nights can be scheduled by hand (ruled
+  // 2026-11-10), but a new club may start that way.
   const details = readClubDetailsForm(
     {
       name: fields.name,
@@ -42,7 +43,7 @@ export function readNewClubForm(
       timezone: fields.timezone,
       mode: fields.mode,
     },
-    { allowAdHoc: false },
+    { allowAdHoc: true },
   );
   if (!details.ok) return details;
   const settings = readClubSettingsForm({
