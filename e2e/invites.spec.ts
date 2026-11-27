@@ -26,27 +26,30 @@ test.describe.configure({ mode: "serial" });
 const CLUB_8_URL = `/clubs/${CLUB_8_ID}`;
 let marcoLink = "";
 
-// Defaults to the Members tab, where inviting lives (rebuild step 5c).
-async function signInTo(page: Page, membershipId: string, url = `${CLUB_8_URL}/members`) {
+// Defaults to the invite page, where inviting lives since u6 (each pending
+// invite's link, New link and Cancel moved there from the Members tab).
+const INVITE_PAGE = `${CLUB_8_URL}/members/invite`;
+async function signInTo(page: Page, membershipId: string, url = INVITE_PAGE) {
   await signInAs(page, membershipId);
   await page.goto(url);
 }
 
 // The invite's name only greets them (ruled 2026-11-25); the specs use
 // "First L." greetings.
-// Created on the invite page (u4), then back to the Members tab with it
-// highlighted, as the rest of each test reads it.
+// Created on the invite page (u4), which then shows the new link.
 async function createInvite(page: Page, firstName: string, lastInitial: string) {
-  await page.goto(`${CLUB_8_URL}/members/invite`);
+  await page.goto(INVITE_PAGE);
   await page.getByLabel("Their name").fill(`${firstName} ${lastInitial.toUpperCase()}.`);
   await page.getByRole("button", { name: "Create invite link" }).click();
   await expect(page).toHaveURL(/\/members\/invite\?invite=/);
-  const id = new URL(page.url()).searchParams.get("invite");
-  await page.goto(`${CLUB_8_URL}/members?invite=${id}`);
 }
 
+// A pending invite's link, on the invite page: shown for the newest one,
+// one "Show link" away for any other (u6).
 async function inviteLink(page: Page, inviteeName: string): Promise<string> {
-  return page.getByLabel(`Invite link for ${inviteeName}`).inputValue();
+  const field = page.getByLabel(`Invite link for ${inviteeName}`);
+  if ((await field.count()) === 0) await page.getByRole("link", { name: `Show ${inviteeName}'s link` }).click();
+  return field.inputValue();
 }
 
 // A signed-out visitor: its own browser context, no cookies at all.
@@ -79,12 +82,12 @@ async function inviteRow(token: string) {
 test.describe("per-person invites", () => {
   test("an owner creates an invite: pending, holding a seat, with its own link", async ({ page }) => {
     await signInTo(page, MEMBERSHIP_8.hana);
-    await expect(page.getByText("2 of 6 seats.")).toBeVisible();
+    await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 4 seats left.");
 
     await createInvite(page, "Marco", "r");
-    await expect(page.getByText("3 of 6 seats.")).toBeVisible();
-    await expect(page.getByText("Invite ready. Send it to Marco R. directly")).toBeVisible();
-    await expect(page.getByText("Not started")).toBeVisible();
+    await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 3 seats left.");
+    await expect(page.getByText("Only Marco R. should use this link. It works once.")).toBeVisible();
+    await expect(page.locator(".waiting-list li", { hasText: "Marco R." })).toContainText("Not started yet");
     marcoLink = await inviteLink(page, "Marco R.");
     expect(marcoLink).toMatch(/\/invite\/[A-Za-z0-9_-]{22}$/);
   });
@@ -92,9 +95,9 @@ test.describe("per-person invites", () => {
   test("a member who isn't an admin sees who's invited, but can't create or manage invites", async ({
     page,
   }) => {
-    await signInTo(page, MEMBERSHIP_8.ivo);
+    await signInTo(page, MEMBERSHIP_8.ivo, `${CLUB_8_URL}/members`);
     await expect(page.getByText("Marco R.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "+ Invite" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
     await expect(page.getByLabel("Invite link for Marco R.")).toHaveCount(0);
   });
@@ -149,8 +152,8 @@ test.describe("per-person invites", () => {
         stranger.getByRole("heading", { name: "Marco R.'s invite has already been used" }),
       ).toBeVisible();
     });
-    await signInTo(page, MEMBERSHIP_8.hana);
-    await expect(page.getByText("3 of 6 seats.")).toBeVisible();
+    await signInTo(page, MEMBERSHIP_8.hana, `${CLUB_8_URL}/members`);
+    await expect(page.getByRole("heading", { name: "People · 3 of 6" })).toBeVisible();
     await expect(memberNames(page).filter({ hasText: "Marcus R." })).toHaveCount(1);
   });
 
@@ -164,10 +167,8 @@ test.describe("per-person invites", () => {
     await createInvite(page, "Lee", "s");
     const leeLink = await inviteLink(page, "Lee S.");
 
-    await page
-      .locator(".card", { hasText: "Pat Q." })
-      .getByRole("button", { name: "Revoke" })
-      .click();
+    await page.getByRole("button", { name: "Cancel Pat Q.'s invite" }).click();
+    await expect(page.locator(".waiting-list li", { hasText: "Pat Q." })).toHaveCount(0);
     await expect(page.getByLabel("Invite link for Pat Q.")).toHaveCount(0);
 
     await asStranger(browser, async (stranger) => {
@@ -182,11 +183,10 @@ test.describe("per-person invites", () => {
   test("regenerating replaces the link, same person, and the old one dies", async ({ page, browser }) => {
     await signInTo(page, MEMBERSHIP_8.hana);
     const oldLink = await inviteLink(page, "Lee S.");
-    await page
-      .locator(".card", { hasText: "Lee S." })
-      .getByRole("button", { name: "Regenerate" })
-      .click();
-    await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}/members\\?invite=`));
+    const showing = page.url();
+    await page.getByRole("button", { name: "New link for Lee S." }).click();
+    await page.waitForURL((u) => u.toString() !== showing);
+    await expect(page).toHaveURL(new RegExp(`${CLUB_8_URL}/members/invite\\?invite=`));
     const newLink = await inviteLink(page, "Lee S.");
     expect(newLink).not.toBe(oldLink);
 
@@ -205,8 +205,8 @@ test.describe("per-person invites", () => {
     const leeLink = await inviteLink(page, "Lee S.");
     await page.goto(leeLink);
     await expect(page.getByRole("heading", { name: "You're already in Eighth Club" })).toBeVisible();
-    await page.goto(`${CLUB_8_URL}/members`);
-    await expect(page.getByLabel("Invite link for Lee S.")).toBeVisible();
+    await page.goto(INVITE_PAGE);
+    await expect(page.locator(".waiting-list li", { hasText: "Lee S." })).toBeVisible();
   });
 
   test("signed in as someone else: 'sign out and continue' leaves the invite for its person (Ruling B)", async ({
@@ -265,7 +265,7 @@ test.describe("per-person invites", () => {
     await expect(
       page.getByText("Movie Night Crew is full: 6 members and 1 pending invite."),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "+ Invite" })).toHaveCount(0);
   });
 
   // memberships_one_active_per_user_per_club (docs/onboarding-spec.md

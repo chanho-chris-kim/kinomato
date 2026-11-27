@@ -8,7 +8,7 @@ import { requireClubMember } from "@/app/auth";
 import { activeMemberCount } from "@/app/invites";
 import { GlobalShell } from "@/app/shell";
 import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
-import { createInvite, revokeInvite } from "../../actions";
+import { createInvite, regenerateInvite, revokeInvite } from "../../actions";
 import { ShareInvite } from "../../ShareInvite";
 
 // Invite people (u4, §5.13): owners and admins, as on the Members tab, with
@@ -93,13 +93,34 @@ export default async function InvitePeoplePage({
           </h2>
           <ul className="stack gap8 plain-list waiting-list">
             {pending.map((invite) => (
-              <li key={invite.id} className="card row gap8">
-                <span className="grow small">{invite.inviteeName}</span>
-                <form action={revokeInvite.bind(null, clubId, invite.id, "invite")}>
-                  <button type="submit" className="btn ghost limit-remove" aria-label={`Cancel ${invite.inviteeName}'s invite`}>
-                    Cancel
-                  </button>
-                </form>
+              <li key={invite.id} className="card">
+                <div className="between">
+                  <span className="small">{invite.inviteeName}</span>
+                  {/* Opening the link records nothing (§7); starting to sign up does. */}
+                  <span className="tiny dim">{invite.startedAt ? "Started signing up" : "Not started yet"}</span>
+                </div>
+                <div className="row gap8 mt-1 wrap">
+                  {invite.id !== fresh?.id && (
+                    <Link
+                      href={`/clubs/${clubId}/members/invite?invite=${invite.id}`}
+                      className="btn ghost auto"
+                      aria-label={`Show ${invite.inviteeName}'s link`}
+                    >
+                      Show link
+                    </Link>
+                  )}
+                  {/* "I sent it to the wrong chat": the old link stops, a new one for the same name. */}
+                  <form action={regenerateInvite.bind(null, clubId, invite.id)}>
+                    <button type="submit" className="btn ghost auto" aria-label={`New link for ${invite.inviteeName}`}>
+                      New link
+                    </button>
+                  </form>
+                  <form action={revokeInvite.bind(null, clubId, invite.id, "invite")}>
+                    <button type="submit" className="btn ghost auto limit-remove" aria-label={`Cancel ${invite.inviteeName}'s invite`}>
+                      Cancel
+                    </button>
+                  </form>
+                </div>
               </li>
             ))}
           </ul>

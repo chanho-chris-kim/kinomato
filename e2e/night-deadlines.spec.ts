@@ -144,10 +144,11 @@ test.describe("night deadlines", () => {
     await openVotingWith(page, c.clubId, ["Arrival"]);
     const lockAt = (await nightRow(c.nightId)).lockAt!;
 
-    await page.goto(`/clubs/${c.clubId}/members`);
+    // Voting is its own group on How this club runs (u6).
+    await page.goto(`/clubs/${c.clubId}/members/settings?edit=voting`);
     await page.getByLabel(/Voting closes/).selectOption("72");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page).toHaveURL(/saved=settings/);
+    await expect(page).toHaveURL(/saved=voting/);
     expect((await withDb((db) => db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId))))[0].settings).toMatchObject({
       lockTime: 72,
     });
@@ -224,25 +225,31 @@ test.describe("deadline settings", () => {
   test("defaults, choices, and a forged value refused", async ({ page }) => {
     const c = await draftClub("Settings Deadline Club", 72);
     await signInAsUser(page, c.users.owner);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    // Two groups since u6: Voting (when voting closes) and After the night
+    // (when a night is logged unconfirmed), each edited alone.
+    const settingsPage = `/clubs/${c.clubId}/members/settings`;
+    await page.goto(`${settingsPage}?edit=voting`);
     const lock = page.getByLabel(/Voting closes/);
-    const unconfirm = page.getByLabel(/log it as unconfirmed/);
     await expect(lock).toHaveValue("24");
-    await expect(unconfirm).toHaveValue("48");
     expect(await lock.locator("option").allTextContents()).toEqual(["1 hour", "3 hours", "6 hours", "12 hours", "1 day", "2 days", "3 days"]);
-    expect(await unconfirm.locator("option").allTextContents()).toEqual(["1 day", "2 days", "1 week"]);
     await expect(page.locator(".deadlines-note")).toContainText("Changing these never moves a night already under way.");
-
     await lock.selectOption("6");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page).toHaveURL(/saved=voting/);
+
+    await page.goto(`${settingsPage}?edit=after`);
+    const unconfirm = page.getByLabel(/log it as unconfirmed/);
+    await expect(unconfirm).toHaveValue("48");
+    expect(await unconfirm.locator("option").allTextContents()).toEqual(["1 day", "2 days", "1 week"]);
     await unconfirm.selectOption("168");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page).toHaveURL(/saved=settings/);
+    await expect(page).toHaveURL(/saved=after/);
     const settings = async () =>
       (await withDb((db) => db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId))))[0].settings;
     expect(await settings()).toMatchObject({ lockTime: 6, autoAdvance: 168 });
 
     // A value not on the list (a forged post) is refused, and nothing changes.
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(`${settingsPage}?edit=voting`);
     await page.getByLabel(/Voting closes/).evaluate((el) => {
       const option = document.createElement("option");
       option.value = "36";
@@ -250,7 +257,7 @@ test.describe("deadline settings", () => {
       (el as HTMLSelectElement).value = "36";
     });
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.locator("#club-settings").getByRole("alert")).toHaveText("Pick when voting closes.");
+    await expect(page.locator("#voting").getByRole("alert")).toHaveText("Pick when voting closes.");
     expect(await settings()).toMatchObject({ lockTime: 6, autoAdvance: 168 });
   });
 });

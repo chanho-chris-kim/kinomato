@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeLimit, MOVIE_GENRES, readLimitForm } from "./constraintForm";
+import {
+  describeLimit,
+  describeLimitValue,
+  LIMIT_KIND_WORDS,
+  limitSummary,
+  MOVIE_GENRES,
+  readLimitForm,
+} from "./constraintForm";
 import { CONTENT_TOPICS } from "./contentTopics";
 
 const none: { kind: "hard" | "soft"; ruleType: string; value: string }[] = [];
@@ -48,7 +55,7 @@ describe("readLimitForm (validated at write time)", () => {
   });
 
   it("only hard or soft; only genre, length or topic (a raw keyword and language aren't offered)", () => {
-    expect(readLimitForm(form({ kind: "veto" }), none)).toEqual({ ok: false, error: "Choose hard limit or preference." });
+    expect(readLimitForm(form({ kind: "veto" }), none)).toEqual({ ok: false, error: "Choose Never or Rather not." });
     for (const ruleType of ["keyword", "language", "rating", ""]) {
       expect(readLimitForm(form({ ruleType }), none), ruleType).toEqual({
         ok: false,
@@ -84,7 +91,7 @@ describe("readLimitForm (validated at write time)", () => {
     ];
     expect(readLimitForm(form({ genre: "53" }), two)).toEqual({
       ok: false,
-      error: "You have two hard limits. Remove one, or add this as a preference.",
+      error: "You've used both Nevers. Remove one, or choose Rather not.",
     });
     expect(readLimitForm(form({ kind: "soft", genre: "53" }), two).ok).toBe(true);
     const manySoft = MOVIE_GENRES.slice(0, 10).map((g) => ({ kind: "soft" as const, ruleType: "genre", value: String(g.id) }));
@@ -94,19 +101,19 @@ describe("readLimitForm (validated at write time)", () => {
 
 describe("describeLimit", () => {
   it("in plain words", () => {
-    expect(describeLimit({ kind: "hard", ruleType: "genre", value: "27", label: "Horror" })).toBe("Hard limit: Horror");
-    expect(describeLimit({ kind: "soft", ruleType: "genre", value: "10749", label: null })).toBe("Prefer not: Romance");
+    expect(describeLimit({ kind: "hard", ruleType: "genre", value: "27", label: "Horror" })).toBe("Never: Horror");
+    expect(describeLimit({ kind: "soft", ruleType: "genre", value: "10749", label: null })).toBe("Rather not: Romance");
     expect(describeLimit({ kind: "hard", ruleType: "runtime", value: "120", label: null })).toBe(
-      "Hard limit: Nothing over 2h",
+      "Never: Nothing over 2h",
     );
     expect(describeLimit({ kind: "soft", ruleType: "runtime", value: "135", label: null })).toBe(
-      "Prefer not: Nothing over 2h 15m",
+      "Rather not: Nothing over 2h 15m",
     );
   });
 
   it("falls back to the stored label for anything the form doesn't offer yet", () => {
     expect(describeLimit({ kind: "hard", ruleType: "keyword", value: "1", label: "body horror" })).toBe(
-      "Hard limit: body horror",
+      "Never: body horror",
     );
   });
 });
@@ -147,12 +154,12 @@ describe("topic limits (ruled 2026-11-12: a curated list, stored as keyword ids)
     ];
     expect(readLimitForm(form({ ruleType: "topic", topic: "spiders" }), two)).toEqual({
       ok: false,
-      error: "You have two hard limits. Remove one, or add this as a preference.",
+      error: "You've used both Nevers. Remove one, or choose Rather not.",
     });
   });
 
   it("reads back by its label", () => {
-    expect(describeLimit({ kind: "hard", ruleType: "keyword", value: "3888,3986", label: "Spiders" })).toBe("Hard limit: Spiders");
+    expect(describeLimit({ kind: "hard", ruleType: "keyword", value: "3888,3986", label: "Spiders" })).toBe("Never: Spiders");
   });
 
   it("every topic on the list has ids, unique slugs and labels", () => {
@@ -169,5 +176,27 @@ describe("a topic stored before its list changed", () => {
       ok: false,
       error: "You already have that one.",
     });
+  });
+});
+
+describe("the words a person reads (ruled 2026-11-27)", () => {
+  it("Never and Rather not, each with its one-line explanation", () => {
+    expect(LIMIT_KIND_WORDS).toEqual({
+      hard: { label: "Never", explain: "Those films never come up." },
+      soft: { label: "Rather not", explain: "Only a gentle warning." },
+    });
+  });
+
+  it("the value alone, for a card that shows the kind separately", () => {
+    expect(describeLimitValue({ ruleType: "genre", value: "27", label: "Horror" })).toBe("Horror");
+    expect(describeLimitValue({ ruleType: "runtime", value: "135", label: null })).toBe("Nothing over 2h 15m");
+    expect(describeLimitValue({ ruleType: "keyword", value: "3888,3986", label: "Spiders" })).toBe("Spiders");
+  });
+
+  it("the Members summary counts only what's given, never anyone else's", () => {
+    expect(limitSummary([])).toBe("None set");
+    expect(limitSummary([{ kind: "hard" }, { kind: "soft" }])).toBe("1 never · 1 rather not");
+    expect(limitSummary([{ kind: "hard" }, { kind: "hard" }])).toBe("2 never");
+    expect(limitSummary([{ kind: "soft" }, { kind: "soft" }, { kind: "soft" }])).toBe("3 rather not");
   });
 });

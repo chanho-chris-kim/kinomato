@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
@@ -62,6 +63,20 @@ test.describe("card-wrapped forms fit their frame", () => {
       await db.insert(schema.memberships).values({ id: membershipId, clubId, userId: owner, role: "owner", joinedAt: at });
       const inviteToken = `fit${id().replaceAll("-", "")}`.slice(0, 22);
       await db.insert(schema.invites).values({ clubId, token: inviteToken, inviteeName: "Max M.", invitedByMembershipId: membershipId });
+      // A second member with a long name, a limit each, and someone asking
+      // to join: the Members pages (u6) with every card they can show.
+      const other = id();
+      await db.insert(schema.users).values({ id: other, email: `fit.other.${other.slice(0, 8)}@example.com`, displayName: "Bartholomew-Maximilian Q.", ageBracket: "18_plus", ageAttestedAt: at });
+      const otherMembership = id();
+      await db.insert(schema.memberships).values({ id: otherMembership, clubId, userId: other, role: "member", joinedAt: at });
+      await db.insert(schema.constraints).values([
+        { membershipId, kind: "hard", ruleType: "genre", value: "27", label: "Horror" },
+        { membershipId, kind: "soft", ruleType: "runtime", value: "150", label: null },
+      ]);
+      const asker = id();
+      await db.insert(schema.users).values({ id: asker, email: `fit.asker.${asker.slice(0, 8)}@example.com`, displayName: "Wilhelmina-Josephine R." });
+      await db.insert(schema.joinRequests).values({ clubId, userId: asker });
+      await db.update(schema.clubs).set({ joinCode: "K7M2QX9P" }).where(eq(schema.clubs.id, clubId));
       const unsubscribe = `Fit${id().replaceAll("-", "")}${id().replaceAll("-", "")}`;
       await db.insert(schema.reminderUnsubscribeTokens).values({ tokenHash: hashToken(unsubscribe), userId: owner, clubId });
       // Nothing answered: /consent asks age, Terms and data sharing.
@@ -78,6 +93,11 @@ test.describe("card-wrapped forms fit their frame", () => {
         { name: "/unsubscribe", url: `/unsubscribe/${unsubscribe}` },
         { name: "/consent", url: "/consent", as: unconsented },
         { name: "/welcome", url: "/welcome", as: fresh },
+        { name: "Members", url: `/clubs/${clubId}/members`, as: owner },
+        { name: "Members: a person", url: `/clubs/${clubId}/members/${otherMembership}`, as: owner },
+        { name: "Members: your limits", url: `/clubs/${clubId}/members/limits`, as: owner },
+        { name: "Members: how it runs", url: `/clubs/${clubId}/members/settings`, as: owner },
+        { name: "Members: pause", url: `/clubs/${clubId}/members/settings/pause`, as: owner },
       );
     } finally {
       await client.end();

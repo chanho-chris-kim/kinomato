@@ -76,12 +76,22 @@ async function clubWith(name: string, people: { key: string; name: string; role:
 
 const limitsOf = (membershipId: string) =>
   withDb((db) => db.select().from(schema.constraints).where(eq(schema.constraints.membershipId, membershipId)));
-const section = (page: Page) => page.locator("#limits");
-const chips = (page: Page) => page.locator("#limits .my-limits .chip");
+// Your limits is its own page since u6 (ruled 2026-11-27), and a hard
+// limit reads "Never", a preference "Rather not".
+const limitsPage = (clubId: string) => `/clubs/${clubId}/members/limits`;
+const section = (page: Page) => page.locator("main");
+const cards = (page: Page) => page.locator("main .my-limits .limit-card");
+// Each card as one phrase, "Never: Western", from its kind and its value.
+const limitWords = (page: Page) =>
+  cards(page).evaluateAll((els) =>
+    els.map((el) => `${el.querySelector(".chip")?.textContent}: ${el.querySelector(".limit-value")?.textContent}`),
+  );
+const kindRadio = (page: Page, kind: "Never" | "Rather not") =>
+  page.locator("form.limit-form").getByRole("radio", { name: new RegExp(`^${kind}`) });
 
-async function addLimit(page: Page, kind: "Hard limit" | "Prefer not", what: { genre: string } | { minutes: string }) {
+async function addLimit(page: Page, kind: "Never" | "Rather not", what: { genre: string } | { minutes: string }) {
   const form = page.locator("form.limit-form");
-  await form.getByRole("radio", { name: kind, exact: true }).check();
+  await kindRadio(page, kind).check();
   if ("genre" in what) {
     await form.getByRole("radio", { name: "A genre", exact: true }).check();
     await form.locator('select[name="genre"]').selectOption({ label: what.genre });
@@ -92,14 +102,14 @@ async function addLimit(page: Page, kind: "Hard limit" | "Prefer not", what: { g
   // Wait for the add's outcome to render (one more chip, or an error)
   // before the test reads the database or fills the form again: a form
   // filled before the re-render lands gets reset under it.
-  const chipsBefore = await page.locator("#limits .my-limits .chip").count();
+  const chipsBefore = await cards(page).count();
   const done = page.waitForResponse((r) => r.request().method() === "POST");
-  await form.getByRole("button", { name: "Add" }).click();
+  await form.getByRole("button", { name: "Add limit" }).click();
   await done;
   await expect
     .poll(async () => {
-      const chipsNow = await page.locator("#limits .my-limits .chip").count();
-      const alerts = await page.locator("#limits").getByRole("alert").count();
+      const chipsNow = await cards(page).count();
+      const alerts = await page.locator("main").getByRole("alert").count();
       return chipsNow > chipsBefore || alerts > 0;
     })
     .toBe(true);
@@ -128,17 +138,19 @@ test.describe("Your limits in this club", () => {
     ]);
     const urls = recordRequestUrls(page);
     await signInAsUser(page, c.users.mia);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(section(page)).toContainText("These apply in Limits Club only. Two hard limits each.");
+    await page.goto(limitsPage(c.clubId));
+    await expect(page.locator(".page-title")).toHaveText("Your limits in Limits Club");
+    await expect(section(page)).toContainText("Only you see these. Nobody is told why a film is missing.");
+    await expect(section(page)).toContainText("Those films never come up. 0 of 2 used.");
     await expect(section(page)).toContainText("A change counts from the next time films are checked");
     await expect(section(page)).toContainText("No limits set for this club.");
     // No switch until there's a limit.
     await expect(page.getByRole("switch")).toHaveCount(0);
 
-    await addLimit(page, "Hard limit", { genre: "Western" });
-    await addLimit(page, "Hard limit", { minutes: "120" });
-    await addLimit(page, "Prefer not", { genre: "Romance" });
-    await expect(chips(page)).toHaveText(["Hard limit: Western", "Hard limit: Nothing over 2h", "Prefer not: Romance"]);
+    await addLimit(page, "Never", { genre: "Western" });
+    await addLimit(page, "Never", { minutes: "120" });
+    await addLimit(page, "Rather not", { genre: "Romance" });
+    expect(await limitWords(page)).toEqual(["Never: Western", "Never: Nothing over 2h", "Rather not: Romance"]);
     expect((await limitsOf(c.members.mia)).map((r) => [r.kind, r.ruleType, r.value]).sort()).toEqual([
       ["hard", "genre", "37"],
       ["hard", "runtime", "120"],
@@ -146,29 +158,29 @@ test.describe("Your limits in this club", () => {
     ]);
 
     // At two hard limits the form says so and only offers a preference.
-    await expect(page.locator(".limit-cap")).toHaveText("You have two hard limits. Remove one, or add this as a preference.");
-    await expect(page.locator("form.limit-form").getByRole("radio", { name: "Hard limit", exact: true })).toBeDisabled();
+    await expect(page.locator(".limit-cap")).toHaveText("You've used both Nevers. Remove one, or choose Rather not.");
+    await expect(kindRadio(page, "Never")).toBeDisabled();
     // A forged third: refused on the server with the same message.
     const form = page.locator("form.limit-form");
-    await form.getByRole("radio", { name: "Hard limit", exact: true }).evaluate((el) => {
+    await kindRadio(page, "Never").evaluate((el) => {
       (el as HTMLInputElement).disabled = false;
       (el as HTMLInputElement).checked = true;
     });
     await form.locator('select[name="genre"]').selectOption({ label: "Thriller" });
     await form.getByRole("button", { name: "Add" }).click();
     await expect(section(page).getByRole("alert")).toHaveText(
-      "You have two hard limits. Remove one, or add this as a preference.",
+      "You've used both Nevers. Remove one, or choose Rather not.",
     );
     expect((await limitsOf(c.members.mia)).filter((r) => r.kind === "hard")).toHaveLength(2);
 
     // A duplicate, even as the other kind.
-    await addLimit(page, "Prefer not", { genre: "Western" });
+    await addLimit(page, "Rather not", { genre: "Western" });
     await expect(section(page).getByRole("alert")).toHaveText("You already have that one.");
     expect(await limitsOf(c.members.mia)).toHaveLength(3);
 
     // Remove one.
-    await page.getByRole("button", { name: "Remove Hard limit: Nothing over 2h" }).click();
-    await expect(chips(page)).toHaveText(["Hard limit: Western", "Prefer not: Romance"]);
+    await page.getByRole("button", { name: "Remove Never: Nothing over 2h" }).click();
+    await expect.poll(() => limitWords(page)).toEqual(["Never: Western", "Rather not: Romance"]);
     await expect(page.locator(".limit-cap")).toHaveCount(0);
 
     // No limit value or label ever in a URL.
@@ -183,21 +195,21 @@ test.describe("Your limits in this club", () => {
       { key: "liv", name: "Liv P.", role: "member" },
     ]);
     await signInAsUser(page, c.users.liv);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await addLimit(page, "Hard limit", { genre: "Western" });
-    await addLimit(page, "Prefer not", { minutes: "150" });
-    await expect(chips(page)).toHaveCount(2);
+    await page.goto(limitsPage(c.clubId));
+    await addLimit(page, "Never", { genre: "Western" });
+    await addLimit(page, "Rather not", { minutes: "150" });
+    await expect(cards(page)).toHaveCount(2);
 
     for (const who of [c.users.owner, c.users.ada, c.users.max]) {
       await signInAsUser(page, who);
-      for (const path of [`/clubs/${c.clubId}/members`, `/clubs/${c.clubId}`, `/clubs/${c.clubId}/history`, "/", "/settings"]) {
+      for (const path of [`/clubs/${c.clubId}/members`, limitsPage(c.clubId), `/clubs/${c.clubId}`, `/clubs/${c.clubId}/history`, "/", "/settings"]) {
         await page.goto(path);
         // What Liv's chips say, anywhere on the page. ("Western" alone is
         // fine: it's an option in everyone's own add form.)
-        await expect(page.locator("body"), `${who} ${path}`).not.toContainText("Hard limit: Western");
-        await expect(page.locator("body"), `${who} ${path}`).not.toContainText(/Prefer not: Nothing over \d/);
+        await expect(page.locator("body"), `${who} ${path}`).not.toContainText(/Never:? ?Western/);
+        await expect(page.locator("body"), `${who} ${path}`).not.toContainText(/Rather not: ?Nothing over \d/);
       }
-      await page.goto(`/clubs/${c.clubId}/members`);
+      await page.goto(limitsPage(c.clubId));
       await expect(section(page)).toContainText("No limits set for this club.");
     }
   });
@@ -208,8 +220,8 @@ test.describe("Your limits in this club", () => {
       { key: "fay", name: "Fay F.", role: "member" },
     ]);
     await signInAsUser(page, c.users.owner);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await addLimit(page, "Hard limit", { genre: "Western" });
+    await page.goto(limitsPage(c.clubId));
+    await addLimit(page, "Never", { genre: "Western" });
     const [mine] = await limitsOf(c.members.owner);
 
     // The owner's Remove button loaded, then that limit made Fay's: the post
@@ -218,12 +230,12 @@ test.describe("Your limits in this club", () => {
     try {
       const stale = await context.newPage();
       await signInAsUser(stale, c.users.owner);
-      await stale.goto(`/clubs/${c.clubId}/members`);
+      await stale.goto(limitsPage(c.clubId));
       await withDb((db) =>
         db.update(schema.constraints).set({ membershipId: c.members.fay }).where(eq(schema.constraints.id, mine.id)),
       );
       const response = stale.waitForResponse((r) => r.request().method() === "POST");
-      await stale.getByRole("button", { name: "Remove Hard limit: Western" }).click();
+      await stale.getByRole("button", { name: "Remove Never: Western" }).click();
       expect((await response).status()).toBe(500);
     } finally {
       await context.close();
@@ -256,8 +268,8 @@ test.describe("Your limits in this club", () => {
     await expect(page.locator("main")).toContainText(split.hit.title);
 
     await signInAsUser(page, c.users.owner);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await addLimit(page, "Hard limit", { genre: split.genre.label });
+    await page.goto(limitsPage(c.clubId));
+    await addLimit(page, "Never", { genre: split.genre.label });
 
     await signInAsUser(page, c.users.pia);
     await page.goto(`/clubs/${c.clubId}`);
@@ -314,19 +326,19 @@ test.describe("Your limits in this club", () => {
       { key: "dee", name: "Dee A.", role: "member" },
     ]);
     await signInAsUser(page, c.users.dee);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await addLimit(page, "Hard limit", { genre: split.genre.label });
-    await addLimit(page, "Prefer not", { minutes: "200" });
-    const toggle = page.getByRole("switch", { name: "Apply my limits even on weeks I'm out" });
+    await page.goto(limitsPage(c.clubId));
+    await addLimit(page, "Never", { genre: split.genre.label });
+    await addLimit(page, "Rather not", { minutes: "200" });
+    const toggle = page.getByRole("switch", { name: "Also on weeks I'm not coming" });
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await toggle.click();
-    await expect(page.getByRole("switch", { name: "Apply my limits even on weeks I'm out" })).toHaveAttribute(
+    await expect(page.getByRole("switch", { name: "Also on weeks I'm not coming" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     expect((await limitsOf(c.members.dee)).map((r) => r.appliesWhenAbsent)).toEqual([true, true]);
     // A new row copies the switch.
-    await addLimit(page, "Prefer not", { genre: "Romance" });
+    await addLimit(page, "Rather not", { genre: "Romance" });
     expect((await limitsOf(c.members.dee)).every((r) => r.appliesWhenAbsent)).toBe(true);
 
     // An open night where the excluded film would win; Dee says no.

@@ -103,9 +103,13 @@ function saturdays(weeksAhead: number) {
   return { chosen, chosenIso: iso(chosen), fridayIso: iso(addDays(chosen, -1)), pastIso: iso(lastSat) };
 }
 
+// The club's details are the "The club" group of How this club runs (u6),
+// opened for editing with ?edit=club.
 const detailsForm = (page: Page) => page.locator("form.club-details-form");
-const detailsAlert = (page: Page) => page.locator("#club-settings .details-error");
-const saveDetails = (page: Page) => page.getByRole("button", { name: "Save details" });
+const detailsAlert = (page: Page) => page.locator("#club .details-error");
+const saveDetails = (page: Page) => detailsForm(page).getByRole("button", { name: "Save" });
+const savedStatus = (page: Page) => page.locator("#club").getByRole("status");
+const editDetails = (clubId: string) => `/clubs/${clubId}/members/settings?edit=club`;
 
 test.describe("club details", () => {
   test("an admin renames the club and moves the time: the header and the / card follow", async ({ page }) => {
@@ -116,12 +120,12 @@ test.describe("club details", () => {
       ]),
     );
     await signInAsUser(page, c.users.ava);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(editDetails(c.clubId));
     const form = detailsForm(page);
     await form.getByLabel("Club name", { exact: true }).fill("New Name Club");
     await form.getByLabel("Time", { exact: true }).fill("19:30");
     await saveDetails(page).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toContainText("applies from the next night");
+    await expect(savedStatus(page)).toContainText("applies from the next night");
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("New Name Club");
     await expect(page.locator("main").getByText("Weekly, Saturdays at 7:30pm · In person")).toBeVisible();
@@ -147,11 +151,11 @@ test.describe("club details", () => {
     const [draft] = await inFlight(c.clubId);
     expect(draft.state).toBe("draft");
 
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(editDetails(c.clubId));
     await detailsForm(page).locator('select[name="defaultDay"]').selectOption("5");
     await detailsForm(page).getByLabel("Time", { exact: true }).fill("18:15");
     await saveDetails(page).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toBeVisible();
+    await expect(savedStatus(page)).toBeVisible();
 
     // Untouched.
     const [still] = await inFlight(c.clubId);
@@ -187,7 +191,7 @@ test.describe("club details", () => {
     const c = await withDb((db) => clubWith(db, "Fortnight Club", [{ key: "omar", role: "owner" }]));
     const sat = saturdays(3);
     await signInAsUser(page, c.users.omar);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(editDetails(c.clubId));
     const form = detailsForm(page);
     await expect(form.getByLabel("First night on", { exact: true })).toBeHidden();
     await form.locator('select[name="cadence"]').selectOption("biweekly");
@@ -214,7 +218,7 @@ test.describe("club details", () => {
 
     await form.getByLabel("First night on", { exact: true }).fill(sat.chosenIso);
     await saveDetails(page).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toBeVisible();
+    await expect(savedStatus(page)).toBeVisible();
     row = await clubRow(c.clubId);
     expect([row.cadence, row.name, row.settings]).toEqual([
       "biweekly",
@@ -232,7 +236,7 @@ test.describe("club details", () => {
   test("no fixed schedule isn't offered; an ad hoc club can move to a fixed one", async ({ page }) => {
     const c = await withDb((db) => clubWith(db, "Loose Club", [{ key: "opal", role: "owner" }], "ad_hoc"));
     await signInAsUser(page, c.users.opal);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(editDetails(c.clubId));
     const cadence = detailsForm(page).locator('select[name="cadence"]');
     await expect(cadence.locator("option")).toHaveText(["Weekly", "Every other week", "Monthly"]);
 
@@ -250,14 +254,14 @@ test.describe("club details", () => {
 
     await detailsForm(page).locator('select[name="cadence"]').selectOption("weekly");
     await saveDetails(page).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toBeVisible();
+    await expect(savedStatus(page)).toBeVisible();
     expect((await clubRow(c.clubId)).cadence).toBe("weekly");
     // And it schedules again.
     await page.goto(`/clubs/${c.clubId}`);
     expect((await inFlight(c.clubId)).map((n) => n.state)).toEqual(["draft"]);
   });
 
-  test("a member sees the details but no form; a post from someone not owner or admin is refused", async ({
+  test("a member gets a 404 on the settings page; a post from someone not owner or admin is refused", async ({
     page,
     browser,
   }) => {
@@ -268,16 +272,16 @@ test.describe("club details", () => {
       ]),
     );
     await signInAsUser(page, c.users.mel);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator(".club-settings-values")).toContainText("Weekly, Saturdays at 8:00pm · In person");
-    await expect(page.locator(".club-settings-values")).toContainText(TZ);
-    await expect(detailsForm(page)).toHaveCount(0);
+    // Since u6 (ruled 2026-11-27) only owners and admins see how the club
+    // runs: a plain member gets a 404, form or not.
+    // (A request, not a page load: a 404 page logs a console error.)
+    expect((await page.request.get(editDetails(c.clubId))).status()).toBe(404);
 
     const context = await browser.newContext();
     try {
       const owner = await context.newPage();
       await signInAsUser(owner, c.users.oona);
-      await owner.goto(`/clubs/${c.clubId}/members`);
+      await owner.goto(editDetails(c.clubId));
       await detailsForm(owner).getByLabel("Club name", { exact: true }).fill("Taken Over");
       await withDb((db) =>
         db.update(schema.memberships).set({ role: "member" }).where(eq(schema.memberships.id, c.members.oona)),

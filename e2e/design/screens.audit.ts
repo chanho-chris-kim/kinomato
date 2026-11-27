@@ -223,6 +223,11 @@ test("app screens", async ({ page, browser }) => {
     invitedByMembershipId: voting.m.ana,
   });
   const [invite] = await db.select().from(schema.invites).where(eq(schema.invites.clubId, voting.clubId));
+  // Someone asking to join with the club code (u5), for Members' card (u6).
+  const askerId = id();
+  await user("asker", askerId, "Flo F.");
+  await db.update(schema.clubs).set({ joinCode: "K7M2QX9P" }).where(eq(schema.clubs.id, voting.clubId));
+  await db.insert(schema.joinRequests).values({ clubId: voting.clubId, userId: askerId, createdAt: at(-2) });
   const locked = await club("Locked Club", { ana: "owner", ben: "member", cal: "member" });
   await night(locked, locked.m.ben, "locked", {
     scheduledAt: at(50),
@@ -319,16 +324,26 @@ test("app screens", async ({ page, browser }) => {
   await shoot(page, "tag-page", `/clubs/${revealed.clubId}/tags/cozy`);
   await shoot(page, "members-owner", `/clubs/${voting.clubId}/members`);
   await shoot(page, "members-owner-remove-confirm", `/clubs/${voting.clubId}/members?remove=${voting.m.dee}`);
+  // The Members sub-pages (u6).
+  await shoot(page, "members-person", `/clubs/${voting.clubId}/members/${voting.m.dee}`);
+  await shoot(page, "members-person-transfer-confirm", `/clubs/${voting.clubId}/members/${voting.m.dee}?transfer=1`);
+  await shoot(page, "members-limits", `/clubs/${voting.clubId}/members/limits`);
+  await shoot(page, "members-settings", `/clubs/${voting.clubId}/members/settings`);
+  await shoot(page, "members-settings-edit-voting", `/clubs/${voting.clubId}/members/settings?edit=voting`);
+  await shoot(page, "members-settings-edit-club", `/clubs/${voting.clubId}/members/settings?edit=club`);
+  await shoot(page, "members-pause", `/clubs/${voting.clubId}/members/settings/pause`);
   await as(U.dee);
   await shoot(page, "tonight-nominate-none-fits", `/clubs/${noneFits.clubId}`);
   await as(U.ben);
   await shoot(page, "members-admin", `/clubs/${voting.clubId}/members`);
+  await shoot(page, "members-admin-person", `/clubs/${voting.clubId}/members/${voting.m.dee}`);
   await as(U.cal);
   await shoot(page, "tonight-voting-not-voted", `/clubs/${voting.clubId}`);
   // Cal never answered for Rating Club's night: "I was there" (u1).
   await shoot(page, "tonight-i-was-there", `/clubs/${rating.clubId}`);
   await shoot(page, "members-member", `/clubs/${voting.clubId}/members`);
   await shoot(page, "members-member-leave-confirm", `/clubs/${voting.clubId}/members?leave=1`);
+  await shoot(page, "members-member-limits", `/clubs/${voting.clubId}/members/limits`);
   await as(fay);
   await shoot(page, "consent", "/consent");
   await as(gus);

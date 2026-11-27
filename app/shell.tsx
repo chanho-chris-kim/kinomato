@@ -56,6 +56,7 @@ export function GlobalShell({
   header,
   rail,
   reserveRail = false,
+  wide = false,
   children,
 }: {
   // null: no global section is current (the legal pages, signed in).
@@ -68,6 +69,10 @@ export function GlobalShell({
   // its own (Members), so switching tabs doesn't move or resize the main
   // column. Empty, not a landmark: there's no content to announce.
   reserveRail?: boolean;
+  // A wider main column with no rail, for a page that lays out its own two
+  // columns (the Members page from 900px, u6: its right column replaces
+  // the club rail).
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -88,7 +93,7 @@ export function GlobalShell({
         </nav>
       </header>
       <div className="body">
-        <main className="main">
+        <main className={wide ? "main wide" : "main"}>
           {header}
           {children}
         </main>

@@ -111,7 +111,7 @@ test.describe("display name", () => {
       // Everywhere a name shows: the rail, Members, and the export.
       await expect(page.getByRole("complementary", { name: "Club context" })).toContainText("Alfie the Great (you)");
       await page.goto(`/clubs/${c.clubId}/members`);
-      await expect(page.locator("main .member-name").filter({ hasText: "(you)" })).toHaveText(["Alfie the Great (you)"]);
+      await expect(page.locator("main .people-list .person-name").filter({ hasText: "(you)" })).toHaveText(["Alfie the Great (you)"]);
       const exported = await (await page.request.get("/settings/export")).json();
       expect(exported.account.display_name).toBe("Alfie the Great");
     } finally {

@@ -501,8 +501,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   **A limit added or removed takes effect at the next point it's checked
   (ruled 2026-11-12):** the next nomination, or the lock of a vote already
   open. **Only the person sees and changes their own limits**: the
-  Members tab's "Your limits in this club" renders for the viewer's own
-  membership only, and `addLimit`, `removeLimit` and
+  limits page (`/clubs/[clubId]/members/limits`, u6) renders the viewer's
+  own membership only, and `addLimit`, `removeLimit` and
   `setLimitsApplyWhenAbsent` act on the signed-in person's membership,
   never a client-supplied one. Write-time validation is
   `lib/constraintForm.ts`; the two-hard-limit cap is also enforced by a
@@ -879,8 +879,10 @@ Do not quietly change these — they encode decisions that took a while to reach
   Members tab; anything else with no night in flight gets the generic
   "No open vote right now".
 - **How this club runs (club settings) and pause, ruled 2026-11-10**
-  (`docs/onboarding-spec.md` §5.10). Every member sees the settings;
-  **owner and admin change them, with equal powers**, through the one
+  (`docs/onboarding-spec.md` §5.10). ~~Every member sees the settings~~
+  **Amended 2026-11-27 (u6, approved by Chanho): only owners and admins
+  see them**, on `/clubs/[clubId]/members/settings`; anyone else gets a
+  404. **Owner and admin change them, with equal powers**, through the one
   role gate in `app/clubs/[clubId]/actions.ts` (`requireOwnerOrAdmin`,
   also used by closing voting and invites), re-checked on every call.
   **Changes apply from the next time they matter and never rewrite a
@@ -1051,12 +1053,13 @@ Do not quietly change these — they encode decisions that took a while to reach
   glance" in the main column on phones. On History it's the club's
   member list, with the viewer's row marked "(you)" in words plus the
   accent highlight (`app/clubs/[clubId]/memberViews.tsx`), and for owners
-  and admins an "Add a person →" link to the Members tab's form. It's
-  absent on the Members tab, where it would repeat the main column, but
-  its space is kept, empty (`GlobalShell`'s `reserveRail`, a plain
-  `aria-hidden` column, not a landmark), so switching between the tabs
-  never moves or resizes the main column. The tag page shows the club
-  tabs too, so it reserves the same space. Nothing
+  and admins an "Add a person →" link to the invite page. It's absent on
+  the Members pages: since u6 (2026-11-27) the Members page lays out its
+  own two columns from 900px in a wider main column (`GlobalShell`'s
+  `wide`), and its right column (Just for you, Club settings, Leave)
+  replaces the rail; the sub-pages are a single column. History and the
+  tag page keep the rail or its reserved space (`reserveRail`, a plain
+  `aria-hidden` column, not a landmark). Nothing
   about who's in the club or inviting ever depends on a 1120px+ viewport —
   the Members tab has all of it at every width, and most of this club's
   members are on phones. Pages with no
@@ -1281,6 +1284,66 @@ Do not quietly change these — they encode decisions that took a while to reach
     deletion its requests; leaving or removal neither. Retention: decided
     or cancelled 90 days after the decision, pending after 30 days, tries
     after a day.
+- **The Members redesign (ruled 2026-11-27, approved by Chanho; built
+  u6).** The sub-pages ruled 2026-11-24, all under the Members tab
+  (§5.10): every one has the club header and the tabs with Members
+  current.
+  - **`/clubs/[clubId]/members`**, in order: "Asking to join" (owner or
+    admin, only while someone's asking: initials, display name, "Used the
+    club code · {time} ago", "Let them in", the page's one filled button,
+    on the first request only, and "Decline"); "People · n of 6" (initials,
+    name, "(you)", role in words, "Passed this turn"; a 44px "⋯", labelled
+    "Manage {name}", only beside someone `lib/roles.ts` lets the viewer
+    act on; "+ Invite" for owners and admins; each pending invite one line,
+    "Invited: {name} · not started yet" or "started signing up", to the
+    invite page); "Just for you" ("Your limits", "1 never · 1 rather not" or
+    "None set", the viewer's own counts only); "Club settings" (owner or
+    admin: How this club runs, "Weekly · Sat 8:00pm · 3 films"; Club code,
+    "On · XXXX-XXXX" or "Off"; Pause the club, "Running" or "Paused"); and
+    "Leave this club", a danger-outlined button to the existing two-tap
+    leave. A plain member sees People (no ⋯), Just for you and Leave. From
+    900px two columns: Asking and People left; Just for you, Club settings
+    and Leave right, in place of the rail.
+  - **"Not opened yet" isn't shown:** opening an invite link records
+    nothing (link previews open every URL, §7), so the line says what is
+    known, whether they've started signing up.
+  - **`members/[membershipId]`** (manage a person): a 404 unless the viewer
+    may take at least one action on them. Initials, name, "{Role} · joined
+    {Mon D}"; a Role card with only the allowed actions ("Make {name} an
+    admin", "Remove admin", "Hand the club over to {name}" with its
+    confirm); a danger card, "Remove from the club", with its confirm. The
+    same actions and server checks; old `?transfer=`/`?remove=` links
+    redirect here.
+  - **`members/limits`** (anyone, their own only): "Your limits in {club}",
+    "Only you see these. Nobody is told why a film is missing.", the limits
+    as cards with Remove, then "Add a limit": "How strict?" as two radio
+    cards, "About what?" as a three-way segmented radio, the matching
+    field, "Add limit"; the "Also on weeks I'm not coming" switch (a submit
+    button with `role="switch"`); when a change counts.
+  - **`members/settings`** (owner or admin, else 404): "How {club} runs",
+    three groups shown as values, each with its own Edit (`?edit=club`,
+    `voting` or `after`), which opens that group alone as a form; the
+    others stay values. **A group saves only its own fields**: the other
+    group's come from what's stored (`lib/clubSettings.ts`
+    `groupSettingsFields`), then the usual readers validate. Then the
+    club code card and a Pause row → `members/settings/pause`.
+  - **Old anchors:** `#limits`, `#club-settings`, `#club-details`,
+    `#join-code` and `#add-person` land on their new pages through
+    `OldAnchorRedirect` (`app/clubs/[clubId]/members/OldAnchorRedirect.tsx`,
+    the seventh justified client component: a hash never reaches the
+    server).
+  - **The invite page** took over the old list's per-invite actions: "Show
+    link" (to share it again) and "New link" (regenerate), beside Cancel.
+  - **Wording:** a hard limit is **"Never"** ("Those films never come
+    up."), a soft preference **"Rather not"** ("Only a gentle warning."),
+    everywhere a person reads them (`lib/constraintForm.ts`
+    `LIMIT_KIND_WORDS`; the cap reads "You've used both Nevers. Remove one,
+    or choose Rather not."). Internal names (hard/soft, the enum, the
+    columns, the export's keys) don't change. The Privacy page's draft
+    still says "Limits and preferences"; it's on the lawyer's list.
+  - **One new colour, `--danger` #cc6b63** (5.27:1 on `--bg`, 4.89:1 on
+    `--card`), for Remove, Leave and Delete only (`.btn.danger`,
+    `.card.danger-card`).
 - **Onboarding guidance (ruled 2026-11-25).** A step bar exists only
   during sign-up and on Tonight's week. The guided first-time tour
   (`docs/roadmap.md`) stays separate.

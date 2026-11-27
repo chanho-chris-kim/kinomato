@@ -77,41 +77,47 @@ test.describe("club tabs", () => {
     await page.goto(`${CLUB_URL}/members`);
     await expect(memberNames(page)).toHaveCount(6);
     await expect(memberNames(page).filter({ hasText: "(you)" })).toHaveText([`${DISPLAY_NAME.dana} (you)`]);
-    const myCard = page.locator("main li.card", { hasText: `${DISPLAY_NAME.dana} (you)` });
-    await expect(myCard).toHaveCSS("border-top-color", color);
-    await expect(myCard.locator(".you")).toHaveCSS("color", color);
-    // Every other card keeps the ordinary border.
-    await expect(page.locator("main li.card", { hasText: DISPLAY_NAME.marco })).not.toHaveCSS(
+    // The People row (u6): "(you)" in the accent, and the accent ring on
+    // the avatar; every other avatar keeps the ordinary one.
+    const myRow = page.locator("main .person-row", { hasText: `${DISPLAY_NAME.dana} (you)` });
+    await expect(myRow.locator(".avatar")).toHaveCSS("border-top-color", color);
+    await expect(myRow.locator(".you")).toHaveCSS("color", color);
+    await expect(page.locator("main .person-row", { hasText: DISPLAY_NAME.marco }).locator(".avatar")).not.toHaveCSS(
       "border-top-color",
       color,
     );
   });
 
-  test("on a phone, Members (with Add a person) fits the screen", async ({ page }) => {
+  test("on a phone, Members (with + Invite) fits the screen", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await signInAs(page, MEMBERSHIP_8.hana); // owner of a club with free seats
     await page.goto(`/clubs/${CLUB_8_ID}/members`);
-    await page.getByRole("link", { name: "Add a person", exact: true }).scrollIntoViewIfNeeded();
-    await expect(page.getByRole("link", { name: "Add a person", exact: true })).toBeInViewport({ ratio: 1 });
+    await page.getByRole("link", { name: "+ Invite", exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole("link", { name: "+ Invite", exact: true })).toBeInViewport({ ratio: 1 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 
-  test("at 1280px the main column doesn't move or resize between Tonight, Members, History and a tag page", async ({
+  test("at 1280px the main column doesn't move or resize between Tonight, History and a tag page; Members lays out its own two columns", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(CLUB_URL);
     await expect(rail(page)).toBeVisible();
     const tonight = await page.locator("main.main").boundingBox();
-    await clubTabs(page).getByRole("link", { name: "Members" }).click();
-    await expect(page).toHaveURL(`${CLUB_URL}/members`);
-    await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
-    const members = await page.locator("main.main").boundingBox();
     expect(tonight).not.toBeNull();
     // Same column: left edge, top and width. Height is just how much each
     // tab has to say.
     const column = (b: typeof tonight) => b && { x: b.x, y: b.y, width: b.width };
-    expect(column(members)).toEqual(column(tonight));
+
+    // Members (u6, ruled 2026-11-27): its right column replaces the rail.
+    await clubTabs(page).getByRole("link", { name: "Members" }).click();
+    await expect(page).toHaveURL(`${CLUB_URL}/members`);
+    await expect(page.getByRole("heading", { name: /^People · / })).toBeVisible();
+    await expect(rail(page)).toHaveCount(0);
+    const left = await page.locator(".people-card").boundingBox();
+    const right = await page.locator(".just-for-you").boundingBox();
+    expect(right!.x).toBeGreaterThan(left!.x + left!.width - 1);
 
     // History, and the tag page under it, keep the same column too.
     await clubTabs(page).getByRole("link", { name: "History" }).click();
@@ -144,22 +150,21 @@ test.describe("club tabs", () => {
   test("Members has no rail", async ({ page }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(`${CLUB_URL}/members`);
-    await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^People · / })).toBeVisible();
     await expect(rail(page)).toHaveCount(0);
   });
 
-  test("a non-owner sees Members and Invited, but no invite controls and no Add a person", async ({
+  test("a non-owner sees Members and who's invited, but no invite controls and no + Invite", async ({
     page,
   }) => {
     await signInAs(page, MEMBERSHIP.dana);
     await page.goto(`${CLUB_URL}/members`);
     // Movie Night Crew's seeded pending invite (db/seed.ts).
-    await expect(page.getByRole("heading", { name: "Invited" })).toBeVisible();
-    await expect(page.locator("main .card", { hasText: "Zed Q." })).toContainText("Not started");
-    await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Regenerate" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Add a person" })).toHaveCount(0);
-    await expect(page.locator("#add-person")).toHaveCount(0);
+    // One line per pending invite (u6), not a link for a plain member.
+    await expect(page.locator(".invited-row", { hasText: "Zed Q." })).toHaveText("Invited: Zed Q. · not started yet");
+    await expect(page.locator(".invited-list a")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Revoke|Regenerate|Cancel|New link/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "+ Invite" })).toHaveCount(0);
   });
 
   test("first run: a new club's owner gets the getting-started list, whose Invite people lands on the invite page", async ({
@@ -191,8 +196,8 @@ test.describe("club tabs", () => {
     await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 5 seats left.");
     // No Invited section on Members when nothing is pending.
     await page.goto(`${clubPath}/members`);
-    await expect(page.getByText("1 of 6 seats.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Invited" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "People · 1 of 6" })).toBeVisible();
+    await expect(page.locator(".invited-list")).toHaveCount(0);
     await expect(memberNames(page)).toHaveText(["Tess V. (you)"]);
   });
 

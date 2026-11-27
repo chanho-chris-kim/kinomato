@@ -1175,6 +1175,34 @@ full.
 - **Onboarding guidance**: a step bar only during sign-up and on Tonight's
   week; the guided tour is separate.
 
+### 5.14 Rulings, 2026-11-27 (approved by Chanho): the Members redesign (u6)
+
+CLAUDE.md has them in full. Everything stays under the Members tab
+(§5.10), as the sub-pages ruled 2026-11-24 say.
+
+- **The Members page:** Asking to join (owner or admin, while someone's
+  asking, "Let them in" the one filled button), People · n of 6 (a "⋯" to
+  manage someone only where `lib/roles.ts` allows an action; "+ Invite";
+  pending invites one line each), Just for you (Your limits, a count of
+  your own), Club settings (owner or admin: How this club runs, Club code,
+  Pause the club), and Leave this club. Two columns from 900px; the right
+  one replaces the rail. A plain member sees People, Just for you and
+  Leave.
+- **Manage a person** (`members/{membershipId}`): only the actions the
+  viewer may take, each with its confirm; a 404 when there are none.
+- **Your limits** (`members/limits`): Never or Rather not as two radio
+  cards, A genre / A length / A topic as a segmented control, the "Also on
+  weeks I'm not coming" switch.
+- **How {club} runs** (`members/settings`, owner or admin, else 404): three
+  groups as values, each edited alone; the club code; pausing on its own
+  small page. **This amends §5.10's "every member sees the settings":
+  plain members no longer see them.**
+- **Wording:** "Hard limit / Prefer not" become **"Never / Rather not"**
+  wherever a person reads them; internal names don't change.
+- **A pending invite says "not started yet" or "started signing up"**, not
+  "not opened yet": §7 records nothing when an invite link is opened.
+- **One danger colour**, `--danger`, for Remove, Leave and Delete.
+
 ---
 
 ## 6. Watchlists: global per person

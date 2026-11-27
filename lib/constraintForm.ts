@@ -36,7 +36,15 @@ export const MOVIE_GENRES: { id: number; label: string }[] = [
 
 export const MIN_RUNTIME_LIMIT = 30;
 export const MAX_RUNTIME_LIMIT = 400;
-export const HARD_LIMIT_CAP_MESSAGE = "You have two hard limits. Remove one, or add this as a preference.";
+// The words a person reads (ruled 2026-11-27): "Never" for a hard limit,
+// "Rather not" for a soft preference. Internal names (hard/soft, the enum,
+// the columns) don't change.
+export const LIMIT_KIND_WORDS = {
+  hard: { label: "Never", explain: "Those films never come up." },
+  soft: { label: "Rather not", explain: "Only a gentle warning." },
+} as const;
+
+export const HARD_LIMIT_CAP_MESSAGE = "You've used both Nevers. Remove one, or choose Rather not.";
 
 export interface NewLimit {
   kind: "hard" | "soft";
@@ -56,7 +64,7 @@ export function readLimitForm(
   existing: Existing[],
 ): { ok: true; limit: NewLimit } | { ok: false; error: string } {
   const kind = text(fields.kind);
-  if (kind !== "hard" && kind !== "soft") return { ok: false, error: "Choose hard limit or preference." };
+  if (kind !== "hard" && kind !== "soft") return { ok: false, error: "Choose Never or Rather not." };
   const ruleType = text(fields.ruleType);
   if (ruleType !== "genre" && ruleType !== "runtime" && ruleType !== "topic") {
     return { ok: false, error: "Choose a genre, a length or a topic." };
@@ -94,16 +102,26 @@ export function readLimitForm(
   return { ok: true, limit };
 }
 
-// "Hard limit: Horror", "Prefer not: Nothing over 2h 15m".
-export function describeLimit(limit: { kind: "hard" | "soft"; ruleType: string; value: string; label: string | null }): string {
-  const prefix = limit.kind === "hard" ? "Hard limit" : "Prefer not";
-  let what: string;
+// "Horror", "Nothing over 2h 15m": what a limit is about, for a card that
+// shows its kind on its own.
+export function describeLimitValue(limit: { ruleType: string; value: string; label: string | null }): string {
   if (limit.ruleType === "genre") {
-    what = MOVIE_GENRES.find((g) => String(g.id) === limit.value)?.label ?? limit.label ?? "A genre";
-  } else if (limit.ruleType === "runtime") {
-    what = `Nothing over ${formatRuntime(Number(limit.value))}`;
-  } else {
-    what = limit.label ?? limit.value;
+    return MOVIE_GENRES.find((g) => String(g.id) === limit.value)?.label ?? limit.label ?? "A genre";
   }
-  return `${prefix}: ${what}`;
+  if (limit.ruleType === "runtime") return `Nothing over ${formatRuntime(Number(limit.value))}`;
+  return limit.label ?? limit.value;
+}
+
+// "Never: Horror", "Rather not: Nothing over 2h 15m".
+export function describeLimit(limit: { kind: "hard" | "soft"; ruleType: string; value: string; label: string | null }): string {
+  return `${LIMIT_KIND_WORDS[limit.kind].label}: ${describeLimitValue(limit)}`;
+}
+
+// The Members page's "Your limits" row: "1 never · 1 rather not", or
+// "None set". Only ever given the viewer's own limits.
+export function limitSummary(limits: { kind: "hard" | "soft" }[]): string {
+  const hard = limits.filter((l) => l.kind === "hard").length;
+  const soft = limits.length - hard;
+  const parts = [hard ? `${hard} never` : "", soft ? `${soft} rather not` : ""].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "None set";
 }

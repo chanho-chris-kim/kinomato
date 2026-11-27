@@ -23,6 +23,10 @@
   --dim: #958169;
   --ok: #7fbf6a;
   --warn: #e07a5f;
+  /* Remove, Leave and Delete (u6, ruled 2026-11-27): a muted red, 5.27:1 on
+     --bg and 4.89:1 on --card, so text and outlines in it pass WCAG AA's
+     4.5:1 on both. The only colour the Members redesign adds. */
+  --danger: #cc6b63;
   /* Semantic tokens (2026-11-24), so a theme is only a set of values:
      --field-line, the edge of a field or button, 3.46:1 on --bg and 3.21:1
      on --card (WCAG's 3:1 for a control's boundary; --line, 1.23:1, stays
@@ -1395,9 +1399,10 @@ footer a::after {
   }
 }
 
-/* The club code switch (u5): a submit button with role="switch", so it
-   works without script. The track shows the state; aria-checked says it. */
-.consent-choice.join-code-switch {
+/* A switch that's a submit button with role="switch" (u5's club code, u6's
+   "Also on weeks I'm not coming"), so it works without script. The track
+   shows the state; aria-checked says it. */
+.consent-choice.switch-button {
   background: none;
   border: 0;
   padding: 0;
@@ -1406,7 +1411,7 @@ footer a::after {
   text-align: left;
   align-items: center;
 }
-.join-code-switch .switch-track {
+.switch-button .switch-track {
   position: relative;
   flex: 0 0 auto;
   width: 38px;
@@ -1415,7 +1420,7 @@ footer a::after {
   border: 1px solid var(--field-line);
   background: var(--card);
 }
-.join-code-switch .switch-track::after {
+.switch-button .switch-track::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -1425,15 +1430,15 @@ footer a::after {
   border-radius: 50%;
   background: var(--mut);
 }
-.join-code-switch[aria-checked="true"] .switch-track {
+.switch-button[aria-checked="true"] .switch-track {
   background: var(--accent);
   border-color: var(--accent);
 }
-.join-code-switch[aria-checked="true"] .switch-track::after {
+.switch-button[aria-checked="true"] .switch-track::after {
   left: 18px;
   background: var(--on-accent);
 }
-.join-code-switch:focus-visible {
+.switch-button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -1442,4 +1447,239 @@ footer a::after {
   font-family: ui-monospace, monospace;
   letter-spacing: 2px;
   font-size: 18px;
+}
+
+/* ---------- Members (u6, ruled 2026-11-27) ---------- */
+/* The Members page lays out its own two columns from 900px, so its main
+   column is wider and has no rail beside it: the right column replaces the
+   club rail. */
+@container app (min-width: 900px) {
+  .main.wide {
+    max-width: 1040px;
+  }
+  .members-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 0 20px;
+    align-items: start;
+  }
+}
+.saved-note {
+  color: var(--accent);
+}
+/* A card row that opens a page: label, current value, ›. */
+.row-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+  color: var(--fg);
+  text-decoration: none;
+  border-top: 1px solid var(--line);
+}
+.row-link:first-of-type {
+  border-top: 0;
+}
+.row-link-label,
+.row-link-value {
+  display: block;
+}
+.row-link-chevron {
+  color: var(--dim);
+  font-size: 18px;
+}
+.row-link:focus-visible,
+.manage-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.person-row:first-child {
+  border-top: 0;
+}
+.person-text {
+  min-width: 0;
+}
+.person-name,
+.person-text > .tiny {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.asking-row {
+  flex-wrap: wrap;
+}
+/* The name and "Used the club code · …" keep room for one line; on a phone
+   the two buttons wrap below them instead of squeezing them. */
+.asking-row .person-text {
+  flex: 1 1 180px;
+}
+.asking-actions {
+  margin-left: auto;
+}
+/* "⋯": a 44px target to the person's page. */
+.manage-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--mut);
+  font-size: 20px;
+  text-decoration: none;
+}
+.invited-list .row-link,
+.invited-row {
+  border-top: 0;
+}
+.avatar.large {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+}
+.person-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* Remove, Leave and Delete. */
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.card.danger-card {
+  border-color: var(--danger);
+}
+/* Settings groups: values, each group with its own Edit. */
+.values {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px 14px;
+  margin: 14px 0 0;
+  font-size: 14px;
+}
+.values dt {
+  color: var(--mut);
+  font-size: 13px;
+}
+.values dd {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+@container app (min-width: 620px) {
+  .values {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+  .values dd {
+    margin: 0;
+  }
+}
+.plain-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+/* "How strict?": two large radio cards; the whole card is the target. */
+.choice-cards {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.choice-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid var(--field-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.choice-card:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.choice-card:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.choice-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.choice-card input {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+}
+.choice-card-title,
+.choice-card-note {
+  display: block;
+}
+.choice-card-title {
+  font-size: 15px;
+}
+/* "About what?": a three-way segmented radio. */
+.segmented {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.segmented-options {
+  display: flex;
+  margin-top: 6px;
+  border: 1px solid var(--field-line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.segmented-options label {
+  flex: 1;
+  position: relative;
+}
+.segmented-options input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+}
+.segmented-options span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--mut);
+  text-align: center;
+}
+.segmented-options label + label span {
+  border-left: 1px solid var(--field-line);
+}
+.segmented-options input:checked + span {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.segmented-options input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.limit-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.limit-card .chip {
+  margin-right: 8px;
 }

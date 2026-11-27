@@ -59,12 +59,14 @@ async function club(name: string, owner: Person, others: { who: Person; role: "a
 }
 
 const membersUrl = (clubId: string) => `/clubs/${clubId}/members`;
+// The club code is on How this club runs since u6.
+const settingsUrl = (clubId: string) => `/clubs/${clubId}/members/settings`;
 const codeSwitch = (page: Page) => page.getByRole("switch", { name: "Let people ask to join with a code" });
 const codeField = (page: Page, clubName: string) => page.getByLabel(`Club code for ${clubName}`);
 const alert = (page: Page) => page.locator("main").getByRole("alert");
 
 async function turnCodesOn(page: Page, clubId: string, clubName: string): Promise<string> {
-  await page.goto(membersUrl(clubId));
+  await page.goto(settingsUrl(clubId));
   await codeSwitch(page).click();
   await expect(codeSwitch(page)).toHaveAttribute("aria-checked", "true");
   return codeField(page, clubName).inputValue();
@@ -107,7 +109,7 @@ test.describe("club codes", () => {
     const owner = await person("Ora");
     const c = await club("Code Club", owner);
     await signInAsUser(page, owner.id);
-    await page.goto(membersUrl(c.id));
+    await page.goto(settingsUrl(c.id));
     // Off by default: no code anywhere.
     await expect(codeSwitch(page)).toHaveAttribute("aria-checked", "false");
     await expect(codeField(page, c.name)).toHaveCount(0);
@@ -231,7 +233,7 @@ test.describe("club codes", () => {
     await askToJoin(a.page, code, c.name);
 
     await page.goto(membersUrl(c.id));
-    await page.getByRole("button", { name: "Approve Dev" }).click();
+    await page.getByRole("button", { name: "Let Dev in" }).click();
     await expect(page.getByRole("status")).toContainText("They're in. We've emailed them.");
     const joined = await activeMembership(c.id, asker.id);
     expect(joined).toMatchObject({ role: "member", approvedByMembershipId: c.ownerMembership });
@@ -274,7 +276,7 @@ test.describe("club codes", () => {
     await askToJoin(a.page, code, c.name);
 
     await page.goto(membersUrl(c.id));
-    await page.getByRole("button", { name: "Approve Yan" }).click();
+    await page.getByRole("button", { name: "Let Yan in" }).click();
     await expect(alert(page)).toHaveText(`${c.name} is full. Free a seat to let them in.`);
     expect(page.url()).not.toContain("Yan");
     expect(await activeMembership(c.id, asker.id)).toBeNull();
@@ -286,14 +288,14 @@ test.describe("club codes", () => {
     const b = await asUser(browser, clash);
     await askToJoin(b.page, code, c.name);
     await page.goto(membersUrl(c.id));
-    await page.getByRole("button", { name: "Approve tam" }).click();
+    await page.getByRole("button", { name: "Let tam in" }).click();
     await expect(alert(page)).toHaveText(`Someone in ${c.name} already goes by tam.`);
     expect(page.url()).not.toMatch(/tam/i);
     expect(await activeMembership(c.id, clash.id)).toBeNull();
     expect((await requestsOf(clash.id))[0].status).toBe("pending");
 
     // Yan can be let in now.
-    await page.getByRole("button", { name: "Approve Yan" }).click();
+    await page.getByRole("button", { name: "Let Yan in" }).click();
     await expect(page.getByRole("status")).toContainText("They're in.");
     expect(await activeMembership(c.id, asker.id)).not.toBeNull();
     await a.context.close();
@@ -437,7 +439,7 @@ test.describe("club codes", () => {
     const a = await asUser(browser, asker);
     await askToJoin(a.page, code, c.name);
 
-    await page.goto(membersUrl(c.id));
+    await page.goto(settingsUrl(c.id));
     await codeSwitch(page).click();
     await expect(codeSwitch(page)).toHaveAttribute("aria-checked", "false");
     await expect(codeField(page, c.name)).toHaveCount(0);
@@ -449,7 +451,8 @@ test.describe("club codes", () => {
     await expect(alert(b.page)).toHaveText("That code didn't work. Check it with someone in the club.");
     await b.context.close();
 
-    await page.getByRole("button", { name: "Approve Ned" }).click();
+    await page.goto(membersUrl(c.id));
+    await page.getByRole("button", { name: "Let Ned in" }).click();
     await expect(page.getByRole("status")).toContainText("They're in.");
     expect(await activeMembership(c.id, asker.id)).not.toBeNull();
     await a.context.close();

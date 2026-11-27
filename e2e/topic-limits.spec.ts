@@ -103,20 +103,29 @@ const form = (page: Page) => page.locator("form.limit-form");
 const limitsOf = (membershipId: string) =>
   withDb((db) => db.select().from(schema.constraints).where(eq(schema.constraints.membershipId, membershipId)));
 
-async function addTopic(page: Page, kind: "Hard limit" | "Prefer not", topic: string) {
-  await form(page).getByRole("radio", { name: kind, exact: true }).check();
+// Since u6 (ruled 2026-11-27) your limits are their own page, and a hard
+// limit reads "Never", a preference "Rather not".
+const kindRadio = (page: Page, kind: "Never" | "Rather not") =>
+  form(page).getByRole("radio", { name: new RegExp(`^${kind}`) });
+const limitWords = (page: Page) =>
+  page
+    .locator("main .my-limits .limit-card")
+    .evaluateAll((els) => els.map((el) => `${el.querySelector(".chip")?.textContent}: ${el.querySelector(".limit-value")?.textContent}`));
+
+async function addTopic(page: Page, kind: "Never" | "Rather not", topic: string) {
+  await kindRadio(page, kind).check();
   await form(page).getByRole("radio", { name: "A topic", exact: true }).check();
   await form(page).locator('select[name="topic"]').selectOption({ label: topic });
   // Wait for the outcome to render (one more chip, or an error), not just
   // the POST: a form filled before the re-render lands gets reset under it.
-  const chipsBefore = await page.locator("#limits .my-limits .chip").count();
+  const chipsBefore = await page.locator("main .my-limits .limit-card").count();
   const done = page.waitForResponse((r) => r.request().method() === "POST");
-  await form(page).getByRole("button", { name: "Add" }).click();
+  await form(page).getByRole("button", { name: "Add limit" }).click();
   await done;
   await expect
     .poll(async () => {
-      const chipsNow = await page.locator("#limits .my-limits .chip").count();
-      const alerts = await page.locator("#limits").getByRole("alert").count();
+      const chipsNow = await page.locator("main .my-limits .limit-card").count();
+      const alerts = await page.locator("main").getByRole("alert").count();
       return chipsNow > chipsBefore || alerts > 0;
     })
     .toBe(true);
@@ -129,19 +138,19 @@ test.describe("topic limits", () => {
     const s = await setup("Gore Club");
     const urls = recordRequestUrls(page);
     await signInAsUser(page, s.users.owner);
-    await page.goto(`/clubs/${s.clubId}/members`);
+    await page.goto(`/clubs/${s.clubId}/members/limits`);
 
-    // The fail-closed hint shows for Hard limit + A topic only.
+    // The fail-closed hint shows for Never + A topic only.
     const hint = page.locator(".limit-topic-hint");
     await expect(hint).toBeHidden();
     await form(page).getByRole("radio", { name: "A topic", exact: true }).check();
-    await form(page).getByRole("radio", { name: "Hard limit", exact: true }).check();
+    await kindRadio(page, "Never").check();
     await expect(hint).toHaveText("Films with no topic information are also left out, to be safe.");
-    await form(page).getByRole("radio", { name: "Prefer not", exact: true }).check();
+    await kindRadio(page, "Rather not").check();
     await expect(hint).toBeHidden();
 
-    await addTopic(page, "Hard limit", "Gore");
-    await expect(page.locator("#limits .my-limits .chip")).toHaveText(["Hard limit: Gore"]);
+    await addTopic(page, "Never", "Gore");
+    expect(await limitWords(page)).toEqual(["Never: Gore"]);
     const [row] = await limitsOf(s.members.owner);
     expect([row.ruleType, row.label]).toEqual(["keyword", "Gore"]);
     expect(row.value.split(",")).toContain("10292");
@@ -159,9 +168,9 @@ test.describe("topic limits", () => {
   test("a topic preference hides nothing", async ({ page }) => {
     const s = await setup("Prefer Club");
     await signInAsUser(page, s.users.owner);
-    await page.goto(`/clubs/${s.clubId}/members`);
-    await addTopic(page, "Prefer not", "Gore");
-    await expect(page.locator("#limits .my-limits .chip")).toHaveText(["Prefer not: Gore"]);
+    await page.goto(`/clubs/${s.clubId}/members/limits`);
+    await addTopic(page, "Rather not", "Gore");
+    expect(await limitWords(page)).toEqual(["Rather not: Gore"]);
 
     await signInAsUser(page, s.users.pia);
     await page.goto(`/clubs/${s.clubId}`);
@@ -173,8 +182,8 @@ test.describe("topic limits", () => {
   test("a made-up topic, a raw keyword id, or a raw keyword rule is refused", async ({ page }) => {
     const s = await setup("Forged Topic Club");
     await signInAsUser(page, s.users.owner);
-    await page.goto(`/clubs/${s.clubId}/members`);
-    const alert = page.locator("#limits").getByRole("alert");
+    await page.goto(`/clubs/${s.clubId}/members/limits`);
+    const alert = page.locator("main").getByRole("alert");
 
     for (const forged of ["tarantulas", "3986", "3888,3986"]) {
       await form(page).getByRole("radio", { name: "A topic", exact: true }).check();
@@ -188,7 +197,7 @@ test.describe("topic limits", () => {
         }, forged);
       // Each refusal reads the same: wait for this one's page, or the next
       // forged form can be reset under the test (e2e/submit.ts).
-      await submitAndSettle(page, form(page).getByRole("button", { name: "Add" }), form(page).locator('select[name="topic"]'));
+      await submitAndSettle(page, form(page).getByRole("button", { name: "Add limit" }), form(page).locator('select[name="topic"]'));
       await expect(alert, forged).toHaveText("Choose a topic from the list.");
     }
 
@@ -199,7 +208,7 @@ test.describe("topic limits", () => {
         (el as HTMLInputElement).value = "keyword";
         (el as HTMLInputElement).checked = true;
       });
-    await form(page).getByRole("button", { name: "Add" }).click();
+    await form(page).getByRole("button", { name: "Add limit" }).click();
     await expect(alert).toHaveText("Choose a genre, a length or a topic.");
     expect(await limitsOf(s.members.owner)).toEqual([]);
   });

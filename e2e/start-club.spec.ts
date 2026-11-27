@@ -228,9 +228,10 @@ test.describe("Get {club} going", () => {
   test("saving how the club runs ticks Check how it runs; Hide this list hides it", async ({ page }) => {
     const owner = await person("Ivy I.", "sc-hide");
     const clubId = await startClub(page, owner, "Hide Club");
-    await page.goto(`/clubs/${clubId}/members`);
+    // Any group saved on How this club runs (u6) counts.
+    await page.goto(`/clubs/${clubId}/members/settings?edit=voting`);
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page).toHaveURL(/saved=settings/);
+    await expect(page).toHaveURL(/saved=voting/);
     await page.goto(`/clubs/${clubId}`);
     await expect(item(page, /Check how the club runs/)).toHaveClass(/done/);
 
@@ -256,7 +257,7 @@ test.describe("Invite people", () => {
     const owner = await person("Kim K.", "sc-invite");
     const clubId = await startClub(page, owner, "Invite Club");
     await page.goto(`/clubs/${clubId}/members`);
-    await page.getByRole("link", { name: "Add a person", exact: true }).click();
+    await page.getByRole("link", { name: "+ Invite", exact: true }).click();
     await expect(page).toHaveURL(`/clubs/${clubId}/members/invite`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Who's coming to Invite Club?");
     await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 5 seats left.");
@@ -273,7 +274,10 @@ test.describe("Invite people", () => {
     await expect(fresh.getByRole("button", { name: "Link copied" })).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
     await expect(page.locator(".seats-left")).toHaveText("Each person gets their own link. 4 seats left.");
-    await expect(page.locator(".waiting-list li")).toHaveText(["LouCancel"]);
+    // Each waiting invite: who, whether they've started, New link, Cancel (u6).
+    await expect(page.locator(".waiting-list li")).toHaveCount(1);
+    await expect(page.locator(".waiting-list li")).toContainText("LouNot started yet");
+    await expect(page.locator(".waiting-list li").getByRole("button", { name: "New link for Lou" })).toBeVisible();
 
     await page.getByRole("button", { name: "Cancel Lou's invite" }).click();
     await expect(page).toHaveURL(`/clubs/${clubId}/members/invite`);

@@ -31,7 +31,15 @@ import {
 } from "@/app/joinRequests";
 import { canCreateInvite, generateInviteToken } from "@/lib/invites";
 import { validateInviteeName } from "@/lib/displayName";
-import { getLockTime, getNomineesPerTurn, mergeClubSettings, readClubSettingsForm } from "@/lib/clubSettings";
+import {
+  getLockTime,
+  getNomineesPerTurn,
+  groupSettingsFields,
+  isSettingsGroup,
+  mergeClubSettings,
+  readClubSettingsForm,
+  type SettingsGroup,
+} from "@/lib/clubSettings";
 import { lockAtFor } from "@/lib/nightDeadlines";
 import { orderNominations } from "@/lib/nominationOrder";
 import { checkFirstNight, firstNightRequired, readClubDetailsForm } from "@/lib/clubDetails";
@@ -632,9 +640,10 @@ export async function regenerateInvite(clubId: string, inviteId: string) {
       ),
     )
     .returning();
-  if (!revoked) redirect(`/clubs/${clubId}/members`);
+  if (!revoked) redirect(invitePagePath(clubId, true));
   const id = await insertInvite(db, clubId, revoked.inviteeName, membership.id);
-  redirect(`/clubs/${clubId}/members?invite=${id}`);
+  // The invite page shows the new link, ready to share (u6).
+  redirect(`${invitePagePath(clubId, true)}?invite=${id}`);
 }
 
 // ---- How this club runs (docs/onboarding-spec.md §5.10, ruled 2026-11-10) ----
@@ -645,26 +654,24 @@ export async function regenerateInvite(clubId: string, inviteId: string) {
 // closes, when a night nobody confirms is logged) are written onto a night
 // when it opens and when it locks, so a change never moves one under way. Validated at write time
 // (lib/clubSettings.ts readClubSettingsForm); a mistake goes back with a
-// fixed ?settingsError= message.
-const settingsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${query}#club-settings`;
+// fixed ?settingsError= message. Since u6 (ruled 2026-11-27) on its own
+// page, one group at a time: the group's form posts only its fields, the
+// other group's come from what's stored (lib/clubSettings.ts
+// groupSettingsFields).
+const settingsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members/settings${query}`;
 
-export async function updateClubSettings(clubId: string, formData: FormData) {
+export async function updateClubSettings(clubId: string, group: SettingsGroup, formData: FormData) {
   const { db } = await requireOwnerOrAdmin(clubId, "change how the club runs");
-  const result = readClubSettingsForm({
-    nomineesPerTurn: formData.get("nomineesPerTurn"),
-    confirmAt: formData.get("confirmAt"),
-    lockTime: formData.get("lockTime"),
-    autoAdvance: formData.get("autoAdvance"),
-    showVoteCounts: formData.get("showVoteCounts"),
-  });
-  if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ settingsError: result.error })}`));
+  if (!isSettingsGroup(group)) throw new Error("No such settings group.");
   const [club] = await db.select({ settings: clubs.settings }).from(clubs).where(eq(clubs.id, clubId));
+  const result = readClubSettingsForm(groupSettingsFields(group, (key) => formData.get(key), club?.settings));
+  if (!result.ok) redirect(settingsUrl(clubId, `?${new URLSearchParams({ edit: group, settingsError: result.error })}`));
   await db
     .update(clubs)
     .set({ settings: withRunningChecked(mergeClubSettings(club?.settings, result.settings)) })
     .where(eq(clubs.id, clubId));
   revalidatePath(`/clubs/${clubId}`, "layout");
-  redirect(settingsUrl(clubId, "?saved=settings"));
+  redirect(settingsUrl(clubId, `?saved=${group}`));
 }
 
 // "Get {club} going" (u4): saving any setting or detail ticks "Check how the
@@ -711,7 +718,7 @@ export async function setClubPaused(clubId: string, paused: boolean) {
     .set({ pausedAt: paused ? new Date() : null })
     .where(eq(clubs.id, clubId));
   revalidatePath("/", "layout");
-  redirect(settingsUrl(clubId));
+  redirect(settingsUrl(clubId, "?saved=pause"));
 }
 
 // ---- Club details (docs/onboarding-spec.md §5.10, ruled 2026-11-10) ----
@@ -726,8 +733,8 @@ export async function setClubPaused(clubId: string, paused: boolean) {
 // cookie, never the URL (§11.6).
 export async function updateClubDetails(clubId: string, formData: FormData) {
   const { db } = await requireOwnerOrAdmin(clubId, "edit the club's details");
-  const membersPath = `/clubs/${clubId}/members`;
-  await clearFormEcho(membersPath);
+  const settingsPath = `/clubs/${clubId}/members/settings`;
+  await clearFormEcho(settingsPath);
   const fields = {
     name: formData.get("name"),
     cadence: formData.get("cadence"),
@@ -742,8 +749,8 @@ export async function updateClubDetails(clubId: string, formData: FormData) {
     for (const [key, value] of Object.entries({ ...fields, firstNightOn })) {
       if (typeof value === "string") echo[key] = value;
     }
-    await setFormEcho(membersPath, echo);
-    redirect(`${membersPath}?${new URLSearchParams({ detailsError: error })}#club-details`);
+    await setFormEcho(settingsPath, echo);
+    redirect(`${settingsPath}?${new URLSearchParams({ edit: "club", detailsError: error })}`);
   };
 
   const result = readClubDetailsForm(fields, { allowAdHoc: false });
@@ -764,7 +771,7 @@ export async function updateClubDetails(clubId: string, formData: FormData) {
     .set({ ...details, settings: withRunningChecked(settings) })
     .where(eq(clubs.id, clubId));
   revalidatePath("/", "layout");
-  redirect(`${membersPath}?saved=details#club-details`);
+  redirect(`${settingsPath}?saved=club`);
 }
 
 // ---- Roles and ownership (docs/onboarding-spec.md §5.10, ruled 2026-11-11) ----
@@ -797,7 +804,8 @@ async function setAdmin(clubId: string, targetMembershipId: string, newRole: "ad
       ),
     );
   revalidatePath(`/clubs/${clubId}`, "layout");
-  redirect(membersPath(clubId, "?roles=saved"));
+  // Back to their page (u6): the owner can still manage them either way.
+  redirect(`/clubs/${clubId}/members/${target.id}?roles=saved`);
 }
 
 export async function makeAdmin(clubId: string, targetMembershipId: string) {
@@ -960,7 +968,7 @@ export async function removeMember(clubId: string, targetMembershipId: string) {
   }
   await runDeparture(db, clubId, target.id, departureStatements(db, clubId, target.id, new Date()));
   revalidatePath(`/clubs/${clubId}`, "layout");
-  redirect(membersPath(clubId, "?removed=1#roles"));
+  redirect(membersPath(clubId, "?removed=1"));
 }
 
 // The last active member deletes the club: everything in it, by typing its
@@ -992,7 +1000,7 @@ export async function deleteClubAsLastMember(clubId: string, formData: FormData)
 // (lib/constraintForm.ts). A limit takes effect at the next point it's
 // checked: the next nomination, or the lock of a vote already open.
 // Messages are fixed strings; no limit value or label ever rides in a URL.
-const limitsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members${query}#limits`;
+const limitsUrl = (clubId: string, query = "") => `/clubs/${clubId}/members/limits${query}`;
 
 async function myLimits(db: ReturnType<typeof getDb>, membershipId: string) {
   return db.select().from(constraints).where(eq(constraints.membershipId, membershipId));
@@ -1122,7 +1130,7 @@ export async function setJoinCodeOn(clubId: string, on: boolean) {
   revalidatePath("/", "layout");
   // A query value, not just the hash: a redirect to the same URL with only
   // a new hash wouldn't render the page again.
-  redirect(`/clubs/${clubId}/members?code=${on ? "on" : "off"}#join-code`);
+  redirect(settingsUrl(clubId, `?code=${on ? "on" : "off"}#join-code`));
 }
 
 export async function makeNewJoinCode(clubId: string) {
@@ -1131,7 +1139,7 @@ export async function makeNewJoinCode(clubId: string) {
   // Only while codes are on: a stale tab can't turn them back on this way.
   if (club?.joinCode) await newJoinCode(db, clubId);
   revalidatePath("/", "layout");
-  redirect(`/clubs/${clubId}/members?code=new#join-code`);
+  redirect(settingsUrl(clubId, "?code=new#join-code"));
 }
 
 export async function approveJoinRequestAction(clubId: string, requestId: string) {

@@ -200,18 +200,17 @@ test.describe("Tonight", () => {
     await expect(page.locator(".vote-count")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("1 vote");
 
-    // Every member sees the setting; only the owner or an admin changes it.
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator(".club-settings-values")).toContainText("Hidden until voting closes");
-
+    // Only the owner or an admin sees and changes it (u6, 2026-11-27).
     await open(page, c, "ana");
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(`/clubs/${c.clubId}/members/settings`);
+    await expect(page.locator(".voting-values")).toContainText("Hidden until voting closes");
+    await page.goto(`/clubs/${c.clubId}/members/settings?edit=voting`);
     const counts = page.getByLabel("Show vote counts while voting is open");
     await expect(counts).not.toBeChecked();
     await counts.check();
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page).toHaveURL(/saved=settings/);
-    await expect(page.getByLabel("Show vote counts while voting is open")).toBeChecked();
+    await expect(page).toHaveURL(/saved=voting/);
+    await expect(page.locator(".voting-values")).toContainText("Shown");
     const [row] = await db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId));
     expect(row.settings).toMatchObject({ showVoteCounts: true });
 

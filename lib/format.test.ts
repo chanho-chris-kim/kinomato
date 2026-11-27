@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeSchedule, formatRuntime, timeAgo } from "./format";
+import { describeSchedule, formatRuntime, monthDay, runsSummary, timeAgo } from "./format";
 
 describe("formatRuntime", () => {
   it("formats hours and minutes", () => {
@@ -99,5 +99,27 @@ describe("timeAgo", () => {
 
   it("a timestamp a little in the future (clock skew) reads as just now, not negative", () => {
     expect(timeAgo(new Date(now.getTime() + 5_000), now)).toBe("just now");
+  });
+});
+
+describe("runsSummary (Members' Club settings row, u6)", () => {
+  const club = { cadence: "weekly" as const, defaultDay: 6, defaultTime: "20:00:00" };
+  it("how often · day and time · films each picker offers", () => {
+    expect(runsSummary(club, 3)).toBe("Weekly · Sat 8:00pm · 3 films");
+    expect(runsSummary({ ...club, cadence: "biweekly", defaultDay: 5, defaultTime: "19:30" }, 1)).toBe(
+      "Every other week · Fri 7:30pm · 1 film",
+    );
+    expect(runsSummary({ ...club, cadence: "monthly" }, 2)).toBe("Monthly · Sat 8:00pm · 2 films");
+  });
+  it("no fixed night, or a missing day or time, is left out, never invented", () => {
+    expect(runsSummary({ cadence: "ad_hoc", defaultDay: null, defaultTime: null }, 3)).toBe("No fixed night · 3 films");
+    expect(runsSummary({ ...club, defaultDay: null }, 3)).toBe("Weekly · 8:00pm · 3 films");
+  });
+});
+
+describe("monthDay", () => {
+  it("is the date in the club's own time zone", () => {
+    expect(monthDay(new Date("2026-11-07T03:00:00Z"), "America/New_York")).toBe("Nov 6");
+    expect(monthDay(new Date("2026-11-07T03:00:00Z"), "Europe/London")).toBe("Nov 7");
   });
 });

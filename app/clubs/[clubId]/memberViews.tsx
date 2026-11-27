@@ -14,11 +14,14 @@ export function byJoinedAt(a: ClubMembership, b: ClubMembership): number {
   return a.joinedAt.getTime() - b.joinedAt.getTime();
 }
 
-// "Priya S." -> "PS" — decorative only, never an identity key.
-function initials(displayName: string): string {
+// "Priya S." -> "PS" — decorative only, never an identity key. At most two
+// letters, so a long display name fits its avatar.
+export function initials(displayName: string): string {
   return displayName
     .split(" ")
-    .map((part) => part[0])
+    .filter(Boolean)
+    .map((part) => [...part][0])
+    .slice(0, 2)
     .join("")
     .toUpperCase();
 }
