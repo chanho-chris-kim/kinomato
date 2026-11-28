@@ -24,7 +24,7 @@ import {
 import { loadClubMemberships, nameOf, type ClubMembership } from "../members";
 import { byJoinedAt, initials } from "../memberViews";
 import { MembersFrame, RowLink } from "./membersFrame";
-import { OldAnchorRedirect } from "./OldAnchorRedirect";
+import { OldAnchorRedirect } from "@/app/OldAnchorRedirect";
 
 // The Members tab (u6, ruled 2026-11-27; sub-pages ruled 2026-11-24, all
 // under the Members tab, §5.10). In order: Asking to join (owners and
@@ -35,6 +35,15 @@ import { OldAnchorRedirect } from "./OldAnchorRedirect";
 // the right, in place of the club rail. Managing a person, your limits and
 // how the club runs are pages of their own; every server check is the
 // actions', unchanged.
+const MOVED_SECTIONS: Record<string, string> = {
+  "#limits": "/limits",
+  "#limits-heading": "/limits",
+  "#club-settings": "/settings",
+  "#club-details": "/settings",
+  "#join-code": "/settings#join-code",
+  "#add-person": "/invite",
+};
+
 export default async function MembersPage({
   params,
   searchParams,
@@ -363,7 +372,8 @@ export default async function MembersPage({
 
   return (
     <MembersFrame db={db} club={club} role={me.role} back={false} wide>
-      <OldAnchorRedirect clubId={clubId} />
+      {/* Before u6 the Members tab was one page (#limits, #club-settings, …). */}
+      <OldAnchorRedirect base={`/clubs/${clubId}/members`} moved={MOVED_SECTIONS} />
       <div className="members-grid">
         <div className="members-col">
           {askingCard}

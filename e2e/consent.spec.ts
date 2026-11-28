@@ -143,10 +143,15 @@ test.describe("consent", () => {
       expect(user.ageBracket).toBe("13_17");
       expect(await licensingRows(user.id)).toEqual([]);
 
-      // And no Data sharing in Settings.
+      // And no Data sharing in Settings: not on Privacy & data, not in the
+      // menu's summary (u7).
       await page.goto("/settings");
       await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+      await expect(page.locator(".menu-row", { hasText: "Privacy & data" })).toContainText("Download your data");
+      await expect(page.locator(".menu-row", { hasText: "Privacy & data" })).not.toContainText("sharing");
+      await page.goto("/settings/privacy");
       await expect(page.getByRole("heading", { name: "Data sharing" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Download my data" })).toBeVisible();
       expect(errors).toEqual([]);
     } finally {
       await context.close();
@@ -399,7 +404,7 @@ test.describe("consent", () => {
   test("Settings' Data sharing: opt in and withdraw each write a row, and show the latest", async ({ page }) => {
     const rex = MEMBER_USER.rex;
     await signInAs(page, MEMBERSHIP_RATING.rex);
-    await page.goto("/settings");
+    await page.goto("/settings/privacy");
     const section = page.locator("section", { has: page.getByRole("heading", { name: "Data sharing" }) });
     await expect(section.locator(".data-sharing-status")).toHaveText("You're not sharing.");
     await expect(section).toContainText(LEGAL.licensing.text);

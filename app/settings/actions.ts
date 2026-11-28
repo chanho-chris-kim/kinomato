@@ -14,7 +14,8 @@ import { validateDisplayName } from "@/lib/displayName";
 import { activeClubIdsByName, clashingClub } from "@/app/displayNameClash";
 import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 
-// Settings (docs/onboarding-spec.md §5.9).
+// Settings (docs/onboarding-spec.md §5.9). Since u7 (ruled 2026-11-27)
+// each part has its own page, and each action comes back to its page.
 
 // Your display name (ruled 2026-11-25, u2): free text, 1–30 characters,
 // and free in every club you're in, the first clash (by club name) named.
@@ -23,24 +24,26 @@ import { clearFormEcho, setFormEcho } from "@/app/formEcho";
 // goes back to the form (CLAUDE.md: validation errors redirect with
 // ?error=), and nothing is saved; a clash names a person, so it comes back
 // through the form-echo cookie with only a flag in the URL.
+const ACCOUNT = "/settings/account";
+
 export async function updateName(formData: FormData) {
-  const user = await requireUser("/settings");
+  const user = await requireUser(ACCOUNT);
   const typed = String(formData.get("displayName") ?? "");
-  await clearFormEcho("/settings");
+  await clearFormEcho(ACCOUNT);
   const result = validateDisplayName(typed);
   if ("error" in result) {
-    await setFormEcho("/settings", { displayName: typed });
-    redirect(`/settings?${new URLSearchParams({ error: result.error })}`);
+    await setFormEcho(ACCOUNT, { displayName: typed });
+    redirect(`${ACCOUNT}?${new URLSearchParams({ error: result.error })}`);
   }
   const db = getDb();
   const takenIn = await clashingClub(db, user.id, result.displayName, await activeClubIdsByName(db, user.id));
   if (takenIn) {
-    await setFormEcho("/settings", { displayName: result.displayName, takenIn });
-    redirect("/settings?nameTaken=1");
+    await setFormEcho(ACCOUNT, { displayName: result.displayName, takenIn });
+    redirect(`${ACCOUNT}?nameTaken=1`);
   }
   await db.update(users).set({ displayName: result.displayName }).where(eq(users.id, user.id));
   revalidatePath("/", "layout");
-  redirect("/settings?saved=name");
+  redirect(`${ACCOUNT}?saved=name`);
 }
 
 // Sign out: this browser only. Its session row is deleted and the cookie
@@ -61,74 +64,76 @@ export async function signOutEverywhere() {
 
 // Email change (§5.9 rulings; rebuild step 7b): the logic is in
 // app/emailChange.ts, the only code that touches email_changes. Every
-// outcome comes back to /settings; the request's screen is the same
+// outcome comes back to /settings/account; the request's screen is the same
 // whether or not the new address already has an account.
 export async function requestEmailChangeAction(formData: FormData) {
-  const user = await requireUser("/settings");
+  const user = await requireUser(ACCOUNT);
   const result = await requestEmailChange(getDb(), user, String(formData.get("newEmail") ?? ""), new Date());
-  redirect(result.ok ? "/settings?emailChange=sent" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+  redirect(result.ok ? `${ACCOUNT}?emailChange=sent` : `${ACCOUNT}?${new URLSearchParams({ emailError: result.error })}`);
 }
 
 export async function confirmEmailChangeAction(formData: FormData) {
-  const user = await requireUser("/settings");
+  const user = await requireUser(ACCOUNT);
   const db = getDb();
   const result = await confirmEmailChange(db, user, String(formData.get("code") ?? ""), new Date(), () =>
     endOtherSessions(db, user.id),
   );
   if (result.ok) revalidatePath("/", "layout");
-  redirect(result.ok ? "/settings?emailChange=changed" : `/settings?${new URLSearchParams({ emailError: result.error })}`);
+  redirect(result.ok ? `${ACCOUNT}?emailChange=changed` : `${ACCOUNT}?${new URLSearchParams({ emailError: result.error })}`);
 }
 
 export async function cancelEmailChangeAction() {
-  const user = await requireUser("/settings");
+  const user = await requireUser(ACCOUNT);
   await cancelEmailChange(getDb(), user.id, new Date());
-  redirect("/settings");
+  redirect(ACCOUNT);
 }
 
 // How we reach you (docs/onboarding-spec.md §5.9, ruled 2026-11-23):
 // reminder emails on or off, and a per-club mute. Only reminders look at
 // these; sign-in codes and account notices always arrive.
 export async function setEmailReminders(on: boolean) {
-  const user = await requireUser("/settings");
+  const user = await requireUser("/settings/reminders");
   await getDb().update(users).set({ emailReminders: on }).where(eq(users.id, user.id));
-  redirect("/settings?saved=reminders#reminders");
+  redirect("/settings/reminders?saved=reminders");
 }
 
 // Only the viewer's own active membership in that club; anything else (a
 // club they're not in, or have left) changes nothing.
 export async function setClubRemindersMuted(clubId: string, muted: boolean) {
-  const user = await requireUser("/settings");
+  const user = await requireUser("/settings/reminders");
   await getDb()
     .update(memberships)
     .set({ remindersMutedAt: muted ? new Date() : null })
     .where(and(eq(memberships.userId, user.id), eq(memberships.clubId, clubId), isNull(memberships.leftAt)));
-  redirect("/settings?saved=reminders#reminders");
+  redirect("/settings/reminders?saved=reminders");
 }
 
 // Data sharing (docs/onboarding-spec.md §11.2): 18 or older only, checked
 // again in app/consent.ts whatever the page showed. Opting in writes a
 // row; withdrawing sets that row's withdrawn_at, from now on only.
 export async function optInToLicensingAction() {
-  const user = await requireUser("/settings");
+  const user = await requireUser("/settings/privacy");
   await optInToLicensing(getDb(), user.id);
-  redirect("/settings?sharing=on#data-sharing");
+  redirect("/settings/privacy?sharing=on");
 }
 
 export async function withdrawFromLicensingAction() {
-  const user = await requireUser("/settings");
+  const user = await requireUser("/settings/privacy");
   await withdrawFromLicensing(getDb(), user.id);
-  redirect("/settings?sharing=off#data-sharing");
+  redirect("/settings/privacy?sharing=off");
 }
 
 // Delete account (docs/onboarding-spec.md §11.4; launch foundations (f)).
 // The logic is in app/accountDeletion.ts. A code to the account's own
 // address, entered on /settings/delete-account, which lists what happens
 // to each club. Mistakes come back there with ?error= (fixed messages).
+// Since u7 the request starts on /settings/delete-account too, and a
+// refusal (three a day) comes back there.
 export async function requestAccountDeletionAction() {
-  const user = await requireUser("/settings");
+  const user = await requireUser("/settings/delete-account");
   const result = await requestAccountDeletion(getDb(), user, new Date());
   redirect(
-    result.ok ? "/settings/delete-account" : `/settings?${new URLSearchParams({ deleteError: result.error })}#delete-account`,
+    result.ok ? "/settings/delete-account" : `/settings/delete-account?${new URLSearchParams({ error: result.error })}`,
   );
 }
 

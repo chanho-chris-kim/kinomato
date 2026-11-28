@@ -48,7 +48,7 @@ test.describe("settings", () => {
 
     // Spaces around it are trimmed; it's kept as typed otherwise.
     await saveName(page, "  Raya Q.  ");
-    await expect(page).toHaveURL("/settings?saved=name");
+    await expect(page).toHaveURL("/settings/account?saved=name");
     await expect(page.locator("main").getByRole("status")).toHaveText("Saved.");
     await expect(page.getByLabel("Display name")).toHaveValue("Raya Q.");
     expect(await nameOf(MEMBER_USER.rae)).toBe("Raya Q.");
@@ -77,7 +77,7 @@ test.describe("settings", () => {
     await page.goto("/settings");
     const before = await nameOf(MEMBER_USER.rae);
     await saveName(page, "Former member");
-    await expect(page).toHaveURL(/\/settings\?error=/);
+    await expect(page).toHaveURL(/\/settings\/account\?error=/);
     await expect(page.locator("main").getByRole("alert")).toHaveText("That name is reserved. Pick another.");
     await expect(page.locator("main").getByRole("status")).toHaveCount(0);
     // What was typed stays in the form to fix.
@@ -99,7 +99,9 @@ test.describe("settings", () => {
         withDb(async (db) => (await db.select({ n: count() }).from(schema.sessions).where(eq(schema.sessions.userId, MEMBER_USER.sol)))[0].n);
       expect(await sessions()).toBeGreaterThanOrEqual(2);
 
+      // Its own page since u7, from the menu's "Sign out everywhere ›".
       await a.goto("/settings");
+      await a.getByRole("link", { name: /Sign out everywhere/ }).click();
       await a.getByRole("button", { name: "Sign out everywhere" }).click();
       await expect(a).toHaveURL("/");
       // Signed out here: the marketing page, not the club cards.

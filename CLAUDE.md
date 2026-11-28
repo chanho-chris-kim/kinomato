@@ -725,7 +725,8 @@ Do not quietly change these — they encode decisions that took a while to reach
   with "Mute only this club", and a one-tap page with two large buttons.
   Whether reminders need express consent under CASL is on the lawyer's
   list (see Open Questions). **Preferences and the unsubscribe page, ruled
-  2026-11-23 and built (r1):** Settings "How we reach you" is one switch,
+  2026-11-23 and built (r1):** Settings "How we reach you" (since u7 the
+  Reminders page, `/settings/reminders`) is one switch,
   `users.email_reminders` (default on), plus "Mute reminders from {club}"
   (`memberships.reminders_muted_at`), with "Sign-in codes and account
   notices always arrive." (those never look at these settings).
@@ -1333,7 +1334,8 @@ Do not quietly change these — they encode decisions that took a while to reach
     `members/settings/pause` (a 404 for anyone else).
   - **Old anchors:** `#limits`, `#club-settings`, `#club-details`,
     `#join-code` and `#add-person` land on their new pages through
-    `OldAnchorRedirect` (`app/clubs/[clubId]/members/OldAnchorRedirect.tsx`,
+    `OldAnchorRedirect` (`app/OldAnchorRedirect.tsx`, shared with Settings
+    since u7,
     the seventh justified client component: a hash never reaches the
     server).
   - **The invite page** took over the old list's per-invite actions: "Show
@@ -1348,6 +1350,36 @@ Do not quietly change these — they encode decisions that took a while to reach
   - **One new colour, `--danger` #cc6b63** (5.27:1 on `--bg`, 4.89:1 on
     `--card`), for Remove, Leave and Delete only (`.btn.danger`,
     `.card.danger-card`).
+- **The Settings redesign (ruled 2026-11-27, approved by Chanho; built
+  u7).** What Settings holds is §5.9's, unchanged; only its layout and its
+  pages are new. Every action, server check and redirect target is the one
+  it had (each now comes back to its own page).
+  - **`/settings`:** "Settings", a profile card (initials, display name,
+    email), a menu of rows (icon, title, current value, ›): Account
+    ("Display name, email"), Reminders (`lib/settingsSummary.ts`: "On", "On
+    · 1 club muted", "Off"), Privacy & data ("Not sharing" or "Sharing", "·
+    download your data"; 13–17 just "Download your data"); a card with Sign
+    out (the button) and "Sign out everywhere ›"; then "Delete my account…"
+    in `--danger`. **Phones:** `/settings` is the menu, and each page its
+    own screen with a "Settings" back link. **From 900px:** the menu is a
+    left column on every page (the current row `aria-current`), and
+    `/settings` shows Account beside it (`app/settings/settingsFrame.tsx`).
+  - **Pages:** `/settings/account` (the u2 name field, "Save name", the
+    email change and its pending card), `/settings/reminders` (the main
+    "Reminder emails" switch in a highlighted card, then "From each club",
+    a switch per club, on = not muted, muted ones "· muted"; while the main
+    switch is off the club switches are disabled with "Turned off for all
+    clubs", and each club's own setting is kept; every switch is a submit
+    button with `role="switch"`, so it works without script),
+    `/settings/privacy` (data sharing for 18 or older with the full current
+    wording; Download my data), `/settings/sign-out` (Sign out everywhere)
+    and `/settings/delete-account`, where the deletion now starts (it
+    offers "Send me a new code" while one is pending, as `/settings` always
+    offered a code), in `--danger`.
+  - **Old links:** `#your-name`, `#your-email`, `#reminders`,
+    `#data-sharing`, `#your-data`, `#signing-out`, `#delete-account` land on
+    their pages (`OldAnchorRedirect`). The unsubscribe pages' "Settings"
+    links go to `/settings/reminders`.
 - **Onboarding guidance (ruled 2026-11-25).** A step bar exists only
   during sign-up and on Tonight's week. The guided first-time tour
   (`docs/roadmap.md`) stays separate.

@@ -1203,6 +1203,17 @@ CLAUDE.md has them in full. Everything stays under the Members tab
   "not opened yet": §7 records nothing when an invite link is opened.
 - **One danger colour**, `--danger`, for Remove, Leave and Delete.
 
+### 5.15 Rulings, 2026-11-27 (approved by Chanho): the Settings redesign (u7)
+
+CLAUDE.md has them in full. What Settings holds is §5.9's; the layout is
+new. `/settings` is a profile card and a menu (Account, Reminders, Privacy
+& data, each with its current value; Sign out and "Sign out everywhere ›";
+"Delete my account…"). On a phone the menu is its own screen and each page
+has a "Settings" back link; from 900px the menu is a left column and the
+page sits beside it, Account on `/settings`. Reminders has a main switch
+that, while off, disables the per-club switches; every switch works
+without script. Deletion starts on its own page.
+
 ---
 
 ## 6. Watchlists: global per person

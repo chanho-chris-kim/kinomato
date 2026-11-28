@@ -100,6 +100,13 @@ test.describe("card-wrapped forms fit their frame", () => {
         { name: "Members: your limits", url: `/clubs/${clubId}/members/limits`, as: owner },
         { name: "Members: how it runs", url: `/clubs/${clubId}/members/settings`, as: owner },
         { name: "Members: pause", url: `/clubs/${clubId}/members/settings/pause`, as: owner },
+        // The Settings pages (u7), for the owner of a club with a long name.
+        { name: "Settings", url: "/settings", as: owner },
+        { name: "Settings: account", url: "/settings/account", as: owner },
+        { name: "Settings: reminders", url: "/settings/reminders", as: owner },
+        { name: "Settings: privacy", url: "/settings/privacy", as: owner },
+        { name: "Settings: sign out everywhere", url: "/settings/sign-out", as: owner },
+        { name: "Settings: delete account", url: "/settings/delete-account", as: owner },
       );
     } finally {
       await client.end();

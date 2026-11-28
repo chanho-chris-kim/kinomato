@@ -15,7 +15,7 @@ export default function UnsubscribeDonePage() {
         </h1>
         <p className="muted mt14 unsubscribe-done">
           Done. You can turn reminders back on in{" "}
-          <Link href="/settings" className="underline">
+          <Link href="/settings/reminders" className="underline">
             Settings
           </Link>
           .

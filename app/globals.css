@@ -1699,3 +1699,109 @@ footer a::after {
 .limit-card .chip {
   margin-right: 8px;
 }
+
+/* ---------- Settings (u7, ruled 2026-11-27) ---------- */
+/* Phones: /settings is the menu, each page its own screen with a way back.
+   From 900px: the menu is a left column on every page, the page beside it. */
+.settings-layout.is-index .settings-page,
+.settings-layout.is-sub .settings-menu {
+  display: none;
+}
+.settings-title {
+  font-size: 22px;
+  margin: 0;
+}
+@container app (min-width: 900px) {
+  .settings-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: 0 28px;
+    align-items: start;
+  }
+  .settings-layout.is-index .settings-page,
+  .settings-layout.is-sub .settings-menu {
+    display: block;
+  }
+  .settings-back {
+    display: none;
+  }
+  /* On a page beside the menu, the menu's "Settings" names the section. */
+  .settings-layout.is-sub .settings-page .page-title {
+    margin-top: 0;
+  }
+}
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile-name {
+  font-size: 16px;
+}
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
+  color: var(--fg);
+  text-decoration: none;
+  border-top: 1px solid var(--line);
+}
+.menu-row:first-child {
+  border-top: 0;
+}
+.menu-row .grow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.menu-icon {
+  color: var(--mut);
+  flex: 0 0 auto;
+}
+/* The current page, marked only where it's shown beside the menu. */
+@container app (min-width: 900px) {
+  .menu-row[aria-current="page"] .row-link-label,
+  .menu-row[aria-current="page"] .menu-icon {
+    color: var(--accent);
+  }
+}
+.settings-page .page-title {
+  margin-top: 10px;
+}
+.menu-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.sign-out-card .row-link {
+  border-top: 1px solid var(--line);
+}
+.danger-link {
+  color: var(--danger);
+}
+.delete-link-row {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+/* A switch on the right of its label, the whole row the target. */
+.consent-choice.switch-button.switch-row {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  min-height: 52px;
+}
+.switch-row .grow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.switch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.club-reminders li + li {
+  border-top: 1px solid var(--line);
+}

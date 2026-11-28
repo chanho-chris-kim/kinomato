@@ -101,20 +101,23 @@ test.describe("reminder preferences in Settings", () => {
   test("the switch and per-club mutes persist; the export carries them", async ({ page }) => {
     const p = await people("settings");
     await signInAsUser(page, p.users.rae);
-    await page.goto("/settings");
-    const section = page.locator("#reminders");
-    await expect(section.getByRole("heading", { name: "How we reach you" })).toBeVisible();
+    // Reminders is its own page since u7: a switch for all, one per club.
+    await page.goto("/settings/reminders");
+    const section = page.locator("main");
+    const main = page.getByRole("switch", { name: /^Reminder emails/ });
+    const club = (name: string) => page.getByRole("switch", { name: `Reminders from ${name}` });
+    await expect(page.locator(".page-title")).toHaveText("Reminders");
     await expect(section).toContainText("Sign-in codes and account notices always arrive.");
-    await expect(section.locator(".reminder-emails-status")).toHaveText("Reminder emails: on");
+    await expect(main).toHaveAttribute("aria-checked", "true");
 
-    await section.getByRole("button", { name: "Turn off" }).click();
-    await expect(section.locator(".reminder-emails-status")).toHaveText("Reminder emails: off");
+    await main.click();
+    await expect(main).toHaveAttribute("aria-checked", "false");
     expect((await state(p)).raeReminders).toBe(false);
-    await section.getByRole("button", { name: "Turn on" }).click();
-    await expect(section.locator(".reminder-emails-status")).toHaveText("Reminder emails: on");
+    await main.click();
+    await expect(main).toHaveAttribute("aria-checked", "true");
 
-    await section.getByRole("button", { name: `Mute reminders from ${p.names.alpha}` }).click();
-    await expect(section.getByRole("button", { name: `Unmute reminders from ${p.names.alpha}` })).toBeVisible();
+    await club(p.names.alpha).click();
+    await expect(club(p.names.alpha)).toHaveAttribute("aria-checked", "false");
     await page.reload();
     expect(await state(p)).toEqual({ ...untouched, raeAlphaMuted: true });
 
@@ -127,8 +130,8 @@ test.describe("reminder preferences in Settings", () => {
       [p.names.beta, false],
     ]);
 
-    await section.getByRole("button", { name: `Unmute reminders from ${p.names.alpha}` }).click();
-    await expect(section.getByRole("button", { name: `Mute reminders from ${p.names.alpha}` })).toBeVisible();
+    await club(p.names.alpha).click();
+    await expect(club(p.names.alpha)).toHaveAttribute("aria-checked", "true");
     expect(await state(p)).toEqual(untouched);
   });
 });
@@ -197,7 +200,7 @@ test.describe("the unsubscribe page", () => {
           "This link has expired. You can change reminders in Settings.",
         );
         await expect(page.getByRole("button")).toHaveCount(0);
-        await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+        await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/reminders");
       }
 
       // A page opened while the link worked, pressed after it stopped.

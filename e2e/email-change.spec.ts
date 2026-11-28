@@ -105,7 +105,7 @@ test.describe("email change", () => {
     await signUpWithClub(page, old, "Ann", "Ann's Club");
 
     await requestChange(page, next);
-    await expect(page).toHaveURL("/settings?emailChange=sent");
+    await expect(page).toHaveURL("/settings/account?emailChange=sent");
     await expect(pendingCard(page)).toContainText("Code sent to e•••@example.com.");
     await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
@@ -170,7 +170,7 @@ test.describe("email change", () => {
 
     await requestChange(page, next);
     await enterCode(page, await setKnownEmailChangeCode(old));
-    await expect(page).toHaveURL("/settings?emailChange=changed");
+    await expect(page).toHaveURL("/settings/account?emailChange=changed");
     await expect(page.locator("main").getByRole("status")).toContainText("Email changed.");
     await expect(page.locator(".current-email")).toHaveText(next);
     await expect(pendingCard(page)).toHaveCount(0);
@@ -179,7 +179,7 @@ test.describe("email change", () => {
     // This browser stays signed in; every other session is gone.
     expect(await sessions()).toBe(1);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
     await elsewhere.page.goto("/settings");
     await expect(elsewhere.page).toHaveURL(/\/login\?returnTo=/);
     await elsewhere.context.close();
@@ -229,7 +229,7 @@ test.describe("email change", () => {
     expect((await userByEmail(me))?.email).toBe(me);
 
     await pendingCard(page).getByRole("button", { name: "Cancel" }).click();
-    await expect(page).toHaveURL("/settings");
+    await expect(page).toHaveURL("/settings/account");
     await expect(pendingCard(page)).toHaveCount(0);
     await expect(page.getByText("New email address")).toBeVisible();
     const cancelled = await withDb((db) =>
@@ -271,7 +271,7 @@ test.describe("email change", () => {
 
     await requestChange(page, taken);
     // Exactly what a free address shows.
-    await expect(page).toHaveURL("/settings?emailChange=sent");
+    await expect(page).toHaveURL("/settings/account?emailChange=sent");
     await expect(pendingCard(page)).toContainText("Code sent to k•••@example.com.");
     await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
@@ -315,7 +315,7 @@ test.describe("email change", () => {
     await signUpWithClub(page, me, "Gus", "Gus's Club");
     for (const to of [addr("a-gus"), addr("b-gus"), addr("c-gus")]) {
       await requestChange(page, to);
-      await expect(page).toHaveURL("/settings?emailChange=sent");
+      await expect(page).toHaveURL("/settings/account?emailChange=sent");
     }
     await requestChange(page, addr("d-gus"));
     await expect(alertText(page)).toHaveText("You can ask to change your email 3 times a day. Try again tomorrow.");

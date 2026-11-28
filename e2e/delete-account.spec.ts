@@ -191,9 +191,15 @@ const requestsOf = (userId: string) =>
       .orderBy(desc(schema.accountDeletionRequests.createdAt)),
   );
 
+// Since u7 the request starts on the delete page ("Delete my account…" in
+// the Settings menu), which offers a new code while one is pending.
+// It lands on the page it started from, so wait for the request itself.
 async function askForCode(page: Page) {
-  await page.goto("/settings");
-  await page.getByRole("button", { name: "Send me a code" }).click();
+  await page.goto("/settings/delete-account");
+  const done = page.waitForResponse((r) => r.request().method() === "POST");
+  await page.getByRole("button", { name: /^Send me a (new )?code$/ }).click();
+  await done;
+  await page.waitForLoadState();
 }
 
 const alert = (page: Page) => page.locator("main").getByRole("alert");
@@ -235,7 +241,7 @@ test.describe("Delete account", () => {
     await askForCode(page);
     await expect(page).toHaveURL("/settings/delete-account");
     await askForCode(page);
-    await expect(page).toHaveURL(/\/settings\?deleteError=/);
+    await expect(page).toHaveURL(/\/settings\/delete-account\?error=/);
     await expect(alert(page)).toHaveText("You can ask for a deletion code 3 times a day. Try again tomorrow.");
     expect(await requestsOf(P.ivy.id)).toHaveLength(3);
     // Still an account, still signed in.

@@ -9,7 +9,7 @@ export function LinkExpired() {
       </h1>
       <p className="muted mt14 unsubscribe-expired">
         This link has expired. You can change reminders in{" "}
-        <Link href="/settings" className="underline">
+        <Link href="/settings/reminders" className="underline">
           Settings
         </Link>
         .

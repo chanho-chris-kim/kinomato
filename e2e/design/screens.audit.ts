@@ -310,6 +310,12 @@ test("app screens", async ({ page, browser }) => {
   await shoot(page, "watchlist", "/watchlist");
   await shoot(page, "watchlist-search", "/watchlist?q=arrival");
   await shoot(page, "settings", "/settings");
+  // The Settings pages (u7).
+  await shoot(page, "settings-account", "/settings/account");
+  await shoot(page, "settings-reminders", "/settings/reminders");
+  await shoot(page, "settings-privacy", "/settings/privacy");
+  await shoot(page, "settings-sign-out", "/settings/sign-out");
+  await shoot(page, "settings-delete-account", "/settings/delete-account");
   await shoot(page, "tonight-nominate-films", `/clubs/${nominating.clubId}`);
   await shoot(page, "tonight-someone-else-drafting", `/clubs/${drafting.clubId}`);
   await shoot(page, "tonight-voting-voted", `/clubs/${voting.clubId}`);

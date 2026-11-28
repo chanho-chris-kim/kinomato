@@ -198,7 +198,7 @@ test.describe("display name", () => {
     // Bea is in Birch only: Birch is named.
     await page.getByLabel("Display name").fill("BEA b.");
     await page.getByRole("button", { name: "Save name" }).click();
-    await expect(page).toHaveURL("/settings?nameTaken=1");
+    await expect(page).toHaveURL("/settings/account?nameTaken=1");
     await expect(page.locator("main").getByRole("alert")).toHaveText(
       "Someone in Birch Rename Club already goes by BEA b. Pick another.",
     );
@@ -219,13 +219,13 @@ test.describe("display name", () => {
       .where(and(eq(schema.memberships.clubId, apple.clubId), eq(schema.memberships.userId, deeId)));
     await page.getByLabel("Display name").fill("Dee D.");
     await page.getByRole("button", { name: "Save name" }).click();
-    await expect(page).toHaveURL("/settings?saved=name");
+    await expect(page).toHaveURL("/settings/account?saved=name");
     expect((await db.select().from(schema.users).where(eq(schema.users.id, meId)))[0].displayName).toBe("Dee D.");
 
     // Your own name is never a clash with yourself.
     await page.getByLabel("Display name").fill("DEE D.");
     await page.getByRole("button", { name: "Save name" }).click();
-    await expect(page).toHaveURL("/settings?saved=name");
+    await expect(page).toHaveURL("/settings/account?saved=name");
   });
 
   test("the invite form asks only for their name, as a greeting", async ({ page }) => {

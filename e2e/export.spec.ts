@@ -81,7 +81,7 @@ test.describe("Download my data", () => {
 
   test("Settings downloads your own data, and nobody else's", async ({ page }) => {
     await signInAs(page, RAE);
-    await page.goto("/settings");
+    await page.goto("/settings/privacy");
     const requested: string[] = [];
     page.on("request", (r) => requested.push(r.url()));
     const [download] = await Promise.all([
