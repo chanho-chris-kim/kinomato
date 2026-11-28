@@ -103,7 +103,15 @@ test.describe("the job drafts each week's night", () => {
     expect(draft.pickerMembershipId).toBe(c.members.ana);
     expect(draft.scheduledAt.getTime()).toBe(expected!.scheduledAt.getTime());
     const [clubRow] = await db.select().from(schema.clubs).where(eq(schema.clubs.id, c.clubId));
-    expect(draft.scheduledAt.getTime()).toBe(getNextOccurrence(clubRow, NOW, clubRow.createdAt)!.getTime());
+    // The schedule's next occurrence, unless its auto-pass point (the default
+    // 24 hours before) has gone by: then the one after (ruled 2026-11-23).
+    // Checking the next occurrence alone failed every Friday evening.
+    const next = getNextOccurrence(clubRow, NOW, clubRow.createdAt)!;
+    const slot =
+      NOW.getTime() >= next.getTime() - 24 * 3600_000
+        ? getNextOccurrence(clubRow, new Date(next.getTime() + 1), clubRow.createdAt)!
+        : next;
+    expect(draft.scheduledAt.getTime()).toBe(slot.getTime());
 
     expect(await runWeeklyLoop(db, NOW, { reminders: false, clubIds: [c.clubId] })).toEqual(zero);
     expect(await draftsOf(c.clubId)).toHaveLength(1);

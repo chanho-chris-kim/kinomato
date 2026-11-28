@@ -594,6 +594,10 @@ footer a::after {
   font: inherit;
   min-height: 44px;
   padding: 0 12px;
+  /* In a flex row an input's minimum is its intrinsic width (about 20
+     characters), wider than a phone's card once the font is wide: the club
+     code with Copy overflowed on Linux's monospace (u6). It may shrink. */
+  min-width: 0;
 }
 .search input[type="time"],
 .search input[type="text"] {
@@ -1444,6 +1448,7 @@ footer a::after {
 }
 .join-code {
   flex: 1;
+  width: 100%;
   font-family: ui-monospace, monospace;
   letter-spacing: 2px;
   font-size: 18px;
@@ -1484,6 +1489,17 @@ footer a::after {
 .row-link-label,
 .row-link-value {
   display: block;
+}
+/* Names, club names and codes wrap rather than push past the card: a
+   display name can be 30 characters with no space (u6). */
+.row-link .grow,
+.limit-card .grow,
+.person-head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.page-title {
+  overflow-wrap: anywhere;
 }
 .row-link-chevron {
   color: var(--dim);
