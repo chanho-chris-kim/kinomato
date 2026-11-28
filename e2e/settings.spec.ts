@@ -57,7 +57,7 @@ test.describe("settings", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi, Raya Q.");
 
     await page.goto(`/clubs/${HISTORY_CLUB_ID}/members`);
-    await expect(page.locator("main .member-name").filter({ hasText: "(you)" })).toHaveText(["Raya Q. (you)"]);
+    await expect(page.locator("main .people-list .person-name").filter({ hasText: "(you)" })).toHaveText(["Raya Q. (you)"]);
 
     await page.goto(HISTORY_URL);
     await expect(

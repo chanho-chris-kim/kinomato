@@ -336,7 +336,7 @@ test.describe("Delete account", () => {
       const mo = await context.newPage();
       await signInAsUser(mo, P.mo.id);
       await mo.goto(`/clubs/${CLUB.keep}/members`);
-      await expect(mo.locator("main").getByRole("heading", { name: "Add a person" })).toBeVisible();
+      await expect(mo.locator("main").getByRole("heading", { name: "Club settings" })).toBeVisible();
       await mo.goto(`/clubs/${CLUB.keep}/history`);
       const night = mo.locator("main li.history-night");
       await expect(night).toHaveCount(1);

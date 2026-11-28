@@ -41,7 +41,7 @@ export function GettingStarted({
     check: {
       title: "Check how the club runs",
       note: "Voting, reminders and when we ask if you watched it.",
-      cta: { href: `/clubs/${clubId}/members#club-settings`, label: "See how it runs" },
+      cta: { href: `/clubs/${clubId}/members/settings`, label: "See how it runs" },
     },
   };
 

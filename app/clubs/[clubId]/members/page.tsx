@@ -1,931 +1,381 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clubs, constraints, invites } from "@/db/schema";
 import { requireClubMember } from "@/app/auth";
-import { getBaseUrl } from "@/app/baseUrl";
-import { ClubHeader, ClubTabs, GlobalShell } from "@/app/shell";
+import { readFormEcho } from "@/app/formEcho";
+import { pendingRequestsFor } from "@/app/joinRequests";
 import { FREE_TIER_MEMBER_CAP } from "@/lib/clubMembers";
-import { timeAgo } from "@/lib/format";
+import { getNomineesPerTurn } from "@/lib/clubSettings";
+import { planLeave } from "@/lib/clubLeave";
+import { limitSummary } from "@/lib/constraintForm";
+import { runsSummary, timeAgo } from "@/lib/format";
 import { canCreateInvite } from "@/lib/invites";
+import { formatJoinCode } from "@/lib/joinCode";
+import { canChangeRole, canRemove, canTransferOwnership, roleLabel, type RoleMember } from "@/lib/roles";
 import {
-  AUTO_ADVANCE_HOURS,
-  getAutoAdvance,
-  getConfirmAt,
-  getLockTime,
-  getShowVoteCounts,
-  getNomineesPerTurn,
-  LOCK_TIME_HOURS,
-} from "@/lib/clubSettings";
-import type { ConfirmAt } from "@/lib/confirmTiming";
-import {
-  addLimit,
-  deleteClubAsLastMember,
-  leaveClub,
-  makeAdmin,
-  regenerateInvite,
-  removeAdmin,
-  removeLimit,
-  removeMember,
-  revokeInvite,
-  setClubPaused,
-  setLimitsApplyWhenAbsent,
-  transferOwnership,
-  updateClubDetails,
-  updateClubSettings,
   approveJoinRequestAction,
   declineJoinRequestAction,
-  makeNewJoinCode,
-  setJoinCodeOn,
+  deleteClubAsLastMember,
+  leaveClub,
+  setClubPaused,
 } from "../actions";
-import { CopyCode } from "../CopyCode";
-import { pendingRequestsFor } from "@/app/joinRequests";
-import { formatJoinCode } from "@/lib/joinCode";
-import { COMMON_TIMEZONES, CONFIRM_AT_LABELS, DAY_LABELS, hoursLabel } from "@/app/clubFormOptions";
-import { readFormEcho } from "@/app/formEcho";
-import Link from "next/link";
-import { canChangeRole, canRemove, canTransferOwnership, type RoleMember } from "@/lib/roles";
-import { planLeave } from "@/lib/clubLeave";
-import { describeLimit, MAX_RUNTIME_LIMIT, MIN_RUNTIME_LIMIT, MOVIE_GENRES } from "@/lib/constraintForm";
-import { CONTENT_TOPICS } from "@/lib/contentTopics";
-import { canAddHardLimit } from "@/lib/constraints";
-import { nameOf, type ClubMembership } from "../members";
-import { describeSchedule } from "@/lib/format";
-import { byJoinedAt, MemberCards } from "../memberViews";
-import { loadClubMemberships } from "../members";
-import { ShareInvite } from "../ShareInvite";
+import { loadClubMemberships, nameOf, type ClubMembership } from "../members";
+import { byJoinedAt, initials } from "../memberViews";
+import { MembersFrame, RowLink } from "./membersFrame";
+import { OldAnchorRedirect } from "./OldAnchorRedirect";
 
-// When "Did you watch it?" is asked (lib/confirmTiming.ts), in plain words.
-// The Members tab (docs/onboarding-spec.md §5.10; rebuild step 5c, m1). In
-// order: Members, Invited (only when there are pending invites), Add a
-// person (owners and admins), Your limits in this club (the viewer's own
-// only), How this club runs (everyone sees it; owners and admins change
-// it), Leave this club. No rail here: it would repeat the main column. Its
-// space is kept (reserveRail).
+// The Members tab (u6, ruled 2026-11-27; sub-pages ruled 2026-11-24, all
+// under the Members tab, §5.10). In order: Asking to join (owners and
+// admins, while someone's asking), People, Just for you, Club settings
+// (owners and admins; a plain member's "Club" card has How this club runs
+// only), and Leave this club. From 900px two columns: Asking
+// to join and People on the left; Just for you, Club settings and Leave on
+// the right, in place of the club rail. Managing a person, your limits and
+// how the club runs are pages of their own; every server check is the
+// actions', unchanged.
 export default async function MembersPage({
   params,
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
   searchParams: Promise<{
-    invite?: string;
-    inviteError?: string;
-    settingsError?: string;
-    detailsError?: string;
-    saved?: string;
-    transfer?: string;
+    asking?: string;
     roles?: string;
     rolesError?: string;
-    remove?: string;
     removed?: string;
     leave?: string;
     leaveError?: string;
-    limits?: string;
-    limitsError?: string;
-    asking?: string;
-    code?: string;
+    // Old links into the single page (before u6) that now have a page.
+    transfer?: string;
+    remove?: string;
   }>;
 }) {
   const { clubId } = await params;
-  const {
-    invite: newInviteId,
-    inviteError,
-    settingsError,
-    detailsError,
-    saved,
-    transfer,
-    roles,
-    rolesError,
-    remove,
-    removed,
-    leave,
-    leaveError,
-    limits,
-    limitsError,
-    asking,
-    code: codeNotice,
-  } = await searchParams;
-  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
-  const now = new Date();
+  const { asking, roles, rolesError, removed, leave, leaveError, transfer, remove } = await searchParams;
+  if (transfer && /^[0-9a-f-]{36}$/i.test(transfer)) redirect(`/clubs/${clubId}/members/${transfer}?transfer=1`);
+  if (remove && /^[0-9a-f-]{36}$/i.test(remove)) redirect(`/clubs/${clubId}/members/${remove}?remove=1`);
 
+  const db = getDb(); // request-scoped (React cache()) — see db/index.ts
+  // eslint-disable-next-line react-hooks/purity -- a Server Component, once per request
+  const now = new Date(Date.now());
   // Signed in and an active member, or /login / 404 (§5.1).
   const { membership: me } = await requireClubMember(clubId, `/clubs/${clubId}/members`);
-  const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
-  const activeMemberships = (await loadClubMemberships(db, clubId))
-    .filter((m) => m.leftAt === null)
-    .sort(byJoinedAt);
-
-  // Pending invites: every member sees who's coming; Share/Regenerate/
-  // Revoke are owners' and admins' only (Ruling C).
   const isOwnerOrAdmin = me.role === "owner" || me.role === "admin";
-  const pendingInvites = await db
-    .select()
-    .from(invites)
-    .where(and(eq(invites.clubId, clubId), isNull(invites.redeemedAt), isNull(invites.revokedAt)))
-    .orderBy(asc(invites.createdAt));
-  const baseUrl = await getBaseUrl();
-  // Asking to join with the club code (u5): owners and admins only; plain
-  // members never see the code or the requests.
-  const askingRequests = isOwnerOrAdmin ? await pendingRequestsFor(db, clubId) : [];
+  const [[club], allMemberships, pendingInvites, myLimits, askingRequests] = await Promise.all([
+    db.select().from(clubs).where(eq(clubs.id, clubId)),
+    loadClubMemberships(db, clubId),
+    db
+      .select()
+      .from(invites)
+      .where(and(eq(invites.clubId, clubId), isNull(invites.redeemedAt), isNull(invites.revokedAt)))
+      .orderBy(asc(invites.createdAt)),
+    // The viewer's own limits, and only theirs (ruled 2026-11-12).
+    db.select({ kind: constraints.kind }).from(constraints).where(eq(constraints.membershipId, me.id)),
+    // Plain members never see who's asking.
+    isOwnerOrAdmin ? pendingRequestsFor(db, clubId) : Promise.resolve([]),
+  ]);
+  const active = allMemberships.filter((m) => m.leftAt === null).sort(byJoinedAt);
   const askingEcho = asking === "refused" ? await readFormEcho() : {};
-  const seatsTaken = activeMemberships.length + pendingInvites.length;
-  // The viewer's own limits, and only theirs (ruled 2026-11-12): nobody else
-  // sees them, so nothing here loads anyone else's.
-  const myLimits = await db
-    .select()
-    .from(constraints)
-    .where(eq(constraints.membershipId, me.id))
-    .orderBy(asc(constraints.kind), asc(constraints.ruleType), asc(constraints.value));
-  const limitsApplyWhenAbsent = myLimits.some((c) => c.appliesWhenAbsent);
-  const atHardCap = !canAddHardLimit(myLimits);
 
-  // Roles (ruled 2026-11-11): only the owner gets controls, and only where
-  // lib/roles.ts allows; the actions check again.
-  const asRoleMember = (m: Pick<ClubMembership, "id" | "clubId" | "role" | "leftAt">): RoleMember => ({
-    membershipId: m.id,
-    clubId: m.clubId,
-    role: m.role,
-    leftAt: m.leftAt,
-  });
-  const meForRoles = asRoleMember(me);
-  // Per-member controls: the owner's role controls (m4), and Remove for
-  // whoever lib/roles.ts canRemove allows (owner: anyone but themself;
-  // admin: plain members). Nobody else gets any.
-  const memberControls =
-    me.role === "owner" || me.role === "admin"
-      ? (m: ClubMembership) => {
-          const target = asRoleMember(m);
-          const name = nameOf(m);
-          const items = [];
-          if (canChangeRole(meForRoles, target, "admin")) {
-            items.push(
-              <form key="admin" action={makeAdmin.bind(null, clubId, m.id)}>
-                <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Make ${name} an admin`}>
-                  Make admin
-                </button>
-              </form>,
-            );
-          }
-          if (canChangeRole(meForRoles, target, "member")) {
-            items.push(
-              <form key="unadmin" action={removeAdmin.bind(null, clubId, m.id)}>
-                <button type="submit" className="btn ghost" style={{ width: "auto" }} aria-label={`Remove ${name} as admin`}>
-                  Remove admin
-                </button>
-              </form>,
-            );
-          }
-          if (canTransferOwnership(meForRoles, target)) {
-            items.push(
-              <Link
-                key="owner"
-                href={`/clubs/${clubId}/members?transfer=${m.id}#roles`}
-                className="btn ghost"
-                style={{ width: "auto" }}
-                aria-label={`Make ${name} the owner`}
-              >
-                Make owner
-              </Link>,
-            );
-          }
-          if (canRemove(meForRoles, target)) {
-            items.push(
-              <Link
-                key="remove"
-                href={`/clubs/${clubId}/members?remove=${m.id}#roles`}
-                className="btn ghost"
-                style={{ width: "auto" }}
-                aria-label={`Remove ${name} from the club`}
-              >
-                Remove
-              </Link>,
-            );
-          }
-          return items.length ? items : null;
-        }
-      : undefined;
-  const removeCandidate = remove ? activeMemberships.find((m) => m.id === remove) : undefined;
-  const removeTarget =
-    removeCandidate && canRemove(meForRoles, asRoleMember(removeCandidate)) ? removeCandidate : null;
+  // Who the viewer may manage (lib/roles.ts); the person's page offers
+  // exactly these, and the actions check again.
+  const asRole = (m: Pick<ClubMembership, "id" | "clubId" | "role" | "leftAt">): RoleMember => ({ membershipId: m.id, clubId: m.clubId, role: m.role, leftAt: m.leftAt });
+  const mayManage = (m: ClubMembership) =>
+    canChangeRole(asRole(me), asRole(m), "admin") ||
+    canChangeRole(asRole(me), asRole(m), "member") ||
+    canTransferOwnership(asRole(me), asRole(m)) ||
+    canRemove(asRole(me), asRole(m));
 
   // Leaving (ruled 2026-11-11): the plan decides what the confirm offers.
-  const others = activeMemberships.filter((m) => m.id !== me.id);
+  const others = active.filter((m) => m.id !== me.id);
   const leavePlan = planLeave(
     me.role,
     others.map((o) => ({ membershipId: o.id, role: o.role, joinedAt: o.joinedAt })),
   );
   const heir = leavePlan.kind === "transfer" ? others.find((o) => o.id === leavePlan.heirMembershipId) : undefined;
-  const transferCandidate = transfer ? activeMemberships.find((m) => m.id === transfer) : undefined;
-  const transferTarget =
-    transferCandidate && canTransferOwnership(meForRoles, asRoleMember(transferCandidate)) ? transferCandidate : null;
-  const nomineesPerTurn = getNomineesPerTurn(club.settings);
-  const confirmAt = getConfirmAt(club.settings);
-  const lockTime = getLockTime(club.settings);
-  const autoAdvance = getAutoAdvance(club.settings);
-  const showVoteCounts = getShowVoteCounts(club.settings);
-  // After a mistake, the details form shows what was typed (form-echo
-  // cookie, never the URL); otherwise the club's current values.
-  const echo = detailsError ? await readFormEcho() : {};
-  const details = {
-    name: echo.name ?? club.name,
-    cadence: echo.cadence ?? club.cadence,
-    defaultDay: echo.defaultDay ?? String(club.defaultDay ?? 6),
-    defaultTime: echo.defaultTime ?? (club.defaultTime ?? "20:00").slice(0, 5),
-    timezone: echo.timezone ?? club.timezone,
-    mode: echo.mode ?? club.mode,
-    firstNightOn: echo.firstNightOn ?? "",
-  };
 
-  return (
-    <GlobalShell
-      current="clubs"
-      // No rail here (it would repeat the main column), but its space is
-      // kept so Tonight ↔ Members doesn't shift the page at 1120px+.
-      reserveRail
-      header={
-        <>
-          <ClubHeader club={club} />
-          <ClubTabs clubId={clubId} current="members" asking={askingRequests.length} />
-        </>
-      }
-    >
-      <h2 id="roles" className="sec mt14">
-        Members
+  const askingCard = isOwnerOrAdmin && (askingRequests.length > 0 || asking) && (
+    <section id="asking" className="card mt14 asking-card" aria-labelledby="asking-heading">
+      <h2 id="asking-heading" className="sec flush">
+        Asking to join
       </h2>
+      {asking === "refused" && askingEcho.askingError && (
+        <p className="small mt-1 warn" role="alert">
+          {askingEcho.askingError}
+        </p>
+      )}
+      {asking === "approved" && (
+        <p className="small mt-1 saved-note" role="status">
+          They&apos;re in. We&apos;ve emailed them.
+        </p>
+      )}
+      {asking === "declined" && (
+        <p className="small mt-1" role="status">
+          Declined.
+        </p>
+      )}
+      {askingRequests.length === 0 ? (
+        <p className="small muted mt-1 flush">Nobody&apos;s asking right now.</p>
+      ) : (
+        <ul className="plain-list stack gap8 mt14 asking-list">
+          {askingRequests.map((r, i) => (
+            <li key={r.id} className="person-row asking-row">
+              <span className="avatar" aria-hidden="true">
+                {initials(r.name)}
+              </span>
+              <span className="grow person-text">
+                <span className="person-name">{r.name}</span>
+                <span className="tiny dim">Used the club code · {timeAgo(r.createdAt, now)}</span>
+              </span>
+              <span className="row gap8 asking-actions">
+                {/* The page's one filled button: the first request's. */}
+                <form action={approveJoinRequestAction.bind(null, clubId, r.id)}>
+                  <button type="submit" className={`btn auto ${i === 0 ? "primary" : ""}`} aria-label={`Let ${r.name} in`}>
+                    Let them in
+                  </button>
+                </form>
+                <form action={declineJoinRequestAction.bind(null, clubId, r.id)}>
+                  <button type="submit" className="btn ghost auto" aria-label={`Decline ${r.name}`}>
+                    Decline
+                  </button>
+                </form>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+
+  const peopleCard = (
+    <section id="roles" className="card mt14 people-card" aria-labelledby="people-heading">
+      <div className="between">
+        <h2 id="people-heading" className="sec flush">
+          People · {active.length} of {FREE_TIER_MEMBER_CAP}
+        </h2>
+        {isOwnerOrAdmin && canCreateInvite(active.length, pendingInvites.length) && (
+          <Link href={`/clubs/${clubId}/members/invite`} className="btn ghost auto invite-link">
+            + Invite
+          </Link>
+        )}
+      </div>
+      {/* A full club says so instead of offering + Invite (the seat-cap
+          ruling: a refused invite is never a silent no-op). */}
+      {isOwnerOrAdmin && !canCreateInvite(active.length, pendingInvites.length) && (
+        <p className="small mt-1 club-full">
+          {club.name} is full: {active.length} {active.length === 1 ? "member" : "members"} and {pendingInvites.length}{" "}
+          pending {pendingInvites.length === 1 ? "invite" : "invites"}. Cancel an invite to free a seat.
+        </p>
+      )}
       {rolesError && (
-        <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
+        <p className="small mt-1 warn" role="alert">
           {rolesError}
         </p>
       )}
-      {roles && !rolesError && (
-        <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
-          {roles === "transferred" ? "Done. You're an admin now." : "Saved."}
+      {roles === "transferred" && !rolesError && (
+        <p className="small mt-1 saved-note" role="status">
+          Done. You&apos;re an admin now.
         </p>
       )}
-      {transferTarget && (
-        // The two-tap transfer's confirm (ruled 2026-11-11). The second
-        // POST carries the membership id, never a name.
-        <div className="card mt14 transfer-confirm" style={{ borderColor: "var(--accent)" }}>
-          <p className="small" style={{ margin: 0 }}>
-            Make {nameOf(transferTarget)} the owner of {club.name}? You&apos;ll become an admin.
-          </p>
-          <div className="row gap8 mt14">
-            <form action={transferOwnership.bind(null, clubId, transferTarget.id)}>
-              <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                Make owner
-              </button>
-            </form>
-            <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
-              Cancel
-            </Link>
-          </div>
-        </div>
-      )}
       {removed && (
-        <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
+        <p className="small mt-1 saved-note" role="status">
           Removed.
         </p>
       )}
-      {removeTarget && (
-        // Two-tap removal (ruled 2026-11-11); the POST carries the
-        // membership id, never a name.
-        <div className="card mt14 remove-confirm" style={{ borderColor: "var(--warn)" }}>
-          <p className="small" style={{ margin: 0 }}>
-            Remove {nameOf(removeTarget)} from {club.name}? Their past picks, votes and ratings stay in its history.
+      <ul className="plain-list mt14 people-list">
+        {active.map((m) => {
+          const name = nameOf(m);
+          return (
+            <li key={m.id} className={`person-row ${m.id === me.id ? "me" : ""}`}>
+              <span className={`avatar ${m.id === me.id ? "me" : ""}`} aria-hidden="true">
+                {initials(name)}
+              </span>
+              <span className="grow person-text">
+                <span className="person-name">
+                  {name}
+                  {m.id === me.id && <span className="you"> (you)</span>}
+                </span>
+                <span className="tiny dim member-role">
+                  {roleLabel(m.role)}
+                  {m.postponedAt && <span className="passed-turn"> · Passed this turn</span>}
+                </span>
+              </span>
+              {mayManage(m) && (
+                <Link href={`/clubs/${clubId}/members/${m.id}`} className="manage-link" aria-label={`Manage ${name}`}>
+                  <span aria-hidden="true">⋯</span>
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {pendingInvites.length > 0 && (
+        <ul className="plain-list mt14 invited-list">
+          {pendingInvites.map((invite) => {
+            // Opening the link records nothing (link previews open every
+            // URL); only starting to sign up is known (§7).
+            const line = `Invited: ${invite.inviteeName} · ${invite.startedAt ? "started signing up" : "not started yet"}`;
+            return (
+              <li key={invite.id} className="small">
+                {isOwnerOrAdmin ? (
+                  <Link href={`/clubs/${clubId}/members/invite?invite=${invite.id}`} className="row-link invited-row">
+                    <span className="grow muted">{line}</span>
+                    <span className="row-link-chevron" aria-hidden="true">
+                      ›
+                    </span>
+                  </Link>
+                ) : (
+                  <span className="muted invited-row">{line}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+
+  const justForYou = (
+    <section className="card mt14 just-for-you" aria-labelledby="for-you-heading">
+      <h2 id="for-you-heading" className="sec flush">
+        Just for you
+      </h2>
+      <RowLink href={`/clubs/${clubId}/members/limits`} label="Your limits" value={limitSummary(myLimits)} className="mt-1" />
+    </section>
+  );
+
+  const settingsCard = isOwnerOrAdmin && (
+    <section className="card mt14 club-settings-card" aria-labelledby="club-settings-heading">
+      <h2 id="club-settings-heading" className="sec flush">
+        Club settings
+      </h2>
+      <RowLink
+        href={`/clubs/${clubId}/members/settings`}
+        label="How this club runs"
+        value={runsSummary(club, getNomineesPerTurn(club.settings))}
+        className="mt-1"
+      />
+      <RowLink
+        href={`/clubs/${clubId}/members/settings#join-code`}
+        label="Club code"
+        value={club.joinCode ? `On · ${formatJoinCode(club.joinCode)}` : "Off"}
+      />
+      <RowLink href={`/clubs/${clubId}/members/settings/pause`} label="Pause the club" value={club.pausedAt ? "Paused" : "Running"} />
+    </section>
+  );
+
+  // Everyone sees how the club runs (ruled 2026-11-10); a plain member's
+  // page is read-only.
+  const clubCard = !isOwnerOrAdmin && (
+    <section className="card mt14 club-card" aria-labelledby="club-card-heading">
+      <h2 id="club-card-heading" className="sec flush">
+        Club
+      </h2>
+      <RowLink
+        href={`/clubs/${clubId}/members/settings`}
+        label="How this club runs"
+        value={runsSummary(club, getNomineesPerTurn(club.settings))}
+        className="mt-1"
+      />
+    </section>
+  );
+
+  const leaveSection = (
+    <section id="leave" className="mt20" aria-labelledby="leave-heading">
+      <h2 id="leave-heading" className="sr-only">
+        Leave this club
+      </h2>
+      {leaveError && (
+        <p className="small mt-1 warn" role="alert">
+          {leaveError}
+        </p>
+      )}
+      {!leave ? (
+        <Link href={`/clubs/${clubId}/members?leave=1#leave`} className="btn danger block-link leave-link">
+          Leave this club
+        </Link>
+      ) : leavePlan.kind === "last_member" ? (
+        // The last active member can't simply leave (ruled 2026-11-11):
+        // pause, or delete the club by typing its name.
+        <div className="card danger-card leave-confirm">
+          <p className="small flush">
+            You&apos;re the last member of {club.name}, so you can&apos;t just leave it. Pause it to come back later, or
+            delete it.
           </p>
-          <div className="row gap8 mt14">
-            <form action={removeMember.bind(null, clubId, removeTarget.id)}>
-              <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                Remove
+          {!club.pausedAt && (
+            <form action={setClubPaused.bind(null, clubId, true)} className="mt14">
+              <button type="submit" className="btn auto">
+                Pause the club
               </button>
             </form>
-            <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
-              Cancel
-            </Link>
-          </div>
-        </div>
-      )}
-      <MemberCards members={activeMemberships} meId={me.id} controls={memberControls} />
-
-      {pendingInvites.length > 0 && (
-        <>
-          <h2 className="sec mt20">Invited</h2>
-          <div className="stack gap8">
-            {pendingInvites.map((invite) => (
-              <div
-                key={invite.id}
-                className="card"
-                style={invite.id === newInviteId ? { borderColor: "var(--accent)" } : undefined}
-              >
-                <div className="between">
-                  <span>{invite.inviteeName}</span>
-                  <span className="tiny dim">{timeAgo(invite.createdAt, now)}</span>
-                </div>
-                <p className="tiny dim" style={{ margin: "3px 0 0" }}>
-                  {invite.startedAt ? "Started: entered an email" : "Not started"}
-                </p>
-                {invite.id === newInviteId && (
-                  <p className="tiny mt-1" style={{ color: "var(--accent)" }}>
-                    Invite ready. Send it to {invite.inviteeName} directly: whoever uses it first
-                    gets the seat.
-                  </p>
-                )}
-                {isOwnerOrAdmin && (
-                  <div className="stack gap8 mt14">
-                    <ShareInvite
-                      url={`${baseUrl}/invite/${invite.token}`}
-                      inviteeName={invite.inviteeName}
-                      clubName={club.name}
-                    />
-                    <div className="row gap8">
-                      <form action={regenerateInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
-                        <button type="submit" className="btn ghost">
-                          Regenerate
-                        </button>
-                      </form>
-                      <form action={revokeInvite.bind(null, clubId, invite.id)} style={{ flex: 1 }}>
-                        <button type="submit" className="btn ghost">
-                          Revoke
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                )}
+          )}
+          <form action={deleteClubAsLastMember.bind(null, clubId)} className="stack gap8 mt14">
+            <label className="small muted">
+              To delete {club.name} and everything in it (every night, vote and rating), type its name
+              <div className="search mt-1">
+                <input type="text" name="confirmName" required autoComplete="off" />
               </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {isOwnerOrAdmin && (
-        <section id="add-person" className="mt20">
-          <h2 className="sec">Add a person</h2>
-          <p className="small muted">
-            {seatsTaken} of {FREE_TIER_MEMBER_CAP} seats. Each person gets their own link that greets
-            them by name.
-          </p>
-          {inviteError && (
-            <p className="small mt-1" style={{ color: "var(--warn)" }}>
-              {inviteError}
-            </p>
-          )}
-          {canCreateInvite(activeMemberships.length, pendingInvites.length) ? (
-            // The invite page (u4): a link per person, shared from there.
-            <Link href={`/clubs/${clubId}/members/invite`} className="btn block-link mt14 add-person-link">
-              Add a person
-            </Link>
-          ) : (
-            <p className="small mt14">
-              {club.name} is full: {activeMemberships.length} members and {pendingInvites.length}{" "}
-              pending {pendingInvites.length === 1 ? "invite" : "invites"}. Revoke an invite to free
-              a seat.
-            </p>
-          )}
-        </section>
-      )}
-
-      {isOwnerOrAdmin && (askingRequests.length > 0 || asking) && (
-        <section id="asking" className="mt20" aria-labelledby="asking-heading">
-          <h2 id="asking-heading" className="sec">
-            Asking to join
-          </h2>
-          {asking === "refused" && askingEcho.askingError && (
-            <p className="small mt-1 warn" role="alert">
-              {askingEcho.askingError}
-            </p>
-          )}
-          {asking === "approved" && (
-            <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
-              They&apos;re in. We&apos;ve emailed them.
-            </p>
-          )}
-          {asking === "declined" && (
-            <p className="small mt-1" role="status">
-              Declined.
-            </p>
-          )}
-          {askingRequests.length === 0 ? (
-            <p className="small muted mt-1">Nobody&apos;s asking right now.</p>
-          ) : (
-            <ul className="plain-list stack gap8 mt14 asking-list">
-              {askingRequests.map((r) => (
-                <li key={r.id} className="card">
-                  <div className="between">
-                    <span>{r.name}</span>
-                    <span className="tiny dim">{timeAgo(r.createdAt, now)}</span>
-                  </div>
-                  <div className="row gap8 mt14">
-                    <form action={approveJoinRequestAction.bind(null, clubId, r.id)} style={{ flex: 1 }}>
-                      <button type="submit" className="btn" aria-label={`Approve ${r.name}`}>
-                        Approve
-                      </button>
-                    </form>
-                    <form action={declineJoinRequestAction.bind(null, clubId, r.id)} style={{ flex: 1 }}>
-                      <button type="submit" className="btn ghost" aria-label={`Decline ${r.name}`}>
-                        Decline
-                      </button>
-                    </form>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {isOwnerOrAdmin && (
-        <section id="join-code" className="mt20" aria-labelledby="join-code-heading">
-          <h2 id="join-code-heading" className="sec">
-            Club code
-          </h2>
-          <p className="small muted flush">
-            Anyone with the code can ask to join. Nobody gets in until you or an admin says yes.
-          </p>
-          {/* A button with role="switch": it works without script. */}
-          <form action={setJoinCodeOn.bind(null, clubId, !club.joinCode)} className="mt14">
-            <button
-              type="submit"
-              role="switch"
-              aria-checked={club.joinCode !== null}
-              className="consent-choice small join-code-switch"
-            >
-              <span className="switch-track" aria-hidden="true" />
-              Let people ask to join with a code
+            </label>
+            <button type="submit" className="btn danger auto">
+              Delete this club
             </button>
           </form>
-          {club.joinCode && (
-            <div className="stack gap8 mt14">
-              <CopyCode code={formatJoinCode(club.joinCode)} label={`Club code for ${club.name}`} />
-              {codeNotice === "new" && (
-                <p className="small flush" role="status" style={{ color: "var(--accent)" }}>
-                  New code made. The old one doesn&apos;t work any more.
-                </p>
-              )}
-              <form action={makeNewJoinCode.bind(null, clubId)}>
-                <button type="submit" className="btn ghost">
-                  Make a new code
-                </button>
-              </form>
-              <p className="tiny dim flush">A new code stops the old one working at once.</p>
-            </div>
-          )}
-        </section>
-      )}
-
-      <section id="limits" className="mt20" aria-labelledby="limits-heading">
-        {/* Your limits in this club (§5.10, ruled 2026-11-12): the viewer's
-            own, seen and changed by nobody else. */}
-        <h2 id="limits-heading" className="sec">
-          Your limits in this club
-        </h2>
-        <p className="tiny dim" style={{ margin: "4px 0 0" }}>
-          These apply in {club.name} only. Two hard limits each. Hard limits are never voted on. Preferences
-          break ties.
-        </p>
-        <p className="tiny dim" style={{ margin: "4px 0 0" }}>
-          A change counts from the next time films are checked: the next nomination, or the close of a vote
-          that&apos;s already open.
-        </p>
-        {limitsError && (
-          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
-            {limitsError}
-          </p>
-        )}
-        {limits === "saved" && !limitsError && (
-          <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
-            Saved.
-          </p>
-        )}
-        {myLimits.length === 0 ? (
-          <p className="small muted mt14">No limits set for this club.</p>
-        ) : (
-          <ul className="stack gap8 mt14 my-limits" style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
-            {myLimits.map((c) => {
-              const words = describeLimit(c);
-              return (
-                <li key={c.id} className="row gap8">
-                  <span className={`chip ${c.kind === "hard" ? "on" : ""}`}>{words}</span>
-                  <form action={removeLimit.bind(null, clubId, c.id)} style={{ marginLeft: "auto" }}>
-                    <button type="submit" className="btn ghost limit-remove" aria-label={`Remove ${words}`}>
-                      Remove
-                    </button>
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <form action={addLimit.bind(null, clubId)} className="limit-form stack gap14 mt14" style={{ maxWidth: 420 }}>
-          <fieldset className="consent-age">
-            <legend className="small muted">Kind</legend>
-            <label className="consent-choice">
-              <input type="radio" name="kind" value="hard" defaultChecked={!atHardCap} disabled={atHardCap} /> Hard
-              limit
-            </label>
-            <label className="consent-choice">
-              <input type="radio" name="kind" value="soft" defaultChecked={atHardCap} /> Prefer not
-            </label>
-          </fieldset>
-          {atHardCap && <p className="tiny dim limit-cap" style={{ margin: 0 }}>{"You have two hard limits. Remove one, or add this as a preference."}</p>}
-          <fieldset className="consent-age">
-            <legend className="small muted">What</legend>
-            <label className="consent-choice">
-              <input type="radio" name="ruleType" value="genre" defaultChecked /> A genre
-            </label>
-            <label className="consent-choice">
-              <input type="radio" name="ruleType" value="runtime" /> A length
-            </label>
-            <label className="consent-choice">
-              <input type="radio" name="ruleType" value="topic" /> A topic
-            </label>
-          </fieldset>
-          <label className="small muted limit-genre">
-            Genre
-            <select name="genre" className="sel mt-1" style={{ display: "block", width: "100%" }} defaultValue="">
-              <option value="" disabled>
-                Choose a genre
-              </option>
-              {MOVIE_GENRES.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="small muted limit-topic">
-            Topic
-            <select name="topic" className="sel mt-1" style={{ display: "block", width: "100%" }} defaultValue="">
-              <option value="" disabled>
-                Choose a topic
-              </option>
-              {CONTENT_TOPICS.map((t) => (
-                <option key={t.slug} value={t.slug}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {/* Shown for Hard limit + A topic (app/globals.css): a film with
-              no topic information fails closed (ruled 2026-11-12). */}
-          <p className="tiny dim limit-topic-hint" style={{ margin: 0 }}>
-            Films with no topic information are also left out, to be safe.
-          </p>
-          <label className="small muted limit-minutes">
-            Nothing over (minutes)
-            <div className="search mt-1">
-              <input type="number" name="minutes" min={MIN_RUNTIME_LIMIT} max={MAX_RUNTIME_LIMIT} step={1} />
-            </div>
-          </label>
-          <button type="submit" className="btn" style={{ width: "auto" }}>
-            Add
-          </button>
-        </form>
-
-        {myLimits.length > 0 && (
-          <form action={setLimitsApplyWhenAbsent.bind(null, clubId, !limitsApplyWhenAbsent)} className="mt14">
-            <div className="row gap8" style={{ alignItems: "center" }}>
-              <span className="small" style={{ flex: 1 }}>
-                Apply my limits even on weeks I&apos;m out
-              </span>
-              <button
-                type="submit"
-                className={`btn ${limitsApplyWhenAbsent ? "primary" : "ghost"}`}
-                style={{ width: "auto" }}
-                role="switch"
-                aria-checked={limitsApplyWhenAbsent}
-                aria-label="Apply my limits even on weeks I'm out"
-              >
-                {limitsApplyWhenAbsent ? "On" : "Off"}
-              </button>
-            </div>
-          </form>
-        )}
-      </section>
-
-      <section id="club-settings" className="mt20" aria-labelledby="club-settings-heading">
-        <h2 id="club-settings-heading" className="sec">
-          How this club runs
-        </h2>
-        {club.pausedAt && (
-          <p className="small mt-1 club-paused" style={{ color: "var(--warn)" }}>
-            Paused
-          </p>
-        )}
-        {settingsError && (
-          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
-            {settingsError}
-          </p>
-        )}
-        {saved === "settings" && !settingsError && (
-          <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
-            Saved. It applies from the next time it matters, never to a night already under way.
-          </p>
-        )}
-        {isOwnerOrAdmin ? (
-          <>
-            <h3 id="club-details" className="small mt14" style={{ fontWeight: 600 }}>
-              Club details
-            </h3>
-            {detailsError && (
-              <p className="small mt-1 details-error" role="alert" style={{ color: "var(--warn)" }}>
-                {detailsError}
-              </p>
-            )}
-            {saved === "details" && !detailsError && (
-              <p className="small mt-1" role="status" style={{ color: "var(--accent)" }}>
-                Saved. It applies from the next night; a night already under way keeps its date.
-              </p>
-            )}
-            <form
-              action={updateClubDetails.bind(null, clubId)}
-              className="club-details-form stack gap14 mt14"
-              style={{ maxWidth: 420 }}
-            >
-              <label className="small muted">
-                Club name
-                <div className="search mt-1">
-                  <input type="text" name="name" required defaultValue={details.name} />
-                </div>
-              </label>
-              <label className="small muted">
-                How often
-                {/* No "no fixed schedule" here until nights can be
-                    scheduled by hand (ruled 2026-11-10). A club already
-                    ad hoc sees it selected only until it picks one. */}
-                <select
-                  name="cadence"
-                  defaultValue={details.cadence === "ad_hoc" ? "weekly" : details.cadence}
-                  className="sel mt-1"
-                  style={{ display: "block", width: "100%" }}
-                >
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Every other week</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </label>
-              <label className="small muted">
-                Day
-                <select
-                  name="defaultDay"
-                  defaultValue={details.defaultDay}
-                  className="sel mt-1"
-                  style={{ display: "block", width: "100%" }}
-                >
-                  {DAY_LABELS.map((label, value) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="small muted">
-                Time
-                <div className="search mt-1">
-                  <input type="time" name="defaultTime" required defaultValue={details.defaultTime} />
-                </div>
-              </label>
-              <label className="small muted">
-                Timezone
-                <div className="search mt-1">
-                  <input type="text" name="timezone" list="club-timezone-options" required defaultValue={details.timezone} />
-                </div>
-                <datalist id="club-timezone-options">
-                  {COMMON_TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz} />
-                  ))}
-                </datalist>
-              </label>
-              <div>
-                <span className="small muted">In person or remote</span>
-                <div className="row gap14 mt-1">
-                  <label className="small choice">
-                    <input type="radio" name="mode" value="in_person" defaultChecked={details.mode === "in_person"} /> In
-                    person
-                  </label>
-                  <label className="small choice">
-                    <input type="radio" name="mode" value="remote" defaultChecked={details.mode === "remote"} /> Remote
-                  </label>
-                </div>
-              </div>
-              {/* Shown for every other week and monthly (app/globals.css);
-                  required by the server only when the counting would
-                  otherwise come from nowhere anyone chose
-                  (lib/clubDetails.ts firstNightRequired). */}
-              <div className="first-night">
-                <label className="small muted">
-                  First night on
-                  <div className="search mt-1">
-                    <input
-                      type="date"
-                      name="firstNightOn"
-                      defaultValue={details.firstNightOn}
-                      aria-describedby="first-night-hint"
-                    />
-                  </div>
-                </label>
-                <span id="first-night-hint" className="tiny dim" style={{ display: "block", marginTop: 4 }}>
-                  Needed when you change how often the club meets or the day. It has to fall on that day,
-                  and every other week or month counts from it.
-                </span>
-              </div>
-              <p className="tiny dim" style={{ margin: 0 }}>
-                Changes apply from the next night. A night already under way keeps its date.
-              </p>
-              <button type="submit" className="btn" style={{ width: "auto" }}>
-                Save details
-              </button>
-            </form>
-
-            <h3 className="small mt20" style={{ fontWeight: 600 }}>
-              Nights
-            </h3>
-            <form action={updateClubSettings.bind(null, clubId)} className="stack gap14 mt14" style={{ maxWidth: 420 }}>
-              <label className="small muted">
-                Films each picker nominates
-                <div className="search mt-1">
-                  <input
-                    type="number"
-                    name="nomineesPerTurn"
-                    min={1}
-                    max={5}
-                    step={1}
-                    required
-                    defaultValue={nomineesPerTurn}
-                  />
-                </div>
-              </label>
-              <label className="small muted">
-                When to ask &ldquo;Did you watch it?&rdquo;
-                <select
-                  name="confirmAt"
-                  defaultValue={confirmAt}
-                  className="sel mt-1"
-                  style={{ display: "block", width: "100%" }}
-                >
-                  {(Object.keys(CONFIRM_AT_LABELS) as ConfirmAt[]).map((value) => (
-                    <option key={value} value={value}>
-                      {CONFIRM_AT_LABELS[value]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="small muted">
-                Voting closes … before the night
-                <select
-                  name="lockTime"
-                  defaultValue={String(lockTime)}
-                  className="sel mt-1"
-                  style={{ display: "block", width: "100%" }}
-                >
-                  {LOCK_TIME_HOURS.map((hours) => (
-                    <option key={hours} value={hours}>
-                      {hoursLabel(hours)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="small muted">
-                If nobody answers, log it as unconfirmed after …
-                <select
-                  name="autoAdvance"
-                  defaultValue={String(autoAdvance)}
-                  className="sel mt-1"
-                  style={{ display: "block", width: "100%" }}
-                >
-                  {AUTO_ADVANCE_HOURS.map((hours) => (
-                    <option key={hours} value={hours}>
-                      {hoursLabel(hours)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="consent-choice small vote-counts-choice">
-                <input type="checkbox" name="showVoteCounts" defaultChecked={showVoteCounts} />
-                Show vote counts while voting is open
-              </label>
-              <p className="tiny dim deadlines-note" style={{ margin: 0 }}>
-                Everyone gets at least 6 hours to vote, and voting closes by the time the night starts.
-                Changing these never moves a night already under way.
-              </p>
-              <button type="submit" className="btn" style={{ width: "auto" }}>
-                Save
-              </button>
-            </form>
-            <form action={setClubPaused.bind(null, clubId, !club.pausedAt)} className="mt14">
-              <button type="submit" className="btn ghost" style={{ width: "auto" }}>
-                {club.pausedAt ? "Resume the club" : "Pause the club"}
-              </button>
-            </form>
-            <p className="tiny dim" style={{ margin: "8px 0 0" }}>
-              {club.pausedAt
-                ? "Resuming schedules the next night as usual."
-                : "Pausing stops new nights being scheduled. A night already under way carries on."}
-            </p>
-          </>
-        ) : (
-          <dl className="small mt14 club-settings-values" style={{ margin: "14px 0 0" }}>
-            <dt className="muted">When</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{describeSchedule(club)}</dd>
-            <dt className="muted">Timezone</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{club.timezone}</dd>
-            <dt className="muted">Films each picker nominates</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{nomineesPerTurn}</dd>
-            <dt className="muted">When to ask &ldquo;Did you watch it?&rdquo;</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{CONFIRM_AT_LABELS[confirmAt]}</dd>
-            <dt className="muted">Voting closes</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{hoursLabel(lockTime)} before the night</dd>
-            <dt className="muted">If nobody answers, logged as unconfirmed after</dt>
-            <dd style={{ margin: "2px 0 10px" }}>{hoursLabel(autoAdvance)}</dd>
-            <dt className="muted">Vote counts while voting is open</dt>
-            <dd style={{ margin: "2px 0 0" }}>{showVoteCounts ? "Shown" : "Hidden until voting closes"}</dd>
-          </dl>
-        )}
-      </section>
-
-      <section id="leave" className="mt20" aria-labelledby="leave-heading">
-        <h2 id="leave-heading" className="sec">
-          Leave this club
-        </h2>
-        {leaveError && (
-          <p className="small mt-1" role="alert" style={{ color: "var(--warn)" }}>
-            {leaveError}
-          </p>
-        )}
-        {!leave ? (
-          <Link href={`/clubs/${clubId}/members?leave=1#leave`} className="btn ghost mt14" style={{ width: "auto" }}>
-            Leave this club
+          <Link href={`/clubs/${clubId}/members`} className="btn ghost auto mt14">
+            Cancel
           </Link>
-        ) : leavePlan.kind === "last_member" ? (
-          // The last active member can't simply leave (ruled 2026-11-11):
-          // pause, or delete the club by typing its name.
-          <div className="card mt14 leave-confirm">
-            <p className="small" style={{ margin: 0 }}>
-              You&apos;re the last member of {club.name}, so you can&apos;t just leave it. Pause it to come back
-              later, or delete it.
-            </p>
-            {!club.pausedAt && (
-              <form action={setClubPaused.bind(null, clubId, true)} className="mt14">
-                <button type="submit" className="btn" style={{ width: "auto" }}>
-                  Pause the club
-                </button>
-              </form>
-            )}
-            <form action={deleteClubAsLastMember.bind(null, clubId)} className="stack gap8 mt14">
-              <label className="small muted">
-                To delete {club.name} and everything in it (every night, vote and rating), type its name
-                <div className="search mt-1">
-                  <input type="text" name="confirmName" required autoComplete="off" />
-                </div>
-              </label>
-              <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                Delete this club
+        </div>
+      ) : (
+        <div className="card danger-card leave-confirm">
+          <p className="small flush">Leave {club.name}? Your past picks, votes and ratings stay in its history.</p>
+          {heir && <p className="small mt-1 flush">{nameOf(heir)} will become the owner.</p>}
+          <div className="row gap8 mt14">
+            <form action={leaveClub.bind(null, clubId, null)}>
+              <button type="submit" className="btn danger auto">
+                Leave
               </button>
             </form>
-            <Link href={`/clubs/${clubId}/members`} className="btn ghost mt14" style={{ width: "auto" }}>
+            <Link href={`/clubs/${clubId}/members`} className="btn ghost auto">
               Cancel
             </Link>
           </div>
-        ) : (
-          <div className="card mt14 leave-confirm">
-            <p className="small" style={{ margin: 0 }}>
-              Leave {club.name}? Your past picks, votes and ratings stay in its history.
-            </p>
-            {heir && (
-              <p className="small mt-1" style={{ margin: "8px 0 0" }}>
-                {nameOf(heir)} will become the owner.
-              </p>
-            )}
-            <div className="row gap8 mt14">
-              <form action={leaveClub.bind(null, clubId, null)}>
-                <button type="submit" className="btn primary" style={{ width: "auto" }}>
-                  Leave
-                </button>
-              </form>
-              <Link href={`/clubs/${clubId}/members`} className="btn ghost" style={{ width: "auto" }}>
-                Cancel
-              </Link>
-            </div>
-            {heir && others.length > 1 && (
-              <div className="mt14 choose-heir">
-                <p className="tiny dim" style={{ margin: 0 }}>
-                  Choose someone else
-                </p>
-                <div className="stack gap8 mt-1">
-                  {others
-                    .filter((o) => o.id !== heir.id)
-                    .map((o) => (
-                      <form key={o.id} action={leaveClub.bind(null, clubId, o.id)}>
-                        <button type="submit" className="btn ghost" style={{ width: "auto" }}>
-                          Leave and make {nameOf(o)} the owner
-                        </button>
-                      </form>
-                    ))}
-                </div>
+          {heir && others.length > 1 && (
+            <div className="mt14 choose-heir">
+              <p className="tiny dim flush">Choose someone else</p>
+              <div className="stack gap8 mt-1">
+                {others
+                  .filter((o) => o.id !== heir.id)
+                  .map((o) => (
+                    <form key={o.id} action={leaveClub.bind(null, clubId, o.id)}>
+                      <button type="submit" className="btn ghost auto">
+                        Leave and make {nameOf(o)} the owner
+                      </button>
+                    </form>
+                  ))}
               </div>
-            )}
-          </div>
-        )}
-      </section>
-    </GlobalShell>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+
+  return (
+    <MembersFrame db={db} club={club} role={me.role} back={false} wide>
+      <OldAnchorRedirect clubId={clubId} />
+      <div className="members-grid">
+        <div className="members-col">
+          {askingCard}
+          {peopleCard}
+        </div>
+        <div className="members-col">
+          {justForYou}
+          {settingsCard}
+          {clubCard}
+          {leaveSection}
+        </div>
+      </div>
+    </MembersFrame>
   );
 }

@@ -20,8 +20,8 @@ a step ships, in the same branch. Recorded 2026-11-24 (approved by Chanho).
 | u2 | Display name | done (2026-11-26, #55) | One free-text display name (1–30 characters, unique within each club, case-insensitively) replaces first name + last initial; the invitee picks theirs on joining (ruled 2026-11-25). |
 | u3 | Sign-up and sign-in | done (2026-11-26, #56) | Invited sign-up as three steps (Email → Code → About you) with the invite always in view, six code boxes with paste and autofill, a resend countdown, then a welcome page to add three films; returning sign-in with no step bar; two columns on laptops. |
 | u4 | Own sign-up | done (2026-11-26, #57) | Live only when `OPEN_SIGNUP` is on: the same three steps plus "Start your club" with every default shown and editable, then a "Get your club going" checklist on Tonight and an Invite people screen. |
-| u5 | Club codes | built (2026-11-26, branch `u5-club-codes`, awaiting the production schema push and merge) | A second way in beside per-person invites: an optional short code, off by default; "Ask to join", approved by an owner or admin. Private clubs are never searchable. With it, two u4 follow-ups: "No fixed schedule" back on `/new`, and the time zone prefilled from the device. |
-| 3 | Redesign: Members | later | People first; Your limits, How this club runs, and Leave/Pause move to their own pages under the Members tab (ruled 2026-11-24). |
+| u5 | Club codes | done (2026-11-27, #58) | A second way in beside per-person invites: an optional short code, off by default; "Ask to join", approved by an owner or admin. Private clubs are never searchable. With it, two u4 follow-ups: "No fixed schedule" back on `/new`, and the time zone prefilled from the device. |
+| 3 | Redesign: Members | built (2026-11-27, branch `u6-members`, awaiting merge) | People first; Your limits, How this club runs, and Leave/Pause move to their own pages under the Members tab (ruled 2026-11-24). |
 | 4 | Redesign: Settings | later | A menu of rows that open pages on phones; menu and panel side by side on wide screens. |
 | 5 | Wide-screen layouts | later | Real multi-column layouts at laptop widths, not a phone column stretched. |
 | 6 | One contextual ad slot, designed in | later | A place for an ad designed into global pages (the Clubs list, Watchlist), never into a private club's pages, within the ad rulings. Empty until contextual ads ship. |
@@ -90,6 +90,9 @@ Everything to settle in one review before public sign-ups open.
   the form-echo cookie now also carries a typed club code to the confirm
   step (its listed role, "what you typed into a form for a minute", still
   fits).
+- **Never / Rather not in the Privacy text** (u6): the app now says
+  "Never" and "Rather not" for hard limits and preferences; the Privacy
+  draft's "What we collect" still says "Limits and preferences".
 - **Contextual ads disclosure**: what the Terms and Privacy must say about
   contextual ads and direct sponsorships, given no tracking and no viewing
   data ever reaches an ad provider.

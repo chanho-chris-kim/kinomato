@@ -38,10 +38,10 @@ test.describe("club creation and invites", () => {
       await expectYouAre(owner.page, "Robin B.");
       await owner.page.goto(`${clubUrl}/members`);
       await expect(memberNames(owner.page)).toHaveText(["Robin B. (you)"]);
-      await expect(owner.page.getByText("1 of 6 seats.")).toBeVisible();
+      await expect(owner.page.getByRole("heading", { name: "People · 1 of 6" })).toBeVisible();
 
       // --- Robin invites Sam from the invite page (u4); Sam joins with that link. ---
-      await owner.page.getByRole("link", { name: "Add a person" }).click();
+      await owner.page.getByRole("link", { name: "+ Invite" }).click();
       await expect(owner.page).toHaveURL(`${clubUrl}/members/invite`);
       await owner.page.getByLabel("Their name").fill("Sam K.");
       await owner.page.getByRole("button", { name: "Create invite link" }).click();
@@ -81,8 +81,10 @@ test.describe("club creation and invites", () => {
       await expect(owner.page.locator(".seats-left")).toHaveText("Each person gets their own link. No seats left.");
       await expect(owner.page.getByRole("button", { name: "Create invite link" })).toHaveCount(0);
       await owner.page.goto(`${clubUrl}/members`);
-      await expect(owner.page.getByText("6 of 6 seats.")).toBeVisible();
-      await expect(owner.page.getByRole("link", { name: "Add a person" })).toHaveCount(0);
+      // People counts who's in (u6); the pending invites fill the rest.
+      await expect(owner.page.getByRole("heading", { name: "People · 2 of 6" })).toBeVisible();
+      await expect(owner.page.locator(".invited-row")).toHaveCount(4);
+      await expect(owner.page.getByRole("link", { name: "+ Invite" })).toHaveCount(0);
       await expect(
         owner.page.getByText("E2E Test Club is full: 2 members and 4 pending invites."),
       ).toBeVisible();

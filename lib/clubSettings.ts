@@ -154,3 +154,36 @@ export function getScheduleAnchor(settings: unknown): string | null {
   const value = (settings as Record<string, unknown>).scheduleAnchor;
   return parseCalendarDate(value) ? (value as string) : null;
 }
+
+// How this club runs, one group at a time (u6, ruled 2026-11-27): each
+// group's form posts only its own fields, and the other group's come from
+// what's stored, so saving one never changes the other. The result goes
+// through readClubSettingsForm like any other.
+export const SETTINGS_GROUPS = {
+  voting: ["nomineesPerTurn", "lockTime", "showVoteCounts"],
+  after: ["confirmAt", "autoAdvance"],
+} as const;
+export type SettingsGroup = keyof typeof SETTINGS_GROUPS;
+
+export function isSettingsGroup(value: unknown): value is SettingsGroup {
+  return value === "voting" || value === "after";
+}
+
+export function groupSettingsFields(group: SettingsGroup, form: (key: string) => unknown, stored: unknown) {
+  const current: Record<string, unknown> = {
+    nomineesPerTurn: String(getNomineesPerTurn(stored)),
+    lockTime: String(getLockTime(stored)),
+    showVoteCounts: getShowVoteCounts(stored) ? "on" : null,
+    confirmAt: getConfirmAt(stored),
+    autoAdvance: String(getAutoAdvance(stored)),
+  };
+  const mine = new Set<string>(SETTINGS_GROUPS[group]);
+  const pick = (key: string) => (mine.has(key) ? form(key) : current[key]);
+  return {
+    nomineesPerTurn: pick("nomineesPerTurn"),
+    lockTime: pick("lockTime"),
+    showVoteCounts: pick("showVoteCounts"),
+    confirmAt: pick("confirmAt"),
+    autoAdvance: pick("autoAdvance"),
+  };
+}

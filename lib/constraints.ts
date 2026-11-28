@@ -190,8 +190,11 @@ export function filterEligibleFilms(
 
 // Hard limits are capped at two per person. Soft preferences don't count
 // toward the cap.
+// Two hard limits ("Never", u6) per person per club.
+export const HARD_LIMIT_CAP = 2;
+
 export function canAddHardLimit(existingConstraints: Constraint[]): boolean {
-  return existingConstraints.filter((c) => c.kind === "hard").length < 2;
+  return existingConstraints.filter((c) => c.kind === "hard").length < HARD_LIMIT_CAP;
 }
 
 // Returns a conflict count per film — distinct attending members whose

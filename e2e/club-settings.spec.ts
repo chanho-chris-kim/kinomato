@@ -80,6 +80,12 @@ const inFlight = (clubId: string) =>
       .where(and(eq(schema.nights.clubId, clubId), inArray(schema.nights.state, ["draft", "open", "locked"]))),
   );
 
+// How this club runs is its own page since u6 (ruled 2026-11-27): every
+// member sees it (ruled 2026-11-10); owners and admins edit each group alone
+// (?edit=voting, ?edit=after).
+const settingsPage = (clubId: string, edit?: "voting" | "after") =>
+  `/clubs/${clubId}/members/settings${edit ? `?edit=${edit}` : ""}`;
+
 test.describe("How this club runs", () => {
   test("a plain member sees the settings, but no form; a member's post is refused", async ({ page, browser }) => {
     const c = await withDb((db) =>
@@ -90,13 +96,14 @@ test.describe("How this club runs", () => {
     );
 
     await signInAsUser(page, c.users.milo);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    const section = page.locator("#club-settings");
-    await expect(section.getByRole("heading", { name: "How this club runs" })).toBeVisible();
-    await expect(section.locator(".club-settings-values")).toContainText("Films each picker nominates3");
-    await expect(section.locator(".club-settings-values")).toContainText("The next morning");
-    await expect(section.getByRole("button")).toHaveCount(0);
-    await expect(section.getByLabel("Films each picker nominates")).toHaveCount(0);
+    await page.goto(settingsPage(c.clubId, "voting"));
+    await expect(page.locator(".voting-values")).toContainText("Films each picker offers3");
+    await expect(page.locator(".after-values")).toContainText("The next morning");
+    await expect(page.locator("main form")).toHaveCount(0);
+    await expect(page.getByLabel("Films each picker offers")).toHaveCount(0);
+    // Pausing is owners' and admins' (a request, not a page load: a 404 page
+    // logs a console error).
+    expect((await page.request.get(`${settingsPage(c.clubId)}/pause`)).status()).toBe(404);
 
     // A post from someone who isn't owner or admin: the owner's own form,
     // submitted after the owner is demoted, as a stale or forged post
@@ -106,14 +113,14 @@ test.describe("How this club runs", () => {
     // Load the owner's form, demote, submit: the server answers 500 and
     // changes nothing. One fresh page per post, since a refused action
     // replaces the page with the error screen.
-    const forged = async (submit: (owner: Page) => Promise<void>) => {
+    const forged = async (path: string, submit: (owner: Page) => Promise<void>) => {
       const context = await browser.newContext();
       try {
         const owner = await context.newPage();
         await setOwnerRole("owner");
         await signInAsUser(owner, c.users.olive);
-        await owner.goto(`/clubs/${c.clubId}/members`);
-        await expect(owner.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+        await owner.goto(path);
+        await expect(owner.locator("main form button").first()).toBeVisible();
         await setOwnerRole("member");
         const response = owner.waitForResponse((r) => r.request().method() === "POST");
         await submit(owner);
@@ -122,11 +129,11 @@ test.describe("How this club runs", () => {
         await context.close();
       }
     };
-    await forged(async (owner) => {
-      await owner.getByLabel("Films each picker nominates").fill("1");
+    await forged(settingsPage(c.clubId, "voting"), async (owner) => {
+      await owner.getByLabel("Films each picker offers").fill("1");
       await owner.getByRole("button", { name: "Save", exact: true }).click();
     });
-    await forged((owner) => owner.getByRole("button", { name: "Pause the club" }).click());
+    await forged(`${settingsPage(c.clubId)}/pause`, (owner) => owner.getByRole("button", { name: "Pause the club" }).click());
     const after = await clubRow(c.clubId);
     expect(after.settings).toEqual({});
     expect(after.pausedAt).toBeNull();
@@ -153,20 +160,24 @@ test.describe("How this club runs", () => {
     });
 
     await signInAsUser(page, c.users.owen);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await page.getByLabel("Films each picker nominates").fill("2");
+    await page.goto(settingsPage(c.clubId, "voting"));
+    await page.getByLabel("Films each picker offers").fill("2");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.locator("#voting").getByRole("status")).toContainText("Saved.");
+    await page.goto(settingsPage(c.clubId, "after"));
     await page.getByLabel(/When to ask/).selectOption("same_night");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toContainText("Saved.");
+    await expect(page.locator("#after").getByRole("status")).toContainText("Saved.");
     expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48, showVoteCounts: false });
 
     // Bad input is refused at write time with a fixed message.
-    await page.getByLabel("Films each picker nominates").evaluate((el) => {
+    await page.goto(settingsPage(c.clubId, "voting"));
+    await page.getByLabel("Films each picker offers").evaluate((el) => {
       (el as HTMLInputElement).removeAttribute("max");
       (el as HTMLInputElement).value = "9";
     });
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.locator("#club-settings").getByRole("alert")).toHaveText(
+    await expect(page.locator("#voting").getByRole("alert")).toHaveText(
       "Films each picker nominates must be a whole number from 1 to 5.",
     );
     expect((await clubRow(c.clubId)).settings).toEqual({ nomineesPerTurn: 2, confirmAt: "same_night", lockTime: 24, autoAdvance: 48, showVoteCounts: false });
@@ -210,10 +221,10 @@ test.describe("How this club runs", () => {
     await page.goto(`/clubs/${c.clubId}`);
     await expect(page.getByText(/Did you watch/)).toHaveCount(0);
 
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(settingsPage(c.clubId, "after"));
     await page.getByLabel(/When to ask/).selectOption("manual_only");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.locator("#club-settings").getByRole("status")).toContainText("Saved.");
+    await expect(page.locator("#after").getByRole("status")).toContainText("Saved.");
 
     await page.goto(`/clubs/${c.clubId}`);
     await expect(page.getByText("Did you watch Arrival?")).toBeVisible();
@@ -245,9 +256,9 @@ test.describe("How this club runs", () => {
     });
 
     await signInAsUser(page, c.users.oak);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(`${settingsPage(c.clubId)}/pause`);
     await page.getByRole("button", { name: "Pause the club" }).click();
-    await expect(page.locator("#club-settings .club-paused")).toHaveText("Paused");
+    await expect(page.getByRole("status")).toContainText("Paused.");
     expect((await clubRow(c.clubId)).pausedAt).not.toBeNull();
 
     // The open night carries on, unchanged; Tonight says so.
@@ -258,12 +269,13 @@ test.describe("How this club runs", () => {
     const flying = await inFlight(c.clubId);
     expect(flying.map((n) => [n.id, n.state])).toEqual([[c.nightId, "open"]]);
 
-    // Every member sees it on the Members tab. On /, the card still shows
-    // the night in flight's own time (lib/clubStatus.ts getNextNight): it
-    // carries on, so that's the night to show.
+    // Every member sees it on Tonight (since u6 plain members don't see
+    // the settings). On /, the card still shows the night in flight's own
+    // time (lib/clubStatus.ts getNextNight): it carries on, so that's the
+    // night to show.
     await signInAsUser(page, c.users.max);
-    await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator("#club-settings .club-paused")).toHaveText("Paused");
+    await page.goto(`/clubs/${c.clubId}`);
+    await expect(page.locator(".club-paused-note")).toBeVisible();
     await page.goto("/");
     const card = page.locator(".clubcard", { hasText: "Pause Club" });
     await expect(card).not.toContainText("Paused");
@@ -284,9 +296,9 @@ test.describe("How this club runs", () => {
 
     // Resume: the next Tonight load schedules the next night.
     await signInAsUser(page, c.users.oak);
-    await page.goto(`/clubs/${c.clubId}/members`);
+    await page.goto(`${settingsPage(c.clubId)}/pause`);
     await page.getByRole("button", { name: "Resume the club" }).click();
-    await expect(page.locator("#club-settings .club-paused")).toHaveCount(0);
+    await expect(page.getByRole("status")).toContainText("Running again.");
     expect(await inFlight(c.clubId)).toEqual([]);
     await page.goto(`/clubs/${c.clubId}`);
     await expect(page.locator(".club-paused-note")).toHaveCount(0);

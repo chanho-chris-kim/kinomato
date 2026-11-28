@@ -70,3 +70,25 @@ export function timeAgo(then: Date, now: Date): string {
   if (days < 14) return unit(days, "day");
   return unit(Math.floor(days / 7), "week");
 }
+
+// The Members page's "How this club runs" row (u6): "Weekly · Sat 8:00pm ·
+// 3 films". The same one time format; a missing day or time left out.
+export function runsSummary(
+  club: { cadence: "weekly" | "biweekly" | "monthly" | "ad_hoc"; defaultDay: number | null; defaultTime: string | null },
+  nomineesPerTurn: number,
+): string {
+  const often = { weekly: "Weekly", biweekly: "Every other week", monthly: "Monthly", ad_hoc: "No fixed night" }[club.cadence];
+  const when =
+    club.cadence === "ad_hoc"
+      ? ""
+      : [club.defaultDay === null ? "" : WEEKDAYS[club.defaultDay].slice(0, 3), club.defaultTime ? spokenTime(club.defaultTime) : ""]
+          .filter(Boolean)
+          .join(" ");
+  const films = `${nomineesPerTurn} ${nomineesPerTurn === 1 ? "film" : "films"}`;
+  return [often, when, films].filter(Boolean).join(" · ");
+}
+
+// "Nov 7", in the club's time zone: "joined Nov 7" on a person's page.
+export function monthDay(at: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone, month: "short", day: "numeric" }).format(at);
+}

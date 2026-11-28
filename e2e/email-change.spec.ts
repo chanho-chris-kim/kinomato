@@ -1,5 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
-import { and, count, eq, isNotNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema";
@@ -32,6 +32,16 @@ async function withDb<T>(fn: (db: ReturnType<typeof drizzle<typeof schema>>) => 
     await client.end();
   }
 }
+
+// Past the 30-second per-address cooldown without waiting it out: the
+// sends to these addresses (sign-in codes and change codes) moved a minute
+// back, as e2e/start-club.open-signup.spec.ts does for sign-in.
+const pastCooldown = (...emails: string[]) =>
+  withDb(async (db) => {
+    const minuteAgo = new Date(Date.now() - 60_000);
+    await db.update(schema.magicLinks).set({ createdAt: minuteAgo }).where(inArray(schema.magicLinks.email, emails));
+    await db.update(schema.emailChanges).set({ createdAt: minuteAgo }).where(inArray(schema.emailChanges.newEmail, emails));
+  });
 
 const userByEmail = (email: string) =>
   withDb(async (db) => (await db.select().from(schema.users).where(eq(schema.users.email, email)))[0] ?? null);
@@ -114,7 +124,7 @@ test.describe("email change", () => {
     await expect(b.page.getByText("We just sent one.")).toBeVisible();
     // Past every 30-second cooldown (the change code there, and the
     // sign-up code to the old address).
-    await page.waitForTimeout(31_000);
+    await pastCooldown(next, old);
 
     // The old address still signs in, to this account and its club.
     const a = await freshContext(browser);
@@ -175,8 +185,9 @@ test.describe("email change", () => {
     await elsewhere.context.close();
 
     // The new address signs in to the same account, club and all — once
-    // past the 30-second per-address cooldown its change code started.
-    await page.waitForTimeout(31_000);
+    // past the 30-second per-address cooldown its change code started (and
+    // the old address's, which signs in again below).
+    await pastCooldown(next, old);
     const n = await freshContext(browser);
     await signIn(n.page, next);
     await expect(n.page).toHaveURL("/");

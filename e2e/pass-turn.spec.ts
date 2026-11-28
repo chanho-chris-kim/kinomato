@@ -134,7 +134,7 @@ test.describe("pass my turn", () => {
 
     // Visible as passed, on Members and the rail.
     await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator("main .member-name", { hasText: "Pia P." })).toContainText("Passed this turn");
+    await expect(page.locator("main .person-row", { hasText: "Pia P." })).toContainText("Passed this turn");
 
     // Quy's night ends: Pia is first for the next one, and the label clears.
     await finish(next.id, c.members.quy);
@@ -142,7 +142,7 @@ test.describe("pass my turn", () => {
     expect(after.pickerMembershipId).toBe(c.members.pia);
     expect((await membership(c.members.pia)).postponedAt).toBeNull();
     await page.goto(`/clubs/${c.clubId}/members`);
-    await expect(page.locator("main .member-name", { hasText: "Pia P." })).not.toContainText("Passed this turn");
+    await expect(page.locator("main .person-row", { hasText: "Pia P." })).not.toContainText("Passed this turn");
 
     expectNoneContain(urls, "Pia", "Quy", "Oda");
   });

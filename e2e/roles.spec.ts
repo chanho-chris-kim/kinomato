@@ -81,18 +81,21 @@ const rolesOf = (ids: string[]) =>
 const setRole = (membershipId: string, role: Role) =>
   withDb((db) => db.update(schema.memberships).set({ role }).where(eq(schema.memberships.id, membershipId)));
 
-// The role controls themselves (make or remove admin, make owner), not
-// Remove, which admins also get for plain members (m5).
+// Since u6 (ruled 2026-11-27) role controls are on each person's page,
+// reached by the "Manage {name}" ⋯ on Members. The controls themselves
+// (make or remove admin, hand the club over), not Remove, which admins also
+// get for plain members (m5).
 const roleControls = (page: Page) =>
   page
     .locator("main")
     .getByRole("button", { name: / an admin$| as admin$/ })
-    .or(page.locator("main").getByRole("link", { name: / the owner$/ }));
+    .or(page.locator("main").getByRole("link", { name: /^Hand the club over to / }));
+const manageLinks = (page: Page) => page.locator("main").getByRole("link", { name: /^Manage / });
+// Owner and admin see the Club settings card on Members.
 const ownerAdminControls = async (page: Page, visible: boolean) => {
-  const count = visible ? 1 : 0;
-  await expect(page.getByRole("button", { name: "Save details" })).toHaveCount(count);
-  await expect(page.locator("main").getByRole("heading", { name: "Add a person" })).toHaveCount(count);
+  await expect(page.locator("main").getByRole("heading", { name: "Club settings" })).toHaveCount(visible ? 1 : 0);
 };
+const roleOf = (page: Page, name: string) => page.locator("main .person-row", { hasText: name }).locator(".member-role");
 
 // A post from someone the rules don't allow, the way a stale page sends
 // one: their controls loaded as owner, then their role changed, then the
@@ -122,37 +125,44 @@ test.describe("roles", () => {
       { key: "gil", name: "Gil R.", role: "guest" },
     ]);
     const url = `/clubs/${c.clubId}/members`;
+    const personUrl = (membershipId: string) => `${url}/${membershipId}`;
 
     await signInAsUser(page, c.users.mel);
     await page.goto(url);
     await ownerAdminControls(page, false);
+    await expect(manageLinks(page)).toHaveCount(0);
 
     await signInAsUser(page, c.users.owner);
     await page.goto(url);
     // Roles in words; the leftover guest reads as Member, and its only
     // promotion is admin.
-    const gil = page.locator("main li.card", { hasText: "Gil R." });
-    await expect(gil.locator(".member-role")).toHaveText("Member");
-    await expect(gil.getByRole("button", { name: "Make Gil R. an admin" })).toBeVisible();
-    await expect(gil.getByRole("button", { name: "Remove Gil R. as admin" })).toHaveCount(0);
-    // The owner's own card has no controls.
-    await expect(page.locator("main li.card", { hasText: "Orla R. (you)" }).locator(".role-controls")).toHaveCount(0);
+    await expect(roleOf(page, "Gil R.")).toHaveText("Member");
+    // The owner's own row has nothing to manage.
+    await expect(page.getByRole("link", { name: "Manage Orla R." })).toHaveCount(0);
+    await page.getByRole("link", { name: "Manage Gil R." }).click();
+    await expect(page.getByRole("button", { name: "Make Gil R. an admin" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove Gil R. as admin" })).toHaveCount(0);
 
+    await page.goto(personUrl(c.members.mel));
     await page.getByRole("button", { name: "Make Mel R. an admin" }).click();
     await expect(page.locator("main").getByRole("status").first()).toHaveText("Saved.");
-    await expect(page.locator("main li.card", { hasText: "Mel R." }).locator(".member-role")).toHaveText("Admin");
+    await expect(page.locator(".person-meta")).toContainText("Admin");
     expect((await rolesOf([c.members.mel]))[c.members.mel]).toBe("admin");
 
     await signInAsUser(page, c.users.mel);
     await page.goto(url);
     await ownerAdminControls(page, true);
-    // Still no role controls for an admin.
+    // Still no role controls for an admin: Gil's page offers Remove only.
+    await page.getByRole("link", { name: "Manage Gil R." }).click();
     await expect(roleControls(page)).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Remove Gil R." })).toBeVisible();
 
     await signInAsUser(page, c.users.owner);
-    await page.goto(url);
+    await page.goto(personUrl(c.members.mel));
     await page.getByRole("button", { name: "Remove Mel R. as admin" }).click();
-    await expect(page.locator("main li.card", { hasText: "Mel R." }).locator(".member-role")).toHaveText("Member");
+    await expect(page.getByRole("button", { name: "Make Mel R. an admin" })).toBeVisible();
+    await page.goto(url);
+    await expect(roleOf(page, "Mel R.")).toHaveText("Member");
 
     await signInAsUser(page, c.users.mel);
     await page.goto(url);
@@ -166,19 +176,26 @@ test.describe("roles", () => {
       { key: "max", name: "Max Q.", role: "member" },
     ]);
     const url = `/clubs/${c.clubId}/members`;
-    for (const who of [c.users.ada, c.users.max]) {
-      await signInAsUser(page, who);
-      await page.goto(url);
-      await expect(page.locator("main li.card")).toHaveCount(3);
-      await expect(roleControls(page)).toHaveCount(0);
-      await expect(page.getByRole("link", { name: /the owner$/ })).toHaveCount(0);
-    }
+    // The admin: a ⋯ beside the plain member only, and no role controls there.
+    await signInAsUser(page, c.users.ada);
+    await page.goto(url);
+    await expect(page.locator("main .people-list .person-row")).toHaveCount(3);
+    await expect(manageLinks(page)).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "Manage Max Q." })).toBeVisible();
+    await page.goto(`${url}/${c.members.max}`);
+    await expect(roleControls(page)).toHaveCount(0);
+    // The member: nothing to manage at all.
+    await signInAsUser(page, c.users.max);
+    await page.goto(url);
+    await expect(page.locator("main .people-list .person-row")).toHaveCount(3);
+    await expect(manageLinks(page)).toHaveCount(0);
+    expect((await page.request.get(`${url}/${c.members.ada}`)).status()).toBe(404);
 
     // As an admin: make admin.
     await refused(
       browser,
       c.users.owner,
-      url,
+      `${url}/${c.members.max}`,
       () => setRole(c.members.owner, "admin"),
       (p) => p.getByRole("button", { name: "Make Max Q. an admin" }).click(),
     );
@@ -187,7 +204,7 @@ test.describe("roles", () => {
     await refused(
       browser,
       c.users.owner,
-      `${url}?transfer=${c.members.max}`,
+      `${url}/${c.members.max}?transfer=1`,
       () => setRole(c.members.owner, "member"),
       (p) => p.locator(".transfer-confirm").getByRole("button", { name: "Make owner" }).click(),
     );
@@ -206,12 +223,14 @@ test.describe("roles", () => {
     const url = `/clubs/${c.clubId}/members`;
     await signInAsUser(page, c.users.owner);
     await page.goto(url);
+    await page.getByRole("link", { name: "Manage Sam K." }).click();
+    await expect(page.getByText("Handing over makes Sam K. the owner and you an admin. You'll confirm first.")).toBeVisible();
 
-    await page.getByRole("link", { name: "Make Sam K. the owner" }).click();
+    await page.getByRole("link", { name: "Hand the club over to Sam K." }).click();
     const confirm = page.locator(".transfer-confirm");
     await expect(confirm).toContainText("Make Sam K. the owner of Saturday Club? You'll become an admin.");
     // The confirm URL carries a membership id, never a name.
-    expect(page.url()).toContain(`transfer=${c.members.sam}`);
+    expect(new URL(page.url()).pathname).toBe(`${url}/${c.members.sam}`);
     expect(decodeURIComponent(page.url())).not.toContain("Sam");
 
     await confirm.getByRole("link", { name: "Cancel" }).click();
@@ -221,7 +240,7 @@ test.describe("roles", () => {
       [c.members.sam]: "member",
     });
 
-    await page.getByRole("link", { name: "Make Sam K. the owner" }).click();
+    await page.getByRole("link", { name: "Hand the club over to Sam K." }).click();
     await page.locator(".transfer-confirm").getByRole("button", { name: "Make owner" }).click();
     await expect(page.locator("main").getByRole("status").first()).toHaveText("Done. You're an admin now.");
     expect(await rolesOf([c.members.owner, c.members.sam])).toEqual({
@@ -229,14 +248,14 @@ test.describe("roles", () => {
       [c.members.sam]: "owner",
     });
     // The old owner, now an admin: no role controls, still admin controls.
-    await expect(roleControls(page)).toHaveCount(0);
+    await expect(manageLinks(page)).toHaveCount(0);
     await ownerAdminControls(page, true);
 
     // The new owner has them.
     await signInAsUser(page, c.users.sam);
-    await page.goto(url);
+    await page.goto(`${url}/${c.members.owner}`);
     await expect(page.getByRole("button", { name: "Remove Olu S. as admin" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Make Olu S. the owner" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Hand the club over to Olu S." })).toBeVisible();
   });
 
   test("handing the club to someone who has since left is refused", async ({ page }) => {
@@ -244,8 +263,9 @@ test.describe("roles", () => {
       { key: "owner", name: "Oz L.", role: "owner" },
       { key: "lee", name: "Lee L.", role: "member" },
     ]);
+    const confirmUrl = `/clubs/${c.clubId}/members/${c.members.lee}?transfer=1`;
     await signInAsUser(page, c.users.owner);
-    await page.goto(`/clubs/${c.clubId}/members?transfer=${c.members.lee}`);
+    await page.goto(confirmUrl);
     await expect(page.locator(".transfer-confirm")).toContainText("Make Lee L. the owner of Leaving Club?");
     await withDb((db) =>
       db.update(schema.memberships).set({ leftAt: new Date() }).where(eq(schema.memberships.id, c.members.lee)),
@@ -256,8 +276,8 @@ test.describe("roles", () => {
       [c.members.owner]: "owner",
       [c.members.lee]: "member",
     });
-    // And a confirm link for them no longer shows a confirm card.
-    await page.goto(`/clubs/${c.clubId}/members?transfer=${c.members.lee}`);
-    await expect(page.locator(".transfer-confirm")).toHaveCount(0);
+    // And their page is gone, confirm and all (a request: a 404 page logs a
+    // console error).
+    expect((await page.request.get(confirmUrl)).status()).toBe(404);
   });
 });

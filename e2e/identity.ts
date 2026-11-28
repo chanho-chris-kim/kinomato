@@ -12,6 +12,7 @@ export async function expectYouAre(page: Page, name: string): Promise<void> {
 
 // The Members tab's member names, in order, each with "(you)" on the
 // viewer's own row.
+// The Members page's People list (u6): each person's name, with "(you)".
 export function memberNames(page: Page) {
-  return page.locator("main .member-name");
+  return page.locator("main .people-list .person-name");
 }

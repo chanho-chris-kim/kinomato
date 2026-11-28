@@ -6,6 +6,8 @@ import {
   getLockTime,
   getNomineesPerTurn,
   getShowVoteCounts,
+  groupSettingsFields,
+  isSettingsGroup,
   LOCK_TIME_HOURS,
   mergeClubSettings,
   readClubSettingsForm,
@@ -227,5 +229,41 @@ describe("mergeClubSettings", () => {
       autoAdvance: 48,
       showVoteCounts: true,
     });
+  });
+});
+
+describe("one settings group at a time (u6)", () => {
+  const stored = { nomineesPerTurn: 2, lockTime: 12, showVoteCounts: true, confirmAt: "same_night", autoAdvance: 168, other: "kept" };
+  const form = (values: Record<string, string>) => (key: string) => values[key] ?? null;
+
+  it("voting: its three fields from the form, the rest as stored", () => {
+    const fields = groupSettingsFields("voting", form({ nomineesPerTurn: "4", lockTime: "24" }), stored);
+    expect(fields).toEqual({ nomineesPerTurn: "4", lockTime: "24", showVoteCounts: null, confirmAt: "same_night", autoAdvance: "168" });
+    expect(readClubSettingsForm(fields)).toEqual({
+      ok: true,
+      settings: { nomineesPerTurn: 4, lockTime: 24, showVoteCounts: false, confirmAt: "same_night", autoAdvance: 168 },
+    });
+  });
+
+  it("after the night: its two fields from the form; the voting ones untouched, vote counts included", () => {
+    const fields = groupSettingsFields("after", form({ confirmAt: "manual_only", autoAdvance: "24", nomineesPerTurn: "9" }), stored);
+    expect(fields).toEqual({ nomineesPerTurn: "2", lockTime: "12", showVoteCounts: "on", confirmAt: "manual_only", autoAdvance: "24" });
+  });
+
+  it("a club with nothing stored falls back to the defaults for the other group", () => {
+    expect(groupSettingsFields("after", form({ confirmAt: "same_night", autoAdvance: "48" }), {})).toEqual({
+      nomineesPerTurn: "3",
+      lockTime: "24",
+      showVoteCounts: null,
+      confirmAt: "same_night",
+      autoAdvance: "48",
+    });
+  });
+
+  it("only the two groups exist", () => {
+    expect(isSettingsGroup("voting")).toBe(true);
+    expect(isSettingsGroup("after")).toBe(true);
+    expect(isSettingsGroup("club")).toBe(false);
+    expect(isSettingsGroup(undefined)).toBe(false);
   });
 });

@@ -205,13 +205,14 @@ test.describe("leaving and removal", () => {
     ]);
     const url = `/clubs/${c.clubId}/members`;
 
-    // An admin: Remove on plain members only.
+    // An admin: Remove on plain members only, from their page (u6).
     await signInAsUser(page, c.users.ari);
     await page.goto(url);
-    await expect(page.getByRole("link", { name: "Remove Mac R. from the club" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Remove Bea R. from the club" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Remove Oto R. from the club" })).toHaveCount(0);
-    await page.getByRole("link", { name: "Remove Mac R. from the club" }).click();
+    await expect(page.getByRole("link", { name: "Manage Mac R." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Manage Bea R." })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Manage Oto R." })).toHaveCount(0);
+    await page.getByRole("link", { name: "Manage Mac R." }).click();
+    await page.getByRole("link", { name: "Remove Mac R." }).click();
     await expect(page.locator(".remove-confirm")).toContainText(
       "Remove Mac R. from Remove Club? Their past picks, votes and ratings stay in its history.",
     );
@@ -244,12 +245,13 @@ test.describe("leaving and removal", () => {
     // The owner removes an admin.
     await signInAsUser(page, c.users.owner);
     await page.goto(url);
-    await page.getByRole("link", { name: "Remove Bea R. from the club" }).click();
+    await page.getByRole("link", { name: "Manage Bea R." }).click();
+    await page.getByRole("link", { name: "Remove Bea R." }).click();
     await page.locator(".remove-confirm").getByRole("button", { name: "Remove" }).click();
     await expect(page.locator("main").getByRole("status").first()).toHaveText("Removed.");
     expect((await membership(c.members.bea)).leftAt).not.toBeNull();
-    // No Remove on the owner's own card.
-    await expect(page.getByRole("link", { name: "Remove Oto R. from the club" })).toHaveCount(0);
+    // Nothing to manage on the owner's own row.
+    await expect(page.getByRole("link", { name: "Manage Oto R." })).toHaveCount(0);
 
     // Removed people see the club vanish and its pages 404.
     await signInAsUser(page, c.users.mac);
